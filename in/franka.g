@@ -1,4 +1,4 @@
-Include: '../../../rai-robotModels/panda/panda.g'
+Include: '../../rai-robotModels/panda/panda.g'
 
 ## zero position
 
@@ -35,7 +35,7 @@ Delete finger2
 #}
 
 # add robotiq
-Include: '../../../rai-robotModels/robotiq/robotiq.g'
+Include: '../../rai-robotModels/robotiq/robotiq.g'
 Edit robotiq_base (panda_joint8) { Q:[0 0 .05] }
 
 # filling the hole

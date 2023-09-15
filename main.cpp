@@ -2552,7 +2552,7 @@ int main(int argc, char **argv) {
       "verbosity", 0); // verbosity, does not do anything atm
 
   const bool plan_pick_and_place =
-      rai::getParameter<bool>("pnp", false); // pick and place yes/no
+      rai::getParameter<bool>("pnp", true); // pick and place yes/no
 
   // possible modes:
   // - test
@@ -2562,7 +2562,7 @@ int main(int argc, char **argv) {
   const rai::String mode =
       rai::getParameter<rai::String>("mode", "test"); // scenario
   const rai::String stippling_scenario =
-      rai::getParameter<rai::String>("stippling_pts", ""); // scenario
+      rai::getParameter<rai::String>("stippling_pts", "random"); // scenario
 
   const rai::String env =
       rai::getParameter<rai::String>("env", ""); // environment
