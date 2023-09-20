@@ -32,25 +32,36 @@ Flags:
 - env [lab/'']
 
 # To Do
-## Misc
+#### Misc
 - Ensure correct dependencies of rai/rai-robotModels: possibly make a submodule
+- Tests
 
-## Code
+#### Code
 - split main planning subroutine
 - fix loading and visualization of previously computed paths
+- get rid of warnings
 
-## Speed improvements
+#### Speed improvements
 - squeaky wheel planner
 - simulated annealing
 - speed up komo runs
 
-## Capabilities
+#### Capabilities
 - enable things that are not only 'go to point', e.g. drawing a line
+- Take multiple poses into account for 'go to point' tasks
 - enable search over sequences with precendence constraints
 - time-rescale path
 - enable multi-arm cooperation
 - look into more complex motion planning:
   - joint optimization
   - constrained sampling based planning
+  - inspired by the CMA-ES method?
 - more statistics
 - joint optimization over the whole path
+- reuse more computations (e.g., dummy paths)
+- better (closed form?) approximation of lower bound
+
+#### Execution
+- Replanning?
+- Controller synthesis
+- Optimizing for robustness

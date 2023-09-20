@@ -301,7 +301,8 @@ typedef std::vector<arr> TaskPoses;
 typedef std::map<std::string, std::vector<TaskPoses>> RobotTaskPoseMap;
 
 typedef std::string Robot;
-typedef std::pair<Robot, int> robot_task_pair;
+typedef int Task;
+typedef std::pair<Robot, Task> robot_task_pair;
 typedef std::vector<robot_task_pair> TaskSequence;
 
 TaskSequence generate_random_sequence(const std::vector<Robot> &robots,
@@ -415,6 +416,7 @@ TaskSequence generate_alternating_greedy_sequence(
 }
 
 // this is the solution of one task
+// TODO: add constraints that this task fulfills
 struct TaskPart {
   bool has_solution = false;
 
@@ -1115,7 +1117,8 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
     const TaskSequence &sequence, const uint start_index, const Plan prev_paths,
     const std::map<Robot, arr> &home_poses,
-    const uint best_makespan_so_far = 1e6) {
+    const uint best_makespan_so_far = 1e6,
+    const bool early_stopping = false) {
   rai::Configuration CPlanner = C;
   // C.watch(true);
 
@@ -1412,8 +1415,10 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
         const auto anim_part =
             make_animation_part(CPlanner, path.path, tmp_frames, start_time);
         path.anim = anim_part;
+        
+        // TODO: compute better estimate for early stopping
 
-        if (path.t(-1) > best_makespan_so_far) {
+        if (early_stopping && path.t(-1) > best_makespan_so_far) {
           std::cout << "Stopping early due to better prev. path. ("
                     << best_makespan_so_far << ")" << std::endl;
           return PlanResult(PlanStatus::aborted);
@@ -1621,7 +1626,7 @@ std::map<Robot, std::vector<TaskPart>> reoptimize_plan(rai::Configuration C, con
   const uint step_size = 20;
 
   OptOptions options;
-  options.stopIters = 25;
+  options.stopIters = 10;
   options.damping = 1e-3;
   options.stopLineSteps = 5;
 
@@ -1636,7 +1641,6 @@ std::map<Robot, std::vector<TaskPart>> reoptimize_plan(rai::Configuration C, con
     komo.add_collision(true, .001, 1e1);
     komo.add_qControlObjective({}, 2, 1e1);
     komo.add_qControlObjective({}, 1, 1e1);
-
 
     // start constraint
     if (i > 0){
