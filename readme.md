@@ -1,9 +1,10 @@
-This repository contains the code that was used for the paper "".
+This repository contains the code that was used for the paper "Towards computing low-makespan solutions for multi-arm multi-task planning problems".
+A writeup of the content can be found [here](https://vhartmann.com/low-makespan-tamp/), and the paper itself is [here](https://arxiv.org/abs/2305.17527).
 It is under active development, the version that was used to produce the result in the paper is tagged.
 
 # Installation
-The code depends on 'rai' and 'rai-robotModels', which can be found in [] and [].
-The path to rai needs to be added in the Makefile.
+The code depends on [rai](https://github.com/vhartman/rai) and [rai-robotModels](https://github.com/MarcToussaint/rai-robotModels).
+The path to rai needs to be added in the Makefile, and rai-robotModels should be in the same parent forlder as this project.
 
 Compilation then works with 
 ```
