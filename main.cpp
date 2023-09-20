@@ -1005,11 +1005,13 @@ struct PlanResult {
   Plan plan;
 };
 
-/*PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
-    const RobotTaskPoseMap &rtpm,
-    const std::map<Robot, FrameL> robot_frames, const uint best_makespan_so_far,
-    const std::map<Robot, arr> &home_poses, const uint prev_finishing_time, Plan
-&paths){
+PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
+                     const RobotTaskPoseMap &rtpm,
+                     const std::map<Robot, FrameL> robot_frames,
+                     const uint best_makespan_so_far,
+                     const std::map<Robot, arr> &home_poses,
+                     const uint prev_finishing_time, const bool early_stopping,
+                     Plan &paths) {
   // set robots to home pose
   for (const auto &r : home_poses) {
     setActive(CPlanner, r.first);
@@ -1020,36 +1022,212 @@ struct PlanResult {
   const Robot robot = rtp.first;
   const uint task = rtp.second;
 
+  bool is_bin_picking = false;
+  if (rtpm.at(robot)[task].size() > 1) {
+    is_bin_picking = true;
+  }
+
   // remove exit path
-  if (paths[robot].size() > 0 &&
-      prev_finishing_time < paths[robot].back().t(-1) + 1 + 25) {
+  bool removed_exit_path = false;
+  const uint max_start_time_shift = 35 * rtpm.at(robot)[task].size();
+  if (paths[robot].size() > 0 && paths[robot].back().is_exit &&
+      prev_finishing_time <
+          paths[robot].back().t(-1) + 1 + max_start_time_shift) {
+#if 0
+      // partial removal of the exit path
+      const uint max_time_diff = max_start_time_shift;
+      if (prev_finishing_time > max_time_diff && prev_finishing_time - paths[robot].back().t(0) + 1 > max_time_diff){
+        uint del_index = 0;
+        for (uint i=0; i<paths[robot].back().t.N; ++i){
+          if (paths[robot].back().t(i) == prev_finishing_time - max_time_diff){
+            del_index = i;
+            break;
+          }
+        }
+        std::cout << del_index << std::endl;
+        if (del_index > 0){
+          std::cout << "deleting parts of the prev. exit path" << std::endl;
+          std::cout << paths[robot].back().t << std::endl;
+
+          const uint n = paths[robot].back().t.N-del_index;
+          {
+            arr tmp;
+            tmp.resize(del_index,paths[robot].back().anim.X.d1, 7);
+            for (uint i=0; i<del_index; ++i){
+              tmp[i] = paths[robot].back().anim.X[i];
+            }
+            paths[robot].back().anim.X = tmp;
+          }
+          {
+            arr tmp;
+            tmp.resize(del_index);
+            for (uint i=0; i<del_index; ++i){
+              tmp(i) = paths[robot].back().t(i);
+            }
+            paths[robot].back().t = tmp;
+          }
+          {
+            arr tmp;
+            tmp.resize(del_index, paths[robot].back().path.d1);
+            for (uint i=0; i<del_index; ++i){
+              tmp[i] = paths[robot].back().path[i];
+            }
+            paths[robot].back().path = tmp;
+          }
+
+          std::cout << paths[robot].back().t << std::endl;
+        }
+      }
+      else{
+        std::cout << "removing exit path of " << robot << std::endl;
+        std::cout << "exit path end time: " << paths[robot].back().t(-1) << std::endl;
+        paths[robot].pop_back();
+      }
+
+      removed_exit_path = true;
+#else
+    std::cout << "removing exit path of " << robot << std::endl;
+    std::cout << "exit path end time: " << paths[robot].back().t(-1)
+              << std::endl;
     paths[robot].pop_back();
+
+    removed_exit_path = true;
+#endif
   }
 
-  arr start_pose;
-  uint start_time;
+  for (uint j = 0; j < rtpm.at(robot)[task].size(); ++j) {
+    arr start_pose;
+    uint start_time;
 
-  if (paths[robot].size() > 0) {
-    start_pose = paths[robot].back().path[-1];
-    start_time = paths[robot].back().t(-1) + 1;
-  } else {
-    start_pose = home_poses.at(robot);
-    start_time = 0;
+    if (paths[robot].size() > 0) {
+      start_pose = paths[robot].back().path[-1];
+      start_time = paths[robot].back().t(-1);
+    } else {
+      start_pose = home_poses.at(robot);
+      start_time = 0;
+
+      if (prev_finishing_time > max_start_time_shift + 1) {
+        start_time = prev_finishing_time - max_start_time_shift + 1;
+      }
+    }
+
+    std::cout << "start time " << start_time << std::endl;
+
+    if (!removed_exit_path &&
+        prev_finishing_time > start_time + max_start_time_shift + 1) {
+      start_time = prev_finishing_time - max_start_time_shift + 1;
+    }
+
+    const arr goal_pose = rtpm.at(robot)[task][j];
+    const uint time_lb = std::max(
+        {(j == rtpm.at(robot)[task].size() - 1) ? prev_finishing_time : 0,
+         start_time});
+
+    std::cout << "prev finishing time " << prev_finishing_time << std::endl;
+    std::cout << "new start time " << start_time << std::endl;
+    std::cout << "lower bound time " << time_lb << std::endl;
+
+    // make animation from path-parts
+    rai::Animation A;
+    for (const auto &p : paths) {
+      for (const auto path : p.second) {
+        A.A.append(path.anim);
+      }
+    }
+
+    if (false) {
+      for (uint i = 0; i < A.getT(); ++i) {
+        A.setToTime(CPlanner, i);
+        CPlanner.watch(false);
+        rai::wait(0.1);
+      }
+    }
+
+    // set configuration to plannable for current robot
+    std::cout << "setting up C" << std::endl;
+    setActive(CPlanner, robot);
+
+    auto path = plan_in_animation(A, CPlanner, start_time, start_pose,
+                                  goal_pose, time_lb, robot, false);
+
+    path.r = robot;
+    path.task_index = task;
+    path.name = "task";
+
+    if (path.has_solution) {
+      if (false) {
+        for (uint i = 0; i < path.path.d0; ++i) {
+          auto q = path.path[i];
+          CPlanner.setJointState(q);
+          CPlanner.watch(false);
+          rai::wait(0.01);
+        }
+        CPlanner.setJointState(home_poses.at(robot));
+      }
+      // make animation part
+      auto tmp_frames = robot_frames.at(robot);
+      // add obj. frame to the anim-part.
+      if (is_bin_picking) {
+        const auto obj = STRING("obj" << task + 1);
+        auto to = CPlanner[obj];
+        tmp_frames.append(to);
+      }
+      const auto anim_part =
+          make_animation_part(CPlanner, path.path, tmp_frames, start_time);
+      path.anim = anim_part;
+
+      // TODO: compute better estimate for early stopping
+
+      if (early_stopping && path.t(-1) > best_makespan_so_far) {
+        std::cout << "Stopping early due to better prev. path. ("
+                  << best_makespan_so_far << ")" << std::endl;
+        return PlanStatus::aborted;
+      }
+
+      paths[robot].push_back(path);
+    } else {
+      std::cout << "Was not able to find a path" << std::endl;
+      return PlanStatus::failed;
+    }
+
+    // re-link things if we are doing bin-picking
+    if (is_bin_picking) {
+      CPlanner.setJointState(path.path[-1]);
+      // CPlanner.watch(true);
+      const auto pen_tip = STRING(robot << "pen_tip");
+      const auto obj = STRING("obj" << task + 1);
+
+      if (j == 0) {
+        auto from = CPlanner[pen_tip];
+        auto to = CPlanner[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+        // to->joint->makeRigid();
+      }
+
+      if (j == 1) {
+        auto to = CPlanner[obj];
+        auto from = CPlanner["table_base"];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+        // to->joint->makeRigid();
+      }
+
+      // CPlanner.watch(true);
+    }
   }
 
-  std::cout << "start time " << start_time << std::endl;
+  std::cout << "planning exit path" << std::endl;
 
-  const arr goal_pose = rtpm.at(robot)[task][0];
+  const uint exit_start_time = paths[robot].back().t(-1);
+  const arr exit_path_start_pose = paths[robot].back().path[-1];
 
-  const uint time_lb = std::max({prev_finishing_time, start_time});
-
-  std::cout << "lb " << time_lb << std::endl;
-
-  if (time_lb > start_time && time_lb - start_time > 25) {
-    start_time = time_lb - 25;
-  }
-
-  // make animation from path-parts
   rai::Animation A;
   for (const auto &p : paths) {
     for (const auto path : p.second) {
@@ -1057,56 +1235,8 @@ struct PlanResult {
     }
   }
 
-  if (false) {
-    for (uint i = 0; i < prev_finishing_time; ++i) {
-      A.setToTime(CPlanner, i);
-      CPlanner.watch(false);
-      rai::wait(0.1);
-    }
-  }
-
-  // set configuration to plannable for current robot
-  std::cout << "setting up C" << std::endl;
-  setActive(CPlanner, robot);
-
-  auto path = plan_in_animation(A, CPlanner, start_time, start_pose,
-                                goal_pose, time_lb, robot, true);
-
-  path.r = robot;
-  path.task_index = task;
-  path.name = "task";
-
-  if (path.has_solution) {
-    if (false) {
-      for (uint i = 0; i < path.path.d0; ++i) {
-        auto q = path.path[i];
-        CPlanner.setJointState(q);
-        CPlanner.watch(false);
-        rai::wait(0.01);
-      }
-      CPlanner.setJointState(home_poses.at(robot));
-    }
-    // make animation part
-    const auto anim_part = make_animation_part(
-        CPlanner, path.path, robot_frames.at(robot), start_time);
-    path.anim = anim_part;
-
-    if (prev_finishing_time > best_makespan_so_far) {
-      std::cout << "Stopping early due to better prev. path. ("
-                << best_makespan_so_far << ")" << std::endl;
-      return PlanStatus::aborted;
-    }
-
-    paths[robot].push_back(path);
-  } else {
-    std::cout << "Was not able to find a path" << std::endl;
-    return PlanStatus::failed;
-  }
-
-  const uint exit_start_time = path.t(-1) + 1;
-
   auto exit_path =
-      plan_in_animation(A, CPlanner, exit_start_time, goal_pose,
+      plan_in_animation(A, CPlanner, exit_start_time, exit_path_start_pose,
                         home_poses.at(robot), exit_start_time, robot, true);
   exit_path.r = robot;
   exit_path.task_index = task;
@@ -1124,7 +1254,7 @@ struct PlanResult {
   }
 
   return PlanStatus::success;
-}*/
+}
 
 PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
@@ -1254,255 +1384,15 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
       }
     }
 
-    /*
+    // std::cout << "planning task " << task << " for robot " << robot << " as "
+    // << i
+    //        << " th task" << std::endl;
     const auto res = plan_task(CPlanner, sequence[i], rtpm, robot_frames,
-    best_makespan_so_far, home_poses, prev_finishing_time, paths);
+                               best_makespan_so_far, home_poses,
+                               prev_finishing_time, early_stopping, paths);
 
-    if (res != PlanStatus::success){
+    if (res != PlanStatus::success) {
       return PlanResult(res);
-    }*/
-
-    // set robots to home pose
-    for (const auto &r : home_poses) {
-      setActive(CPlanner, r.first);
-      CPlanner.setJointState(r.second);
-    }
-
-    // plan for current goal
-    const Robot robot = sequence[i].first;
-    const uint task = sequence[i].second;
-    std::cout << "planning task " << task << " for robot " << robot << " as "
-              << i << " th task" << std::endl;
-
-    bool is_bin_picking = false;
-    if (rtpm.at(robot)[task].size() > 1) {
-      is_bin_picking = true;
-    }
-
-    // remove exit path
-    bool removed_exit_path = false;
-    const uint max_start_time_shift = 35 * rtpm.at(robot)[task].size();
-    if (paths[robot].size() > 0 && paths[robot].back().is_exit &&
-        prev_finishing_time <
-            paths[robot].back().t(-1) + 1 + max_start_time_shift) {
-#if 0
-      // partial removal of the exit path
-      const uint max_time_diff = max_start_time_shift;
-      if (prev_finishing_time > max_time_diff && prev_finishing_time - paths[robot].back().t(0) + 1 > max_time_diff){
-        uint del_index = 0;
-        for (uint i=0; i<paths[robot].back().t.N; ++i){
-          if (paths[robot].back().t(i) == prev_finishing_time - max_time_diff){
-            del_index = i;
-            break;
-          }
-        }
-        std::cout << del_index << std::endl;
-        if (del_index > 0){
-          std::cout << "deleting parts of the prev. exit path" << std::endl;
-          std::cout << paths[robot].back().t << std::endl;
-
-          const uint n = paths[robot].back().t.N-del_index;
-          {
-            arr tmp;
-            tmp.resize(del_index,paths[robot].back().anim.X.d1, 7);
-            for (uint i=0; i<del_index; ++i){
-              tmp[i] = paths[robot].back().anim.X[i];
-            }
-            paths[robot].back().anim.X = tmp;
-          }
-          {
-            arr tmp;
-            tmp.resize(del_index);
-            for (uint i=0; i<del_index; ++i){
-              tmp(i) = paths[robot].back().t(i);
-            }
-            paths[robot].back().t = tmp;
-          }
-          {
-            arr tmp;
-            tmp.resize(del_index, paths[robot].back().path.d1);
-            for (uint i=0; i<del_index; ++i){
-              tmp[i] = paths[robot].back().path[i];
-            }
-            paths[robot].back().path = tmp;
-          }
-
-          std::cout << paths[robot].back().t << std::endl;
-        }
-      }
-      else{
-        std::cout << "removing exit path of " << robot << std::endl;
-        std::cout << "exit path end time: " << paths[robot].back().t(-1) << std::endl;
-        paths[robot].pop_back();
-      }
-
-      removed_exit_path = true;
-#else
-      std::cout << "removing exit path of " << robot << std::endl;
-      std::cout << "exit path end time: " << paths[robot].back().t(-1)
-                << std::endl;
-      paths[robot].pop_back();
-
-      removed_exit_path = true;
-#endif
-    }
-
-    for (uint j = 0; j < rtpm.at(robot)[task].size(); ++j) {
-      arr start_pose;
-      uint start_time;
-
-      if (paths[robot].size() > 0) {
-        start_pose = paths[robot].back().path[-1];
-        start_time = paths[robot].back().t(-1);
-      } else {
-        start_pose = home_poses.at(robot);
-        start_time = 0;
-
-        if (prev_finishing_time > max_start_time_shift + 1) {
-          start_time = prev_finishing_time - max_start_time_shift + 1;
-        }
-      }
-
-      std::cout << "start time " << start_time << std::endl;
-
-      if (!removed_exit_path &&
-          prev_finishing_time > start_time + max_start_time_shift + 1) {
-        start_time = prev_finishing_time - max_start_time_shift + 1;
-      }
-
-      const arr goal_pose = rtpm.at(robot)[task][j];
-      const uint time_lb = std::max(
-          {(j == rtpm.at(robot)[task].size() - 1) ? prev_finishing_time : 0,
-           start_time});
-
-      std::cout << "prev finishing time " << prev_finishing_time << std::endl;
-      std::cout << "new start time " << start_time << std::endl;
-      std::cout << "lower bound time " << time_lb << std::endl;
-
-      // make animation from path-parts
-      rai::Animation A;
-      for (const auto &p : paths) {
-        for (const auto path : p.second) {
-          A.A.append(path.anim);
-        }
-      }
-
-      if (false) {
-        for (uint i = 0; i < A.getT(); ++i) {
-          A.setToTime(CPlanner, i);
-          CPlanner.watch(false);
-          rai::wait(0.1);
-        }
-      }
-
-      // set configuration to plannable for current robot
-      std::cout << "setting up C" << std::endl;
-      setActive(CPlanner, robot);
-
-      auto path = plan_in_animation(A, CPlanner, start_time, start_pose,
-                                    goal_pose, time_lb, robot, false);
-
-      path.r = robot;
-      path.task_index = task;
-      path.name = "task";
-
-      if (path.has_solution) {
-        if (false) {
-          for (uint i = 0; i < path.path.d0; ++i) {
-            auto q = path.path[i];
-            CPlanner.setJointState(q);
-            CPlanner.watch(false);
-            rai::wait(0.01);
-          }
-          CPlanner.setJointState(home_poses.at(robot));
-        }
-        // make animation part
-        auto tmp_frames = robot_frames[robot];
-        // add obj. frame to the anim-part.
-        if (is_bin_picking) {
-          const auto obj = STRING("obj" << task + 1);
-          auto to = CPlanner[obj];
-          tmp_frames.append(to);
-        }
-        const auto anim_part =
-            make_animation_part(CPlanner, path.path, tmp_frames, start_time);
-        path.anim = anim_part;
-
-        // TODO: compute better estimate for early stopping
-
-        if (early_stopping && path.t(-1) > best_makespan_so_far) {
-          std::cout << "Stopping early due to better prev. path. ("
-                    << best_makespan_so_far << ")" << std::endl;
-          return PlanResult(PlanStatus::aborted);
-        }
-
-        paths[robot].push_back(path);
-      } else {
-        std::cout << "Was not able to find a path" << std::endl;
-        return PlanResult(PlanStatus::failed);
-      }
-
-      // re-link things if we are doing bin-picking
-      if (is_bin_picking) {
-        CPlanner.setJointState(path.path[-1]);
-        // CPlanner.watch(true);
-        const auto pen_tip = STRING(robot << "pen_tip");
-        const auto obj = STRING("obj" << task + 1);
-
-        if (j == 0) {
-          auto from = CPlanner[pen_tip];
-          auto to = CPlanner[obj];
-
-          to->unLink();
-
-          // create a new joint
-          to->linkFrom(from, true);
-          // to->joint->makeRigid();
-        }
-
-        if (j == 1) {
-          auto to = CPlanner[obj];
-          auto from = CPlanner["table_base"];
-
-          to->unLink();
-
-          // create a new joint
-          to->linkFrom(from, true);
-          // to->joint->makeRigid();
-        }
-
-        // CPlanner.watch(true);
-      }
-    }
-
-    std::cout << "planning exit path" << std::endl;
-
-    const uint exit_start_time = paths[robot].back().t(-1);
-    const arr exit_path_start_pose = paths[robot].back().path[-1];
-
-    rai::Animation A;
-    for (const auto &p : paths) {
-      for (const auto path : p.second) {
-        A.A.append(path.anim);
-      }
-    }
-
-    auto exit_path =
-        plan_in_animation(A, CPlanner, exit_start_time, exit_path_start_pose,
-                          home_poses.at(robot), exit_start_time, robot, true);
-    exit_path.r = robot;
-    exit_path.task_index = task;
-    exit_path.is_exit = true;
-    exit_path.name = "exit";
-
-    if (exit_path.has_solution) {
-      const auto exit_anim_part = make_animation_part(
-          CPlanner, exit_path.path, robot_frames[robot], exit_start_time);
-      exit_path.anim = exit_anim_part;
-      paths[robot].push_back(exit_path);
-    } else {
-      std::cout << "Was not able to find an exit path" << std::endl;
-      return PlanResult(PlanStatus::failed);
     }
   }
 
@@ -1528,11 +1418,12 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 PlanResult plan_multiple_arms_given_sequence(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
     const TaskSequence &sequence, const std::map<Robot, arr> &home_poses,
-    const uint best_makespan_so_far = 1e6) {
+    const uint best_makespan_so_far = 1e6, const bool early_stopping = false) {
 
   Plan paths;
   return plan_multiple_arms_given_subsequence_and_prev_plan(
-      C, rtpm, sequence, 0, paths, home_poses, best_makespan_so_far);
+      C, rtpm, sequence, 0, paths, home_poses, best_makespan_so_far,
+      early_stopping);
 }
 
 Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
@@ -2597,8 +2488,6 @@ std::map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
   for (auto r : robots) {
     setActive(C, r);
     poses[r] = C.getJointState();
-
-    // std::cout << poses[r] << std::endl;
   }
 
   return poses;
@@ -2606,89 +2495,7 @@ std::map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
 
 void load_and_viz(rai::Configuration C, const bool pick_and_place) {
   arr path;
-  // const std::string filepath =
-  // "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/grid/greedy_20230328_000824/139/robot_controls.txt";
-  // const std::string filepath =
-  // "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/lis/greedy_20230329_000242/86/robot_controls.txt";
-  // const std::string filepath =
-  // "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/lis/greedy_20230329_103317/1/robot_controls.txt";
 
-  // for bin picking:
-  // robot, obj, start, end
-  // for points
-  // robot end
-  // const std::string filepath =
-  // "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/bin/greedy_20230328_211219/29/robot_controls.txt";
-  /*std::vector<std::vector<uint>> timings;
-  timings.push_back({0, 0, 22, 53});
-  timings.push_back({0, 5, 92, 137});
-  timings.push_back({0, 3, 151, 214});
-  timings.push_back({0, 2, 233, 263});
-
-  timings.push_back({1, 1, 110, 179});
-  timings.push_back({1, 4, 218, 277});*/
-
-  /*const std::string filepath =
-  "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/bin/greedy_20230330_005636/19/robot_controls.txt";
-  std::vector<std::vector<uint>> timings;
-  timings.push_back({0, 5, 24, 69});
-  timings.push_back({0, 0, 107, 138});
-  timings.push_back({0, 3, 159, 220});
-  timings.push_back({0, 2, 239, 269});
-
-  timings.push_back({1, 1, 111, 170});
-  timings.push_back({1, 4, 221, 269});*/
-
-  /*
-  const std::string filepath =
-  "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/grid_four/opt/greedy_20230331_020353/3/robot_controls.txt";
-  std::vector<std::vector<uint>> timings;
-  timings.push_back({0, 39});
-  timings.push_back({0, 101});
-  timings.push_back({0, 184});
-  timings.push_back({0, 252});
-  timings.push_back({0, 295});
-
-  timings.push_back({1, 56});
-  timings.push_back({1, 143});
-  timings.push_back({1, 207});
-  timings.push_back({1, 260});
-
-  timings.push_back({2, 76});
-  timings.push_back({2, 157});
-  timings.push_back({2, 221});
-
-  timings.push_back({3, 32});
-  timings.push_back({3, 89});
-  timings.push_back({3, 172});
-  timings.push_back({3, 221});
-  */
-
-  // greedy
-  /*const std::string filepath =
-  "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/grid_four/opt/greedy_20230331_165530/1/robot_controls.txt";
-  std::vector<std::vector<uint>> timings;
-  timings.push_back({0, 25});
-  timings.push_back({0, 64});
-  timings.push_back({0, 123});
-  timings.push_back({0, 214});
-
-  timings.push_back({1, 46});
-  timings.push_back({1, 68});
-  timings.push_back({1, 142});
-  timings.push_back({1, 225});
-
-  timings.push_back({2, 48});
-  timings.push_back({2, 97});
-  timings.push_back({2, 156});
-
-  timings.push_back({3, 26});
-  timings.push_back({3, 65});
-  timings.push_back({3, 96});
-  timings.push_back({3, 182});
-  timings.push_back({3, 235});*/
-
-  // opt
   const std::string filepath =
       "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/"
       "greedy_20230401_010325/17/robot_controls.txt";
@@ -2787,46 +2594,6 @@ void load_and_viz(rai::Configuration C, const bool pick_and_place) {
   }
 }
 
-arr get_scenario(const rai::String &str) {
-  // const arr pts = grid(2, 2, 0.4, 0.1);
-  // const arr pts = grid(2, 3, 0.4, 0.1);
-
-  arr pts;
-  if (str == "default_grid") {
-    pts = grid();
-  } else if (str == "four_by_four_grid") {
-    pts = grid(4, 4);
-  } else if (str == "three_by_three_grid") {
-    pts = grid(3, 3);
-  } else if (str == "three_by_two_grid") {
-    pts = grid(3, 2);
-  } else if (str == "two_by_two_grid") {
-    pts = grid(2, 2);
-  } else if (str == "spiral") {
-    pts = spiral();
-  } else if (str == "random") {
-    pts = randomPts();
-  } else if (str == "cube") {
-    pts = cube(200);
-  } else if (str == "circles") {
-    pts = circles(0.3, 7);
-  } else if (str == "lis_default") {
-    pts = LISlogo(false);
-  } else if (str == "lis_large") {
-    pts = LISlogo(true);
-  } else if (str == "greedy_counterexample") {
-    pts = greedy_counterexample();
-  } else if (str == "four_robot_test_1") {
-    pts = grid(2, 2, 0.05, 0.05);
-  } else if (str == "four_robot_test_2") {
-    pts = grid(2, 2, 0.7, 0.05);
-  } else {
-    std::cout << "Scenario not found" << std::endl;
-  }
-
-  return pts;
-}
-
 int main(int argc, char **argv) {
   rai::initCmdLine(argc, argv);
   const uint seed = rai::getParameter<double>("seed", 42); // seed
@@ -2839,6 +2606,7 @@ int main(int argc, char **argv) {
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
 
   // possible modes:
+  // - benchmark
   // - test
   // - optimize
   // - show scenario
@@ -2879,7 +2647,7 @@ int main(int argc, char **argv) {
   // stippling
   RobotTaskPoseMap robot_task_pose_mapping;
   if (!plan_pick_and_place) {
-    const arr pts = get_scenario(stippling_scenario);
+    const arr pts = get_stippling_scenario(stippling_scenario);
     if (pts.N == 0) {
       return 0;
     }
@@ -2908,6 +2676,12 @@ int main(int argc, char **argv) {
     // rerun optimizer
     const auto optimized_plan = reoptimize_plan(C, plan, home_poses);
     visualize_plan(C, optimized_plan);
+
+    // export plan
+    // export_plan(robots, home_poses, new_plan, new_seq, buffer.str(), iter,
+    //                duration);
+  } else if (mode == "performance_benchmark") {
+  } else if (mode == "optimization_benchmark") {
   } else if (mode == "random_search") {
     // random search
     const auto plan = plan_multiple_arms_random_search(
