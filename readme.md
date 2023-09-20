@@ -66,3 +66,17 @@ Flags:
 - Replanning?
 - Controller synthesis
 - Optimizing for robustness
+
+# Citation
+If you use this codebase in your research, please cite the paper where the codebase is from as
+
+```
+@misc{23-hartmann-ICAPSws-robplan,
+  title = {Towards computing low-makespan solutions for multi-arm
+  		  multi-task planning problems},
+  author = {Hartmann, Valentin N. and Toussaint, Marc},
+  year = {2023},
+  howpublished = {ICAPS Workshop on Planning and Robotics},
+  arxiv_pdf = {2305.17527}
+}
+```
