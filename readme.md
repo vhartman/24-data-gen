@@ -36,6 +36,8 @@ Flags:
 #### Misc
 - Ensure correct dependencies of rai/rai-robotModels: possibly make a submodule
 - Tests
+- Performance benchmark to ensure changes improve things
+- Optimization benchmark to compare different search approaches
 
 #### Code
 - split main planning subroutine
@@ -46,6 +48,7 @@ Flags:
 - squeaky wheel planner
 - simulated annealing
 - speed up komo runs
+- more sensible search approach: use the fact that we can cache the end
 
 #### Capabilities
 - enable things that are not only 'go to point', e.g. drawing a line

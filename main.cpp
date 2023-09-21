@@ -2557,7 +2557,67 @@ void load_and_viz(rai::Configuration C, const bool pick_and_place) {
   }
 }
 
+void line_test(){
+  rai::Configuration C;
+  labSetting(C);
+
+  std::vector<arr> line;
+  for (uint i=0; i<20; ++i){
+    line.push_back({-0.2 + 0.4 * i / 20., 0.1});
+  }
+
+  rai::String prefix = "a1_";
+
+  OptOptions options;
+  options.stopIters = 100;
+  options.damping = 1e-3;
+  options.stopLineSteps = 5;
+
+  const uint horizon_length = 50;
+
+  KOMO komo;
+  komo.setModel(C, true);
+  komo.setTiming(1., horizon_length, 1, 2);
+  komo.verbose = 0;
+  komo.solver = rai::KS_sparse;
+
+  komo.add_collision(true, .001, 1e1);
+  komo.add_qControlObjective({}, 2, 1e1);
+  komo.add_qControlObjective({}, 1, 1e1);
+
+  // velocity 0
+  komo.addObjective({0.5, 0.5},
+                    FS_qItself,
+                    {}, OT_eq, {1e1}, {}, 1);
+
+  komo.addObjective({0.7, 0.7},
+                    FS_qItself,
+                    {}, OT_eq, {1e1}, {}, 1);
+
+  for (uint i=0; i<line.size(); ++i){
+    const arr pt = C["table"]->getPosition() + ARR(line[i](0), line[i](1), 0.075);
+    double constr_time = 0.5 + 1.*i/horizon_length*2;
+
+    komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_position, {STRING(prefix << "pen_tip")}, OT_eq,
+                      {1e1}, pt);
+
+    komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
+                      {1e0}, {0., 0., -1.});
+  }
+
+  komo.run_prepare(0.0);
+  komo.run();
+  komo.pathConfig.watch(true);
+
+  for (uint i = 0; i <  horizon_length; ++i) {
+    C.setJointState(komo.getPath_q(i));
+    C.watch(true);
+    rai::wait(0.01);
+  }
+}
+
 int main(int argc, char **argv) {
+
   rai::initCmdLine(argc, argv);
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
@@ -2604,6 +2664,11 @@ int main(int argc, char **argv) {
   // show prev path
   if (mode == "show_plan") {
     load_and_viz(C, plan_pick_and_place);
+    return 0;
+  }
+
+  if (mode == "line_test"){
+    line_test();
     return 0;
   }
 
