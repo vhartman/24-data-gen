@@ -673,7 +673,7 @@ TaskPart plan_in_animation_komo(const rai::Animation &A, rai::Configuration &C,
       return TaskPart();
     }
 
-    if (max_speed < VMAX && eq < 1.5 && ineq < 1.5) {
+    if (max_speed <= VMAX && eq < 1.5 && ineq < 1.5) {
       std::cout << "done, accepting komo. ineq: " << ineq << " eq. " << eq
                 << std::endl;
       return TaskPart(ts, path);
@@ -819,6 +819,7 @@ TaskPart plan_in_animation_rrt(const rai::Animation &A, rai::Configuration &C,
   }
 
   // shortcutting
+  std::cout << "shortcutting" << std::endl;
   const arr new_path = partial_shortcut(TP, path, t0);
 
   // std::cout << new_path[-1] << "\n" << q1 << std::endl;
@@ -1033,66 +1034,12 @@ PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
   if (paths[robot].size() > 0 && paths[robot].back().is_exit &&
       prev_finishing_time <
           paths[robot].back().t(-1) + 1 + max_start_time_shift) {
-#if 0
-      // partial removal of the exit path
-      const uint max_time_diff = max_start_time_shift;
-      if (prev_finishing_time > max_time_diff && prev_finishing_time - paths[robot].back().t(0) + 1 > max_time_diff){
-        uint del_index = 0;
-        for (uint i=0; i<paths[robot].back().t.N; ++i){
-          if (paths[robot].back().t(i) == prev_finishing_time - max_time_diff){
-            del_index = i;
-            break;
-          }
-        }
-        std::cout << del_index << std::endl;
-        if (del_index > 0){
-          std::cout << "deleting parts of the prev. exit path" << std::endl;
-          std::cout << paths[robot].back().t << std::endl;
-
-          const uint n = paths[robot].back().t.N-del_index;
-          {
-            arr tmp;
-            tmp.resize(del_index,paths[robot].back().anim.X.d1, 7);
-            for (uint i=0; i<del_index; ++i){
-              tmp[i] = paths[robot].back().anim.X[i];
-            }
-            paths[robot].back().anim.X = tmp;
-          }
-          {
-            arr tmp;
-            tmp.resize(del_index);
-            for (uint i=0; i<del_index; ++i){
-              tmp(i) = paths[robot].back().t(i);
-            }
-            paths[robot].back().t = tmp;
-          }
-          {
-            arr tmp;
-            tmp.resize(del_index, paths[robot].back().path.d1);
-            for (uint i=0; i<del_index; ++i){
-              tmp[i] = paths[robot].back().path[i];
-            }
-            paths[robot].back().path = tmp;
-          }
-
-          std::cout << paths[robot].back().t << std::endl;
-        }
-      }
-      else{
-        std::cout << "removing exit path of " << robot << std::endl;
-        std::cout << "exit path end time: " << paths[robot].back().t(-1) << std::endl;
-        paths[robot].pop_back();
-      }
-
-      removed_exit_path = true;
-#else
     std::cout << "removing exit path of " << robot << std::endl;
     std::cout << "exit path end time: " << paths[robot].back().t(-1)
               << std::endl;
     paths[robot].pop_back();
 
     removed_exit_path = true;
-#endif
   }
 
   for (uint j = 0; j < rtpm.at(robot)[task].size(); ++j) {
@@ -1176,8 +1123,6 @@ PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
           make_animation_part(CPlanner, path.path, tmp_frames, start_time);
       path.anim = anim_part;
 
-      // TODO: compute better estimate for early stopping
-
       if (early_stopping && path.t(-1) > best_makespan_so_far) {
         std::cout << "Stopping early due to better prev. path. ("
                   << best_makespan_so_far << ")" << std::endl;
@@ -1254,6 +1199,17 @@ PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
   }
 
   return PlanStatus::success;
+}
+
+double
+get_makespan_from_plan(const std::map<Robot, std::vector<TaskPart>> &plan) {
+  double max_time = 0.;
+  for (const auto &robot_plan : plan) {
+    const auto last_subpath = robot_plan.second.back();
+    max_time = std::max({last_subpath.t(-1), max_time});
+  }
+
+  return max_time;
 }
 
 PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
@@ -1391,6 +1347,15 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
                                best_makespan_so_far, home_poses,
                                prev_finishing_time, early_stopping, paths);
 
+    // TODO: compute better estimate for early stopping
+    const uint current_makespan = get_makespan_from_plan(paths);
+    const uint lb_remaining_makespan = 0;
+    const uint estimated_makespan = current_makespan + lb_remaining_makespan;
+
+    if (early_stopping && estimated_makespan > best_makespan_so_far) {
+      return PlanResult(PlanStatus::aborted);
+    }
+
     if (res != PlanStatus::success) {
       return PlanResult(res);
     }
@@ -1442,17 +1407,6 @@ Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
   const auto plan_result =
       plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
   return plan_result.plan;
-}
-
-double
-get_makespan_from_plan(const std::map<Robot, std::vector<TaskPart>> &plan) {
-  double max_time = 0.;
-  for (const auto &robot_plan : plan) {
-    const auto last_subpath = robot_plan.second.back();
-    max_time = std::max({last_subpath.t(-1), max_time});
-  }
-
-  return max_time;
 }
 
 arr get_robot_pose_at_time(const uint t, const Robot r,
@@ -1733,6 +1687,25 @@ p.second) { A.A.append(path.anim);
   return scaled_plan;
 }*/
 
+double estimate_task_duration(const arr &start_pose, const arr &goal_pose,
+                              const double max_vel, const double max_acc) {
+  const double max_dist = absMax(goal_pose - start_pose);
+  const double time_to_accelerate = max_vel / max_acc;
+  const double acc_dist = 0.5 * max_vel * max_vel / max_acc * 2;
+
+  double dt = 0;
+  if (acc_dist > max_dist) {
+    // this is wrong
+    std::cout << "using acc. timing only" << std::endl;
+    dt = 2 * time_to_accelerate;
+  } else {
+    std::cout << "using acc. timing and max-vel" << std::endl;
+    dt = (max_dist - acc_dist) / max_vel + 2 * time_to_accelerate;
+  }
+
+  return dt;
+}
+
 double compute_lb_for_sequence(const TaskSequence &seq,
                                const RobotTaskPoseMap &rtpm,
                                const std::map<Robot, arr> &start_poses,
@@ -1759,25 +1732,14 @@ double compute_lb_for_sequence(const TaskSequence &seq,
     const arr start_pose = robot_pos[robot];
     const arr goal_pose = rtpm.at(robot)[task_index][0];
 
-    // const arr dist = goal_pose - start_pose;
-    // std::cout << goal_pose - start_pose << std::endl;
-    const double max_dist = absMax(goal_pose - start_pose);
     const double max_acc = 0.1;
-    const double time_to_accelerate = VMAX / max_acc;
-    const double acc_dist = 0.5 * VMAX * VMAX / max_acc * 2;
 
-    double dt = 0;
-    if (acc_dist > max_dist) {
-      // this is wrong
-      std::cout << "using acc. timing only" << std::endl;
-      dt = 2 * time_to_accelerate;
-    } else {
-      std::cout << "using acc. timing and max-vel" << std::endl;
-      dt = (max_dist - acc_dist) / VMAX + 2 * time_to_accelerate;
-    }
-
+    const double dt =
+        estimate_task_duration(start_pose, goal_pose, VMAX, max_acc);
     robot_time[robot] += dt;
 
+    // since we know that there is a precendence constraint on the task-completion-order
+    // we set the time to the highest current time if it was lower than that
     for (const auto &rt : robot_time) {
       if (robot_time[robot] < rt.second) {
         robot_time[robot] = rt.second;
@@ -1787,6 +1749,7 @@ double compute_lb_for_sequence(const TaskSequence &seq,
     robot_pos[robot] = goal_pose;
   }
 
+  // extract the maximum time of all the robot times
   double max = 0;
   for (const auto rt : robot_time) {
     if (max < rt.second) {
