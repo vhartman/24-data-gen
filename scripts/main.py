@@ -2,12 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import os
+import argparse
 
 plt.style.use('./scripts/paper_2.mplstyle')
 
 def read_integer_from_file(filename):
     tmp = open(filename, "r")
     return int(tmp.read())
+
+def read_float_from_file(filename):
+    tmp = open(filename, "r")
+    return float(tmp.read())
 
 def load_folder(folder, time_offset = 0, iter_offset = 0):
     subfolders = [ f.path for f in os.scandir(folder) if f.is_dir() ]
@@ -16,8 +21,8 @@ def load_folder(folder, time_offset = 0, iter_offset = 0):
     for f in subfolders:
         if f.split('/')[-1] != "info":
             if os.path.exists(f + "/makespan.txt"):
-                makespan = read_integer_from_file(f + "/makespan.txt")
-                time = read_integer_from_file(f + "/comptime.txt") + time_offset
+                makespan = read_float_from_file(f + "/makespan.txt")
+                time = read_float_from_file(f + "/comptime.txt") + time_offset
                 iteration = int(f.split('/')[-1]) + iter_offset
 
                 d.append((time, makespan, iteration))
@@ -176,46 +181,30 @@ def plot_experiments():
     plot_lis_exp()
 
 def main():
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230324_181414/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230324_203952/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230325_001644/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230325_002536/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230327_180715/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230327_184654/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230327_200637/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230328_000824/"
-    #data = load_folder(foldername)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--folder', type=str, nargs='?', help='The folder we want to have a look at.')
 
-    #for i, iteration in enumerate(iters):
-    #    if (iteration-1)%20 == 0:
-    #        plt.plot([x[i], x[i]], [250, 350], color='black', alpha=0.5, ls='--')
+    args = parser.parse_args()
+    foldername = args.folder
 
-    # grid experiments
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230329_212744/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230329_213220/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/lislarge/greedy_20230330_005814/"
-    foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/exp/lislarge/greedy_20230330_110223/"
-    #foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230330_005636/"
-    #foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230330_110223/"
-    if True:
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 1, 1)
+    if foldername is None:
+        foldername = "/home/valentin/git/personal-projects/24-data-gen/out/greedy_20240124_155612/"
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    plot_folder(ax, foldername)
 
-        foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230331_181739/"
-        foldername = "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/greedy_20230401_010325/"
-        plot_folder(ax, foldername)
+    plt.xlabel('Computation time [h]')
+    plt.ylabel('Makespan')
 
-        plt.xlabel('Computation time [h]')
-        plt.ylabel('Makespan')
-
-        plt.grid(which='major', axis='y', ls='--')
-        tmp = foldername.split("/")[-2]
-        #plt.savefig(f'./out/plots/{tmp}.pdf', format='pdf', dpi=300, bbox_inches = 'tight')
+    plt.grid(which='major', axis='y', ls='--')
+    tmp = foldername.split("/")[-2]
+    #plt.savefig(f'./out/plots/{tmp}.pdf', format='pdf', dpi=300, bbox_inches = 'tight')
 
     #plot_bin_pick_exp()
     #plot_experiments()
     #plot_lislarge_exp()
-    plot_four_arm_grid()
+    #plot_four_arm_grid()
 
     plt.show()
 

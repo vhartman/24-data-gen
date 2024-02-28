@@ -27,7 +27,7 @@ def visualize_controls(filename):
 
 def main():
     controls_file = "/home/valentin/git/personal-projects/23-sim-an/out/simulated_annealing_20230919_114921/4/robot_controls.txt"
-    controls_file = "/home/valentin/git/personal-projects/23-sim-an/out/exp/lislarge/greedy_20230330_110223/60/robot_controls.txt"
+    controls_file = "/home/valentin/git/personal-projects/23-sim-an/out/greedy_20230921_142837/1/robot_controls.txt"
     visualize_controls(controls_file)
 
 if __name__ == "__main__":

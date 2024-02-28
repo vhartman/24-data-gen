@@ -1,5 +1,13 @@
 #pragma once
 
+#include <Manip/timedPath.h>
+#include <KOMO/komo.h>
+#include <Geo/fclInterface.h>
+
+#include <PlanningSubroutines/ConfigurationProblem.h>
+
+#include "util.h"
+
 arr constructShortcutPath(const rai::Configuration &C, const arr &path,
                           const uint i, const uint j,
                           const std::vector<uint> short_ind) {
@@ -62,11 +70,14 @@ const double pathLength(const arr &path) {
   return cost;
 }
 
-arr partial_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
+arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
                      const uint t0) {
   if (TP.A.prePlannedFrames.N != 0) {
     return initialPath;
   }
+
+  // TP.C.fcl()->stopEarly = false;
+  TP.C.fcl()->stopEarly = true;
 
   arr smoothedPath = initialPath;
   /*for (uint i=0; i<smoothedPath.d0; i+=4){
@@ -78,7 +89,8 @@ arr partial_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
   costs.push_back(pathLength(initialPath));
 
   const uint max_iter = 100;
-  const uint resolution = 1;
+  // const uint resolution = 2;
+  const double resolution = 0.1;
   // const uint max_iter = 100;
   // const uint resolution = 5;
   for (uint k = 0; k < max_iter; ++k) {
@@ -93,54 +105,61 @@ arr partial_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
       std::swap(i, j);
     }
 
-    // choose, which indices to shortcut
+    // choose which indices to shortcut
     std::vector<uint> ind;
     for (uint q = 0; q < smoothedPath.d1; ++q) {
       const double r = 1. * rand() / RAND_MAX;
-      if (r > 1. / smoothedPath.d1) {
+      //if (r > 1. / smoothedPath.d1) {
         ind.push_back(q);
-      }
+      //}
     }
 
     // construct the new path
     auto p = constructShortcutPath(TP.C, smoothedPath, i, j, {});
     auto ps = constructShortcutPath(TP.C, smoothedPath, i, j, ind);
 
-    bool shortcutFeasible = true;
-
-    // hack, since I didnt wanna move my projection method
-    PathFinder_RRT_Time planner(TP);
-
     const double len = pathLength(ps);
 
+    // if the path length of the shortcut path is not shorter than the original one, don't consider it
+    if (pathLength(p) <= len){
+      continue;
+    }
+
     // check if the new path is feasible (interpolate)
+    // permute the indices that we check
     uintA q;
     q.setStraightPerm(j - i - 1);
     q.permuteRandomly();
 
-    for (uint n : q) {
+    // enable not checking everything here
+    bool shortcutFeasible = true;
+    for (const uint n : q) {
       const arr dir = ps[n + 1] - ps[n];
-      for (uint l = 0; l < resolution; ++l) {
+      const double dist = length(dir);
+      const uint num_pts = uint(std::max(dist / resolution, 1.));
+      for (uint l = 0; l < num_pts; ++l) {
         const double interp = corput(l);
         const arr point = ps[n] + dir * interp;
         const double t = t0 + i + n + interp;
 
-        const auto qr = planner.TP.query(point, t);
+        const auto qr = TP.query(point, t);
         if (!qr->isFeasible) {
           shortcutFeasible = false;
           break;
         }
       }
+      if (!shortcutFeasible){break;}
     }
 
-    // check if the new path is shorter
-    if (shortcutFeasible && pathLength(p) > len) {
+    // if path is valid, copy it over
+    // we already know that it is shorter (from the check above)
+    if (shortcutFeasible) {
       for (uint n = 1; n < j - i; ++n) {
         smoothedPath[i + n] = ps[n];
       }
     }
 
-    auto c = pathLength(smoothedPath);
+    const auto c = pathLength(smoothedPath);
     costs.push_back(c);
 
     // proxy measure for convergence
@@ -157,16 +176,35 @@ arr partial_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
   return smoothedPath;
 }
 
+// this currently happens in full resolution, this tends to be slow
+// mostly due to the necessary collision checks that are done
 arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
               const arr &path, const std::string prefix) {
-  OptOptions options;
-  options.stopIters = 100;
-  options.damping = 1e-3;
+  const double skip = 1;
+  const uint num_timesteps = ts.N / skip;
 
-  std::cout << "setting up komo" << std::endl;
+  arr scaled_ts(num_timesteps);
+  for (uint i=0; i<num_timesteps; ++i){
+    scaled_ts(i) = ts(0) + (ts(-1) - ts(0)) / (num_timesteps-1) * i;
+  }
+
+  TimedPath tp(path, ts);
+  const arr scaled_path = tp.resample(scaled_ts, C);
+
+  OptOptions options;
+  options.stopIters = 50;
+  options.damping = 1e-3;
+  options.stopTolerance = 0.01;
+
+  auto pairs = get_cant_collide_pairs(C);
+  C.fcl()->deactivatePairs(pairs);
+
+  std::cout << "setting up komo for smoothing" << std::endl;
   KOMO komo;
   komo.setModel(C, true);
-  komo.setTiming(1., ts.N, 5, 2);
+  komo.setTiming(1., num_timesteps, 5, 2);
+  komo.world.fcl()->stopEarly = false;
+
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
@@ -193,19 +231,23 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   // speed
   // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
   //                  1); // slow at beginning
-  komo.addObjective({0.95, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.97, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
                     1); // slow at end
 
   // acceleration
   // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
   //                  2); // slow at beginning
-  komo.addObjective({0.95, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.97, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
                     2); // slow at end
 
-  setKomoToAnimation(komo, C, A, ts);
+  setKomoToAnimation(komo, C, A, scaled_ts);
 
-  for (uint j = 0; j < ts.d0; ++j) {
-    komo.setConfiguration(j, path[j]);
+  for (uint j = 0; j < num_timesteps; ++j) {
+    // interpolate q
+    //arr q = path[next_idx] - path[prev_idx];
+    //const arr q = path[j*skip];
+    const arr q = scaled_path[j];
+    komo.setConfiguration(j, q);
   }
 
   std::cout << "running komo" << std::endl;
@@ -219,22 +261,25 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   std::cout << "smoothing komo ineq: " << ineq << " eq: " << eq << std::endl;
 
   // if (eq > 2 || ineq > 2){
-  komo.getReport(true);
+  // komo.getReport(true);
   // komo.pathConfig.watch(true);
   //}
 
   // komo.pathConfig.watch(true);
 
   // check if the path is actually feasible
-  arr smooth(ts.N, path[0].N);
-  for (uint j = 0; j < ts.N; ++j) {
+  arr smooth(scaled_ts.N, path[0].N);
+  for (uint j = 0; j < scaled_ts.N; ++j) {
     smooth[j] = komo.getPath_q(j);
   }
-
+  
   // force boundary conditions to be true
   smooth[0] = path[0];
   smooth[-1] = path[-1];
 
-  return smooth;
+  TimedPath tp_smooth(smooth, scaled_ts);
+  arr unscaled_path = tp_smooth.resample(ts, C);
+
+  return unscaled_path;
 }
 

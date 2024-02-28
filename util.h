@@ -1,5 +1,35 @@
 #pragma once
 
+#include <numeric>
+
+rai::Animation::AnimationPart make_animation_part(rai::Configuration &C,
+                                                  const arr &path,
+                                                  const FrameL &frames,
+                                                  const uint t_start) {
+  rai::Animation::AnimationPart anim;
+
+  StringA frameNames;
+  for (auto f : frames) {
+    frameNames.append(f->name);
+  }
+
+  anim.start = t_start;
+  anim.frameIDs = framesToIndices(frames);
+  anim.frameNames = frameNames;
+
+  const uint dt = path.d0;
+  anim.X.resize(dt, frames.N, 7);
+
+  arr q;
+  for (uint i = 0; i < path.d0; ++i) {
+    q = path[i];
+    C.setJointState(q);
+    // C.watch(true);
+    anim.X[i] = C.getFrameState(frames);
+  }
+  return anim;
+}
+
 std::vector<uint> straightPerm(const uint n) {
   std::vector<uint> indices(n);
   std::iota(std::begin(indices), std::end(indices), 0);

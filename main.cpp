@@ -23,15 +23,23 @@
 #include <GL/gl.h>
 #include <Gui/opengl.h>
 
+#include "json.h"
+
 #include <PlanningSubroutines/Animation.h>
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
-#include "line.h"
+#include "plan.h"
 
 #include "env_util.h"
 #include "path_util.h"
-#include "stippling_util.h"
+#include "stippling.h"
 #include "util.h"
+
+#include "planners/optimal_planner.h"
+#include "planners/prioritized_planner.h"
+#include "planners/planner.h"
+
+#include "samplers/sampler.h"
 
 // TODO:
 // Code
@@ -54,186 +62,7 @@
 // - more statistics
 // - joint optimization over the whole path
 
-arr sampleConfigurationForRobot(KOMO &komo, const arr &point,
-                                const std::string &prefix, bool rnd = false,
-                                bool ineq = false) {
-  OptOptions options;
-  options.stopIters = 100;
-  options.damping = 1e-3;
-
-  komo.setDiscreteOpt(1);
-
-  // komo.world.stepSwift();
-
-  komo.add_collision(true, .01, 1e1);
-  komo.add_jointLimits(true, 0., 1e1);
-
-  komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")}, OT_eq,
-                    {1e2}, point);
-
-  if (!ineq) {
-    komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-                      {1e1}, {0., 0., -1.});
-  } else {
-    komo.addObjective({1.}, FS_scalarProductZZ,
-                      {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1},
-                      {-cos(15 * 3.1415 / 180.)});
-  }
-  // komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-  // {1e1}, {0., 0., -1.}); komo.addObjective({1.}, FS_vectorZDiff,
-  // {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1}, {0., 0., -0.9});
-  ConfigurationProblem cp(komo.world);
-  setActive(cp.C, prefix);
-
-  for (uint i = 0; i < 10; ++i) {
-    if (rnd) {
-      komo.run_prepare(0.1, false);
-    } else {
-      komo.run_prepare(0.0, true);
-    }
-    komo.run(options);
-
-    const arr q = komo.getPath()[0]();
-    // komo.pathConfig.watch(true);
-
-    // ensure via sampling as well
-    const bool res = cp.query(q)->isFeasible;
-
-    if (res && komo.getReport(false).get<double>("ineq") < 1. &&
-        // komo.getReport(false).get<double>("sos") < 0.5 &&
-        komo.getReport(false).get<double>("eq") < 1.) {
-      // komo.pathConfig.watch(true);
-      return q;
-    }
-  }
-
-  std::cout << "failed for pt " << point << std::endl;
-  return {};
-}
-
-arr sampleConfigurationForRobot(rai::Configuration &C, const arr &point,
-                                const std::string &prefix) {
-  // activate agents
-  setActive(C, prefix);
-
-  OptOptions options;
-  options.stopIters = 100;
-  options.damping = 1e-3;
-
-  KOMO komo;
-
-  komo.verbose = 0;
-
-  // set up komo problem
-  komo.setModel(C, true);
-
-  return sampleConfigurationForRobot(komo, point, prefix);
-}
-
-std::vector<arr> computeConfigurationsForPoints(const arr &pts,
-                                                rai::Configuration &C,
-                                                const std::string prefix) {
-  std::vector<arr> configurations;
-
-  const auto start = std::chrono::high_resolution_clock::now();
-
-  // activate agents
-  setActive(C, prefix);
-
-  const auto home = C.getJointState();
-
-  KOMO komo;
-  komo.verbose = 0;
-  komo.setModel(C, true);
-
-  for (uint i = 0; i < pts.d0; ++i) {
-    const arr pt = {pts[i](0), pts[i](1), 0.075};
-    const arr q = sampleConfigurationForRobot(
-        komo, C["table"]->getPosition() + pt, prefix);
-    // const arr q = sampleConfigurationForRobot(C, C["table"]->getPosition() +
-    // pt, prefix);
-    configurations.push_back(q);
-
-    // C.setJointState(q);
-    //
-    komo.clearObjectives();
-    komo.world.setJointState(home);
-  }
-  C.setJointState(home);
-
-  const auto stop = std::chrono::high_resolution_clock::now();
-  const auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-
-  std::cout << "Duration of IK pose computation: " << duration.count() / 1000.
-            << " ms (per point: " << duration.count() / 1000. / pts.d0 << "ms )"
-            << std::endl;
-
-  return configurations;
-}
-
-double cost(const arr &p0, const arr &p1) {
-  // return length(p0 - p1);
-  return absMax(p0 - p1);
-}
-
-double fitness(const std::vector<uint> &order, const std::vector<arr> &qs) {
-  double s = 0.;
-
-  for (uint i = 0; i < order.size() - 1; ++i) {
-    s += cost(qs[order[i]], qs[order[i + 1]]);
-  }
-
-  return s;
-}
-
-std::vector<uint> reverseSubtour(const std::vector<uint> &indices,
-                                 const uint start, const uint end) {
-  std::vector<uint> tour = indices;
-
-  for (uint i = 0; i <= end - start; ++i) {
-    tour[start + i] = indices[end - i];
-  }
-
-  return tour;
-}
-
-std::vector<std::pair<uint, uint>>
-reverseSubtour(const std::vector<std::pair<uint, uint>> &indices,
-               const uint start, const uint end) {
-  std::vector<std::pair<uint, uint>> tour = indices;
-
-  for (uint i = 0; i <= end - start; ++i) {
-    tour[start + i] = indices[end - i];
-  }
-
-  return tour;
-}
-
-std::vector<uint> alterTour(const std::vector<uint> &indices,
-                            const std::vector<arr> qs,
-                            const uint nmax = 10000) {
-  std::vector<uint> bestTourYet = indices;
-  double bestCostYet = fitness(indices, qs);
-
-  for (uint i = 0; i < nmax; ++i) {
-    uint j = rand() % indices.size();
-    uint k = rand() % indices.size();
-    if (j > k) {
-      std::swap(j, k);
-    }
-
-    auto tmp = reverseSubtour(bestTourYet, j, k);
-    double c = fitness(tmp, qs);
-
-    if (c < bestCostYet) {
-      bestCostYet = c;
-      bestTourYet = tmp;
-    }
-  }
-
-  return bestTourYet;
-}
+using json = nlohmann::json;
 
 void drawPts(rai::Configuration C, arr pts, arr color = {0., 0., 0., 1.}) {
   for (uint i = 0; i < pts.d0; ++i) {
@@ -255,7 +84,7 @@ void drawPts(rai::Configuration C, arr pts, arr color = {0., 0., 0., 1.}) {
 // overloaded for both
 void drawPts(rai::Configuration C, std::map<uint, arr> tmp,
              arr color = {0., 0., 0., 1.}) {
-  for (auto element : tmp) {
+  for (const auto &element : tmp) {
     uint j = element.first;
     arr pts = element.second;
 
@@ -273,66 +102,62 @@ void drawPts(rai::Configuration C, std::map<uint, arr> tmp,
   C.watch(true);
 }
 
-typedef std::vector<arr> TaskPoses;
-typedef std::map<std::string, std::vector<TaskPoses>> RobotTaskPoseMap;
-
-typedef std::string Robot;
-typedef int Task;
-typedef std::pair<Robot, Task> robot_task_pair;
-typedef std::vector<robot_task_pair> TaskSequence;
-
-TaskSequence generate_random_sequence(const std::vector<Robot> &robots,
-                                      const uint num_tasks) {
-  TaskSequence seq;
+OrderedTaskSequence generate_random_sequence(const std::vector<Robot> &robots,
+                                             const uint num_tasks) {
+  OrderedTaskSequence seq;
 
   for (uint i = 0; i < num_tasks; ++i) {
     // sample robot
     const uint r = rand() % robots.size();
 
     // make pair
-    seq.push_back(std::make_pair(robots[r], i));
+    seq.push_back(RobotTaskPair{.robots={robots[r]}, .task = Task{.object=i}});
   }
 
-  auto rng = std::default_random_engine{
-      std::chrono::system_clock::now().time_since_epoch().count()};
+  auto seed = static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
+  auto rng = std::default_random_engine{seed};
   std::shuffle(std::begin(seq), std::end(seq), rng);
 
   return seq;
 }
 
-TaskSequence generate_single_arm_sequence(const std::vector<Robot> &robots,
-                                          const uint num_tasks) {
+OrderedTaskSequence
+generate_single_arm_sequence(const std::vector<Robot> &robots,
+                             const uint num_tasks) {
   // sample robot _once_.
   const uint r = rand() % robots.size();
 
-  TaskSequence seq;
+  OrderedTaskSequence seq;
   for (uint i = 0; i < num_tasks; ++i) {
     // make pair
-    seq.push_back(std::make_pair(robots[r], i));
+    seq.push_back(RobotTaskPair{.robots = {robots[r]}, .task=Task{.object=i}});
   }
 
-  auto rng = std::default_random_engine{
-      std::chrono::system_clock::now().time_since_epoch().count()};
+  auto seed = static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
+  auto rng = std::default_random_engine{seed};
   std::shuffle(std::begin(seq), std::end(seq), rng);
 
   return seq;
 }
 
-TaskSequence
+OrderedTaskSequence
 generate_alternating_random_sequence(const std::vector<Robot> &robots,
                                      const uint num_tasks,
                                      const RobotTaskPoseMap &rtpm) {
   uint r = rand() % robots.size();
 
   auto available_tasks = straightPerm(num_tasks);
-  TaskSequence seq;
+  OrderedTaskSequence seq;
   while (available_tasks.size() > 0) {
     for (uint j = 0; j < 10; ++j) {
       const uint task_index = available_tasks[rand() % available_tasks.size()];
+      RobotTaskPair rtp;
+      rtp.robots = {robots[r]};
+      rtp.task = Task{.object=task_index, .type=TaskType::pick};
 
       // check if the task is feasible with the chosen robot
-      if (rtpm.at(robots[r])[task_index].size() != 0) {
-        seq.push_back(std::make_pair(robots[r], task_index));
+      if (rtpm.count(rtp) != 0) {
+        seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index}});
 
         available_tasks.erase(std::remove(available_tasks.begin(),
                                           available_tasks.end(), task_index),
@@ -347,7 +172,7 @@ generate_alternating_random_sequence(const std::vector<Robot> &robots,
   return seq;
 }
 
-TaskSequence generate_alternating_greedy_sequence(
+OrderedTaskSequence generate_alternating_greedy_sequence(
     const std::vector<Robot> &robots, const uint num_tasks,
     const RobotTaskPoseMap &rtpm, const std::map<Robot, arr> &home_poses) {
   std::cout << "Generating alternating greedy" << std::endl;
@@ -357,15 +182,21 @@ TaskSequence generate_alternating_greedy_sequence(
   uint r = rand() % robots.size();
   std::map<Robot, arr> poses = home_poses;
 
-  TaskSequence seq;
+  OrderedTaskSequence seq;
   while (available_tasks.size() > 0) {
     // find minimum dist pose to current robot
     auto min_dist = 1e6;
     uint task_index = 0;
     bool assigned_task = false;
     for (auto t : available_tasks) {
-      if (rtpm.at(robots[r])[t].size() != 0) {
-        const auto dist = absMax(poses[robots[r]] - rtpm.at(robots[r])[t][0]);
+      RobotTaskPair rtp;
+      rtp.robots = {robots[r]};
+      rtp.task = Task{.object=t, .type=TaskType::pick};
+
+      // check if a valid pose exists for the object/action pair
+      if (rtpm.count(rtp) != 0) {
+        // estimate pose-distance
+        const auto dist = absMax(poses[robots[r]] - rtpm.at(rtp)[0][0]);
         if (dist < min_dist) {
           task_index = t;
           min_dist = dist;
@@ -382,7 +213,10 @@ TaskSequence generate_alternating_greedy_sequence(
 
       // make pair
       std::cout << "adding " << robots[r] << " with index " << r << std::endl;
-      seq.push_back(std::make_pair(robots[r], task_index));
+      seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=TaskType::pick}});
+    }
+    else{
+      std::cout << "not asigned task" << std::endl;
     }
 
     r = (r + 1) % robots.size();
@@ -391,1004 +225,11 @@ TaskSequence generate_alternating_greedy_sequence(
   return seq;
 }
 
-struct ComputeStatistics {
-  double total_compute_time;
-  double rrt_compute_time;
-  double komo_compute_time;
-};
-
-// this is the solution of one task
-// TODO: add constraints that this solution needs to fulfill
-struct TaskPart {
-  bool has_solution = false;
-
-  TaskPart(const arr &_t, const arr &_path)
-      : has_solution(true), t(_t), path(_path){};
-  TaskPart(){};
-
-  rai::Animation::AnimationPart anim;
-
-  arr t;
-  arr path;
-
-  Robot r;
-  uint task_index;
-
-  std::string name;
-  std::string algorithm;
-
-  bool is_exit = false;
-
-  ComputeStatistics stats;
-};
-
-//#define VMAX 0.1;
-const double VMAX = 0.05;
-
-arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
-                                 const arr &q0, const arr &q1, const arr &ts,
-                                 const std::string prefix, double &ineq,
-                                 double &eq) {
-  OptOptions options;
-  options.stopIters = 100;
-  options.damping = 1e-3;
-  options.stopLineSteps = 5;
-
-  std::cout << "setting up komo" << std::endl;
-  KOMO komo;
-  komo.setModel(C, true);
-  komo.setTiming(1., ts.N, 5, 2);
-  komo.verbose = 0;
-  komo.solver = rai::KS_sparse;
-
-  komo.add_collision(true, .001, 1e1);
-  komo.add_qControlObjective({}, 2, 1e1);
-  komo.add_qControlObjective({}, 1, 1e1);
-
-  komo.setConfiguration(-2, q0);
-  komo.setConfiguration(-1, q0);
-  komo.setConfiguration(0, q0);
-
-  // make pen tip go a way from the table
-  const double offset = 0.06;
-  komo.addObjective({0.1, 0.9}, FS_distance,
-                    {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e1},
-                    {-offset});
-  // komo.addObjective({0.1, 0.8}, FS_distance,
-  //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
-
-  // position
-  // komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, q0);
-  komo.addObjective({1}, FS_qItself, {}, OT_eq, {1e2}, q1);
-
-  // speed
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  1); // slow at beginning
-  komo.addObjective({0.95, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
-                    1); // slow at end
-
-  // acceleration
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  2); // slow at beginning
-  komo.addObjective({0.95, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
-                    2); // slow at end
-
-  if (false) {
-    const arr v_constr = q0 * 0. + VMAX;
-    komo.addObjective({0.0, 1.}, FS_qItself, {}, OT_ineq, {1e0}, {v_constr},
-                      1); // slow at beginning
-    komo.addObjective({0.0, 1.}, FS_qItself, {}, OT_ineq, {-1e0}, {-v_constr},
-                      1); // slow at beginning
-  }
-
-  setKomoToAnimation(komo, C, A, ts);
-
-  std::cout << "running komo" << std::endl;
-  komo.run_prepare(0.01);
-  komo.run(options);
-  std::cout << "done komo" << std::endl;
-
-  /*if (komo.getReport(false).get<double>("ineq") > 1. ||
-  komo.getReport(false).get<double>("eq") > 1.){ std::cout << "infeasible komo
-  sol, ineq: " << komo.getReport(false).get<double>("ineq")
-      << " eq. " << komo.getReport(false).get<double>("eq") << std::endl;
-    return {};
-  }*/
-
-  ineq = komo.getReport(false).get<double>("ineq");
-  eq = komo.getReport(false).get<double>("eq");
-
-  // if (eq > 2 || ineq > 2){
-  komo.getReport(true);
-  // komo.pathConfig.watch(true);
-  //}
-
-  // komo.pathConfig.watch(true);
-
-  // check if the path is actually feasible
-  arr path(ts.N, q0.N);
-  for (uint j = 0; j < ts.N; ++j) {
-    path[j] = komo.getPath_q(j);
-  }
-
-  if (length(path[0] - q0) > 1e-3) {
-    std::cout << length(path[0] - q0) << std::endl;
-  }
-
-  if (length(path[-1] - q1) > 1e-3) {
-    std::cout << length(path[-1] - q1) << std::endl;
-  }
-
-  path[0] = q0;
-  path[-1] = q1;
-
-  return path;
-}
-
-double get_max_speed(const arr &path) {
-  double max_speed = 0;
-  for (uint i = 0; i < path.d0 - 1; ++i) {
-    max_speed = std::max({max_speed, absMax(path[i] - path[i + 1])});
-  }
-
-  return max_speed;
-}
-
-double get_earliest_feasible_time(TimedConfigurationProblem &TP, const arr &q,
-                                  const uint t_max, const uint t_min) {
-  uint t_earliest_feas = t_max;
-  while (t_earliest_feas > t_min) {
-    const auto res = TP.query(q, t_earliest_feas);
-    if (!res->isFeasible) {
-      t_earliest_feas += 2;
-      break;
-    }
-    --t_earliest_feas;
-  }
-
-  if (t_max == t_earliest_feas + 2) {
-    std::cout << "C" << std::endl;
-    std::cout << "C" << std::endl;
-    std::cout << "C" << std::endl;
-  }
-
-  return t_earliest_feas;
-}
-
-TaskPart plan_in_animation_komo(const rai::Animation &A, rai::Configuration &C,
-                                const uint t0, const arr &q0, const arr &q1,
-                                const uint time_lb, const std::string prefix,
-                                const int time_ub_prev_found = -1) {
-  TimedConfigurationProblem TP(C, A);
-
-  // Check if start q is feasible
-  const auto start_res = TP.query(q0, t0);
-  if (!start_res->isFeasible && min(start_res->coll_y) < -0.1) {
-    std::cout << t0 << std::endl;
-    LOG(-1) << "q_start is not feasible! This should not happen ";
-    start_res->writeDetails(cout, C);
-    std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
-
-    // TP.A.setToTime(TP.C, t0);
-    // TP.C.setJointState(q0);
-    // TP.C.watch(true);
-
-    return TaskPart();
-  }
-
-  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / VMAX));
-
-  // the goal should always be free at the end of the animation, as we always
-  // plan an exit path but it can be the case that we are currently planning an
-  // exit path, thus we include the others
-  const uint t_max_to_check = std::max({time_lb, t0 + dt_max_vel, A.getT()});
-  // establish time at which the goal is free, and stays free
-  const double t_earliest_feas = get_earliest_feasible_time(
-      TP, q1, t_max_to_check, std::max({time_lb, t0 + dt_max_vel}));
-
-  std::cout << "Final time for komo: " << t_earliest_feas
-            << " dt: " << t_earliest_feas - t0 << std::endl;
-
-  // the minimum horizon length is mainly given by the earliest possible finish
-  // time
-  const uint min_horizon_length =
-      std::max({5u, dt_max_vel, uint(t_earliest_feas - t0)});
-  const uint max_horizon_length =
-      std::max({25u, time_lb - t0, (A.getT() > t0) ? A.getT() - t0 : 0u});
-
-  // uint horizon = std::ceil((min_horizon_length + max_horizon_length)/2.);
-  uint horizon = std::ceil(min_horizon_length);
-
-  const uint max_komo_run_attempts = 5;
-  uint iters = 0;
-  while (true) {
-    std::cout << "komo horizon: " << horizon << std::endl;
-    arr ts(horizon);
-    for (uint j = 0; j < horizon; ++j) {
-      ts(j) = t0 + j;
-    }
-
-    if (time_ub_prev_found > 0 && time_ub_prev_found < ts(-1)) {
-      std::cout << "found cheaper path before" << std::endl;
-      return TaskPart();
-    }
-
-    // ensure that the goal is truly free. Sanity check.
-    const auto res = TP.query(q1, t0 + horizon);
-    if (!res->isFeasible) {
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      res->writeDetails(cout, C);
-      // TP.A.setToTime(TP.C, t0 + horizon);
-      // TP.C.setJointState(q1);
-      // TP.C.watch(true);
-
-      return TaskPart();
-    }
-
-    if (false) {
-      TP.A.setToTime(TP.C, t0);
-      TP.C.setJointState(q0);
-      TP.C.watch(true);
-
-      TP.A.setToTime(TP.C, t0 + horizon);
-      TP.C.setJointState(q1);
-      TP.C.watch(true);
-    }
-
-    // set up komo problem
-    double ineq = 0;
-    double eq = 0;
-    const arr path =
-        plan_with_komo_given_horizon(A, C, q0, q1, ts, prefix, ineq, eq);
-
-    if (false) {
-      for (uint i = 0; i < ts.N; ++i) {
-        TP.A.setToTime(TP.C, ts(i));
-        TP.C.setJointState(path[i]);
-        TP.C.watch(true);
-      }
-    }
-
-    if (false) {
-      for (uint i = 0; i < ts.N; ++i) {
-        const auto res = TP.query(path[i], ts(i));
-        if (!res->isFeasible) {
-          std::cout << "R " << ts(i) << std::endl;
-          TP.A.setToTime(TP.C, ts(i));
-          TP.C.setJointState(path[i]);
-          TP.C.watch(true);
-        }
-      }
-    }
-
-    // check max. speed
-    const double max_speed = get_max_speed(path);
-    std::cout << "max speed: " << max_speed << std::endl;
-
-    if (eq > 15 && ineq > 15) {
-      return TaskPart();
-    }
-
-    if (max_speed <= VMAX && eq < 1.5 && ineq < 1.5) {
-      std::cout << "done, accepting komo. ineq: " << ineq << " eq. " << eq
-                << std::endl;
-      return TaskPart(ts, path);
-    }
-
-    if (iters >= max_komo_run_attempts) {
-      std::cout << "too many reruns. ineq: " << ineq << " eq. " << eq
-                << std::endl;
-      return TaskPart();
-    }
-
-    // const uint num_add_timesteps = std::max({uint((iters+1)*2), uint(req_t -
-    // ts.N)}); const uint num_add_timesteps = std::ceil(1. *
-    // (max_horizon_length
-    // - min_horizon_length) / max_komo_run_attempts);
-    const int add_timesteps_for_speed =
-        std::max({0, int(std::ceil(horizon * ((max_speed / VMAX) - 1)))});
-    const uint num_add_timesteps =
-        std::max({(iters + 1) * 3u, uint(add_timesteps_for_speed)});
-    std::cout << "adding " << num_add_timesteps << " steps" << std::endl;
-
-    horizon += num_add_timesteps;
-
-    std::cout << "rerunning komo; ineq: " << ineq << " eq: " << eq << std::endl;
-
-    ++iters;
-  }
-}
-
-TaskPart plan_in_animation_rrt(const rai::Animation &A, rai::Configuration &C,
-                               const uint t0, const arr &q0, const arr &q1,
-                               const uint time_lb, const std::string prefix,
-                               int time_ub_prev_found = -1) {
-  TimedConfigurationProblem TP(C, A);
-  TP.activeOnly = true;
-
-  // Check if start q is feasible
-  const auto start_res = TP.query(q0, t0);
-  if (!start_res->isFeasible) {
-    std::cout << t0 << std::endl;
-    LOG(-1) << "q_start is not feasible! This should not happen ";
-    start_res->writeDetails(cout, C);
-    std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
-
-    // TP.A.setToTime(TP.C, t0);
-    // TP.C.setJointState(q0);
-    // TP.C.watch(true);
-
-    return TaskPart();
-  }
-
-  PathFinder_RRT_Time planner(TP);
-  planner.vmax = VMAX;
-  planner.lambda = 0.5;
-  // planner.disp = true;
-  // planner.optimize = optimize;
-  // planner.step_time = 5;
-  planner.maxIter = 500;
-  planner.goalSampleProbability = 0.9; // 0.9
-
-  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / VMAX));
-
-  // the goal should always be free at the end of the animation, as we always
-  // plan an exit path but it can be the case that we are currently planning an
-  // exit path, thus we include the others
-  const uint t_max_to_check = std::max({time_lb, t0 + dt_max_vel, A.getT()});
-  // establish time at which the goal is free, and stays free
-  const uint t_earliest_feas = get_earliest_feasible_time(
-      TP, q1, t_max_to_check, std::max({time_lb, t0 + dt_max_vel}));
-
-  std::cout << "t_earliest_feas " << t_earliest_feas << std::endl;
-  std::cout << "last anim time " << A.getT() << std::endl;
-
-  if (false) {
-    TP.A.setToTime(TP.C, A.getT());
-    TP.C.setJointState(q1);
-    TP.C.watch(true);
-  }
-
-  // run once without upper bound
-  // auto res_check_feasibility = planner.plan(q0, t0, q1, t_earliest_feas);
-
-  const uint max_delta = 7;
-  const uint max_iter = 12;
-  TimedPath timedPath({}, {});
-  for (uint i = 0; i < max_iter; ++i) {
-    const uint time_ub = t_earliest_feas + max_delta * (i);
-
-    std::cout << i << " " << time_ub << std::endl;
-    if (time_ub > time_ub_prev_found && time_ub_prev_found > 0) {
-      std::cout << "Aborting bc. faster path found" << std::endl;
-      break;
-    }
-
-    auto res = planner.plan(q0, t0, q1, t_earliest_feas, time_ub);
-
-    if (res.time.N != 0) {
-      timedPath = res;
-      break;
-    }
-  }
-
-  if (timedPath.time.N == 0) {
-    /*TP.A.setToTime(TP.C, t0);
-    TP.C.setJointState(q0);
-    TP.C.watch(true);
-
-    TP.A.setToTime(TP.C, t_earliest_feas);
-    TP.C.setJointState(q1);
-    TP.C.watch(true);
-
-    for (uint i=0; i<A.getT(); ++i){
-      std::cout << i << std::endl;
-      TP.A.setToTime(TP.C, i);
-      TP.C.setJointState(q1);
-      TP.C.watch(true);
-    }*/
-    return TaskPart();
-  }
-
-  // resample
-  const uint N = std::ceil(timedPath.time(timedPath.time.N - 1) - t0) + 1;
-  arr t(N);
-  for (uint i = 0; i < t.N; ++i) {
-    t(i) = i + t0;
-  }
-
-  const arr path = timedPath.resample(t, TP.C);
-
-  // check if resampled path is still fine
-  for (uint i = 0; i < t.N; ++i) {
-    const auto res = TP.query(path[i], t(i));
-    if (!res->isFeasible) {
-      LOG(-1) << "resampled path is not feasible! This should not happen.";
-      start_res->writeDetails(cout, C);
-
-      // TP.A.setToTime(TP.C, t0);
-      // TP.C.setJointState(q0);
-      // TP.C.watch(true);
-
-      // return TaskPart();
-    }
-  }
-
-  // shortcutting
-  std::cout << "shortcutting" << std::endl;
-  const arr new_path = partial_shortcut(TP, path, t0);
-
-  // std::cout << new_path[-1] << "\n" << q1 << std::endl;
-
-  // smoothing and imposing bunch of constraints
-  std::cout << "smoothing rrt path using komo" << std::endl;
-  arr smooth_path = smoothing(A, C, t, new_path, prefix);
-
-  for (uint i = 0; i < smooth_path.d0; ++i) {
-    const auto res = TP.query(smooth_path[i], t(i));
-    if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.01) {
-      std::cout << "smoothed path infeasible" << std::endl;
-      smooth_path = new_path;
-      break;
-    }
-  }
-
-  // const arr smooth_path = new_path;
-
-  const double max_speed = get_max_speed(smooth_path);
-  std::cout << "rrt final time " << t(-1) << std::endl;
-  std::cout << "rrt max_speed " << max_speed << std::endl;
-
-  return TaskPart(t, smooth_path);
-}
-
-// robust 'time-optimal' planning method
-TaskPart plan_in_animation(const rai::Animation &A, rai::Configuration &C,
-                           const uint t0, const arr &q0, const arr &q1,
-                           const uint time_lb, const std::string prefix,
-                           const bool exit_path) {
-  const auto start_time = std::chrono::high_resolution_clock::now();
-
-  // run rrt
-  TaskPart rrt_path = plan_in_animation_rrt(A, C, t0, q0, q1, time_lb, prefix);
-  rrt_path.algorithm = "rrt";
-
-  const auto rrt_end_time = std::chrono::high_resolution_clock::now();
-  const auto rrt_duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(rrt_end_time -
-                                                            start_time)
-          .count();
-
-  /*if(rrt_path.has_solution){
-    TimedConfigurationProblem TP(C, A);
-    for (uint i = 0; i < rrt_path.t.N; ++i) {
-      const auto res = TP.query(rrt_path.path[i], rrt_path.t(i));
-      if(res->coll_y.N > 0) std::cout <<min(res->coll_y) << std::endl;
-      if (!res->isFeasible){
-        std::cout << "B" << std::endl;
-        std::cout << "B" << std::endl;
-        std::cout << "B" << std::endl;
-      }
-      if (!res->isFeasible && min(res->coll_y) < -0.01) {
-        std::cout << "rrt actually infeasible" << std::endl;
-        rrt_path.has_solution = false;
-        break;
-      }
-    }
-  }*/
-
-  int time_ub = -1;
-  if (rrt_path.has_solution) {
-    time_ub = rrt_path.t(-1);
-  }
-
-  // attempt komo
-  const auto komo_start_time = std::chrono::high_resolution_clock::now();
-  TaskPart komo_path =
-      plan_in_animation_komo(A, C, t0, q0, q1, time_lb, prefix, time_ub);
-  komo_path.algorithm = "komo";
-
-  /*if(komo_path.has_solution){
-    return komo_path;
-  }*/
-
-  // ensure that the komo-path does not run into start configurations of future
-  // tasks
-  if (komo_path.has_solution) {
-    TimedConfigurationProblem TP(C, A);
-    for (uint i = 0; i < komo_path.t.N; ++i) {
-      const auto res = TP.query(komo_path.path[i], komo_path.t(i));
-      if (res->coll_y.N > 0)
-        std::cout << min(res->coll_y) << std::endl;
-      if (!res->isFeasible && min(res->coll_y) < -0.01) {
-        std::cout << "komo actually infeasible" << std::endl;
-        komo_path.has_solution = false;
-        break;
-      }
-    }
-  }
-
-  const auto komo_end_time = std::chrono::high_resolution_clock::now();
-  const auto komo_duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(komo_end_time -
-                                                            komo_start_time)
-          .count();
-
-  const auto end_time = std::chrono::high_resolution_clock::now();
-  const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-                            end_time - start_time)
-                            .count();
-
-  rrt_path.stats.total_compute_time = duration;
-  komo_path.stats.total_compute_time = duration;
-
-  rrt_path.stats.rrt_compute_time = rrt_duration;
-  komo_path.stats.rrt_compute_time = rrt_duration;
-
-  rrt_path.stats.komo_compute_time = komo_duration;
-  komo_path.stats.komo_compute_time = komo_duration;
-
-  if (komo_path.has_solution && !rrt_path.has_solution) {
-    std::cout << "using komo" << std::endl;
-    return komo_path;
-  }
-  if (!komo_path.has_solution && rrt_path.has_solution) {
-    std::cout << "using rrt" << std::endl;
-    return rrt_path;
-  }
-
-  if (komo_path.has_solution && rrt_path.has_solution &&
-      komo_path.t(-1) < rrt_path.t(-1)) {
-    std::cout << "using komo" << std::endl;
-    return komo_path;
-  }
-
-  std::cout << "using rrt" << std::endl;
-  return rrt_path;
-}
-
-rai::Animation::AnimationPart make_animation_part(rai::Configuration &C,
-                                                  const arr &path,
-                                                  const FrameL &frames,
-                                                  const uint t_start) {
-  rai::Animation::AnimationPart anim;
-
-  StringA frameNames;
-  for (auto f : frames) {
-    frameNames.append(f->name);
-  }
-
-  anim.start = t_start;
-  anim.frameIDs = framesToIndices(frames);
-  anim.frameNames = frameNames;
-
-  const uint dt = path.d0;
-  anim.X.resize(dt, frames.N, 7);
-
-  arr q;
-  for (uint i = 0; i < path.d0; ++i) {
-    q = path[i];
-    C.setJointState(q);
-    // C.watch(true);
-    anim.X[i] = C.getFrameState(frames);
-  }
-  return anim;
-}
-
-FrameL get_robot_frames(rai::Configuration &C, const Robot &robot) {
-  FrameL frames;
-
-  const rai::String base STRING(robot << "base");
-  FrameL roots = C.getFrames(C.getFrameIDs({base}));
-  for (auto *f : roots) {
-    f->getSubtree(frames);
-  }
-  frames.append(roots);
-
-  return frames;
-}
-
-typedef std::map<Robot, std::vector<TaskPart>> Plan;
-
-enum class PlanStatus { failed, aborted, success, unplanned };
-
-struct PlanResult {
-  PlanResult() : status(PlanStatus::unplanned) {}
-  PlanResult(PlanStatus _status) : status(_status){};
-  PlanResult(PlanStatus _status, const Plan &_plan)
-      : status(_status), plan(_plan){};
-
-  PlanStatus status;
-  Plan plan;
-};
-
-PlanStatus plan_task(rai::Configuration &CPlanner, const robot_task_pair &rtp,
-                     const RobotTaskPoseMap &rtpm,
-                     const std::map<Robot, FrameL> robot_frames,
-                     const uint best_makespan_so_far,
-                     const std::map<Robot, arr> &home_poses,
-                     const uint prev_finishing_time, const bool early_stopping,
-                     Plan &paths) {
-  // set robots to home pose
-  for (const auto &r : home_poses) {
-    setActive(CPlanner, r.first);
-    CPlanner.setJointState(r.second);
-  }
-
-  // plan for current goal
-  const Robot robot = rtp.first;
-  const uint task = rtp.second;
-
-  bool is_bin_picking = false;
-  if (rtpm.at(robot)[task].size() > 1) {
-    is_bin_picking = true;
-  }
-
-  // remove exit path
-  bool removed_exit_path = false;
-  const uint max_start_time_shift = 35 * rtpm.at(robot)[task].size();
-  if (paths[robot].size() > 0 && paths[robot].back().is_exit &&
-      prev_finishing_time <
-          paths[robot].back().t(-1) + 1 + max_start_time_shift) {
-    std::cout << "removing exit path of " << robot << std::endl;
-    std::cout << "exit path end time: " << paths[robot].back().t(-1)
-              << std::endl;
-    paths[robot].pop_back();
-
-    removed_exit_path = true;
-  }
-
-  for (uint j = 0; j < rtpm.at(robot)[task].size(); ++j) {
-    arr start_pose;
-    uint start_time;
-
-    if (paths[robot].size() > 0) {
-      start_pose = paths[robot].back().path[-1];
-      start_time = paths[robot].back().t(-1);
-    } else {
-      start_pose = home_poses.at(robot);
-      start_time = 0;
-
-      if (prev_finishing_time > max_start_time_shift + 1) {
-        start_time = prev_finishing_time - max_start_time_shift + 1;
-      }
-    }
-
-    std::cout << "start time " << start_time << std::endl;
-
-    if (!removed_exit_path &&
-        prev_finishing_time > start_time + max_start_time_shift + 1) {
-      start_time = prev_finishing_time - max_start_time_shift + 1;
-    }
-
-    const arr goal_pose = rtpm.at(robot)[task][j];
-    const uint time_lb = std::max(
-        {(j == rtpm.at(robot)[task].size() - 1) ? prev_finishing_time : 0,
-         start_time});
-
-    std::cout << "prev finishing time " << prev_finishing_time << std::endl;
-    std::cout << "new start time " << start_time << std::endl;
-    std::cout << "lower bound time " << time_lb << std::endl;
-
-    // make animation from path-parts
-    rai::Animation A;
-    for (const auto &p : paths) {
-      for (const auto path : p.second) {
-        A.A.append(path.anim);
-      }
-    }
-
-    if (false) {
-      for (uint i = 0; i < A.getT(); ++i) {
-        A.setToTime(CPlanner, i);
-        CPlanner.watch(false);
-        rai::wait(0.1);
-      }
-    }
-
-    // set configuration to plannable for current robot
-    std::cout << "setting up C" << std::endl;
-    setActive(CPlanner, robot);
-
-    auto path = plan_in_animation(A, CPlanner, start_time, start_pose,
-                                  goal_pose, time_lb, robot, false);
-
-    path.r = robot;
-    path.task_index = task;
-    path.name = "task";
-
-    if (path.has_solution) {
-      if (false) {
-        for (uint i = 0; i < path.path.d0; ++i) {
-          auto q = path.path[i];
-          CPlanner.setJointState(q);
-          CPlanner.watch(false);
-          rai::wait(0.01);
-        }
-        CPlanner.setJointState(home_poses.at(robot));
-      }
-      // make animation part
-      auto tmp_frames = robot_frames.at(robot);
-      // add obj. frame to the anim-part.
-      if (is_bin_picking) {
-        const auto obj = STRING("obj" << task + 1);
-        auto to = CPlanner[obj];
-        tmp_frames.append(to);
-      }
-      const auto anim_part =
-          make_animation_part(CPlanner, path.path, tmp_frames, start_time);
-      path.anim = anim_part;
-
-      if (early_stopping && path.t(-1) > best_makespan_so_far) {
-        std::cout << "Stopping early due to better prev. path. ("
-                  << best_makespan_so_far << ")" << std::endl;
-        return PlanStatus::aborted;
-      }
-
-      paths[robot].push_back(path);
-    } else {
-      std::cout << "Was not able to find a path" << std::endl;
-      return PlanStatus::failed;
-    }
-
-    // re-link things if we are doing bin-picking
-    if (is_bin_picking) {
-      CPlanner.setJointState(path.path[-1]);
-      // CPlanner.watch(true);
-      const auto pen_tip = STRING(robot << "pen_tip");
-      const auto obj = STRING("obj" << task + 1);
-
-      if (j == 0) {
-        auto from = CPlanner[pen_tip];
-        auto to = CPlanner[obj];
-
-        to->unLink();
-
-        // create a new joint
-        to->linkFrom(from, true);
-        // to->joint->makeRigid();
-      }
-
-      if (j == 1) {
-        auto to = CPlanner[obj];
-        auto from = CPlanner["table_base"];
-
-        to->unLink();
-
-        // create a new joint
-        to->linkFrom(from, true);
-        // to->joint->makeRigid();
-      }
-
-      // CPlanner.watch(true);
-    }
-  }
-
-  std::cout << "planning exit path" << std::endl;
-
-  const uint exit_start_time = paths[robot].back().t(-1);
-  const arr exit_path_start_pose = paths[robot].back().path[-1];
-
-  rai::Animation A;
-  for (const auto &p : paths) {
-    for (const auto path : p.second) {
-      A.A.append(path.anim);
-    }
-  }
-
-  auto exit_path =
-      plan_in_animation(A, CPlanner, exit_start_time, exit_path_start_pose,
-                        home_poses.at(robot), exit_start_time, robot, true);
-  exit_path.r = robot;
-  exit_path.task_index = task;
-  exit_path.is_exit = true;
-  exit_path.name = "exit";
-
-  if (exit_path.has_solution) {
-    const auto exit_anim_part = make_animation_part(
-        CPlanner, exit_path.path, robot_frames.at(robot), exit_start_time);
-    exit_path.anim = exit_anim_part;
-    paths[robot].push_back(exit_path);
-  } else {
-    std::cout << "Was not able to find an exit path" << std::endl;
-    return PlanStatus::failed;
-  }
-
-  return PlanStatus::success;
-}
-
-double
-get_makespan_from_plan(const std::map<Robot, std::vector<TaskPart>> &plan) {
-  double max_time = 0.;
-  for (const auto &robot_plan : plan) {
-    const auto last_subpath = robot_plan.second.back();
-    max_time = std::max({last_subpath.t(-1), max_time});
-  }
-
-  return max_time;
-}
-
-PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
-    rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const TaskSequence &sequence, const uint start_index, const Plan prev_paths,
-    const std::map<Robot, arr> &home_poses,
-    const uint best_makespan_so_far = 1e6, const bool early_stopping = false) {
-  rai::Configuration CPlanner = C;
-  // C.watch(true);
-
-  // prepare planning-configuration
-  delete_unnecessary_frames(CPlanner);
-
-  // CPlanner.watch(true);
-
-  std::map<Robot, FrameL> robot_frames;
-  for (auto r : home_poses) {
-    const auto robot = r.first;
-    robot_frames[robot] = get_robot_frames(CPlanner, robot);
-  }
-
-  // remove things from paths
-  std::vector<uint> unplanned_tasks;
-  for (uint i = start_index; i < sequence.size(); ++i) {
-    unplanned_tasks.push_back(sequence[i].second);
-  }
-
-  std::map<Robot, std::vector<TaskPart>> paths;
-
-  for (const auto p : prev_paths) {
-    const auto r = p.first;
-    for (auto plan : p.second) {
-      if (std::find(unplanned_tasks.begin(), unplanned_tasks.end(),
-                    plan.task_index) == unplanned_tasks.end()) {
-        paths[r].push_back(plan);
-        std::cout << "adding (" << r << " " << plan.task_index << ")"
-                  << std::endl;
-      }
-    }
-  }
-
-  // figure out which robots need an exit path
-  std::vector<std::pair<Robot, uint>> robot_exit_paths;
-  for (const auto p : paths) {
-    const auto robot = p.first;
-    // do not plan an exit path if
-    // -- ther is already one
-    // -- there is no other path
-    // -- we are planning for this robot next
-    if (p.second.size() > 0 && !paths[robot].back().is_exit) {
-      robot_exit_paths.push_back({robot, paths[robot].back().t(-1)});
-    }
-  }
-
-  std::sort(robot_exit_paths.begin(), robot_exit_paths.end(),
-            [](auto &left, auto &right) { return left.second < right.second; });
-
-  for (const auto p : robot_exit_paths) {
-    const auto robot = p.first;
-    // do not plan an exit path if
-    // -- there is already one
-    // -- there is no other path
-    // -- we are planning for this robot next
-
-    std::cout << "adding exit path for " << robot << std::endl;
-    // plan exit path for robot
-    rai::Animation A;
-    for (const auto &p2 : paths) {
-      for (const auto path2 : p2.second) {
-        A.A.append(path2.anim);
-      }
-    }
-
-    std::cout << "start time:" << p.second << std::endl;
-    setActive(CPlanner, robot);
-    auto exit_path =
-        plan_in_animation(A, CPlanner, p.second, paths[robot].back().path[-1],
-                          home_poses.at(robot), p.second + 5, robot, true);
-    exit_path.r = robot;
-    exit_path.task_index = paths[robot].back().task_index;
-    exit_path.is_exit = true;
-    exit_path.name = "exit";
-
-    /*for (uint i=0; i<exit_path.t.N; ++i){
-      std::cout << exit_path.path[i] << std::endl;
-      CPlanner.setJointState(exit_path.path[i]);
-      CPlanner.watch(true);
-    }*/
-
-    if (exit_path.has_solution) {
-      std::cout << "adding path for " << robot << " at time " << p.second
-                << std::endl;
-      const auto exit_anim_part = make_animation_part(
-          CPlanner, exit_path.path, robot_frames[robot], p.second);
-      exit_path.anim = exit_anim_part;
-      paths[robot].push_back(exit_path);
-    } else {
-      std::cout << "Was not able to find an exit path" << std::endl;
-      return PlanResult(PlanStatus::failed);
-    }
-    /*{
-      rai::Animation An;
-      for (const auto &p2 : paths) {
-        for (const auto path2 : p2.second) {
-          An.A.append(path2.anim);
-        }
-      }
-      An.play(CPlanner, false);
-    }*/
-  }
-
-  // actually plan
-  for (uint i = start_index; i < sequence.size(); ++i) {
-    uint prev_finishing_time = 0;
-
-    for (const auto &p : paths) {
-      const auto plans = p.second;
-      if (plans.size() > 0) {
-        if (plans.back().is_exit) {
-          // if a path is an exit, we are looking at the maximum non-exit time
-          prev_finishing_time = std::max(
-              {uint(plans[plans.size() - 2].t(-1)), prev_finishing_time});
-        } else {
-          // else, we are looking at the final current time
-          prev_finishing_time = std::max(
-              {uint(plans[plans.size() - 1].t(-1)), prev_finishing_time});
-        }
-      }
-    }
-
-    // std::cout << "planning task " << task << " for robot " << robot << " as "
-    // << i
-    //        << " th task" << std::endl;
-    const auto res = plan_task(CPlanner, sequence[i], rtpm, robot_frames,
-                               best_makespan_so_far, home_poses,
-                               prev_finishing_time, early_stopping, paths);
-
-    // TODO: compute better estimate for early stopping
-    const uint current_makespan = get_makespan_from_plan(paths);
-    const uint lb_remaining_makespan = 0;
-    const uint estimated_makespan = current_makespan + lb_remaining_makespan;
-
-    if (early_stopping && estimated_makespan > best_makespan_so_far) {
-      return PlanResult(PlanStatus::aborted);
-    }
-
-    if (res != PlanStatus::success) {
-      return PlanResult(res);
-    }
-  }
-
-  if (false) {
-    rai::Animation A;
-    for (const auto &p : paths) {
-      for (const auto path : p.second) {
-        A.A.append(path.anim);
-      }
-    }
-
-    for (uint i = 0; i < A.getT(); ++i) {
-      A.setToTime(CPlanner, i);
-      CPlanner.watch(false);
-      rai::wait(0.1);
-    }
-  }
-
-  return PlanResult(PlanStatus::success, paths);
-}
-
-// overload (not in the literal or in the c++ sense) of the above
-PlanResult plan_multiple_arms_given_sequence(
-    rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const TaskSequence &sequence, const std::map<Robot, arr> &home_poses,
-    const uint best_makespan_so_far = 1e6, const bool early_stopping = false) {
-
-  Plan paths;
-  return plan_multiple_arms_given_subsequence_and_prev_plan(
-      C, rtpm, sequence, 0, paths, home_poses, best_makespan_so_far,
-      early_stopping);
+PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseMap &rtpm,
+    const OrderedTaskSequence &sequence, const std::map<Robot, arr> &home_poses){
+  CompoundTreePlanner ctp(C, sequence);
+  auto plan = ctp.plan();
+  return PlanResult(PlanStatus::failed);
 }
 
 Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
@@ -1396,10 +237,16 @@ Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
                                        const std::map<Robot, arr> &home_poses) {
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
-  for (auto element : home_poses) {
+  for (const auto &element : home_poses) {
     robots.push_back(element.first);
   }
-  const uint num_tasks = rtpm.begin()->second.size();
+
+  int num_tasks = 0;
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
+      num_tasks += 1;
+    }
+  }
 
   const auto seq = generate_random_sequence(robots, num_tasks);
 
@@ -1407,236 +254,6 @@ Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
   const auto plan_result =
       plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
   return plan_result.plan;
-}
-
-arr get_robot_pose_at_time(const uint t, const Robot r,
-                           const std::map<Robot, arr> &home_poses,
-                           const std::map<Robot, std::vector<TaskPart>> &plan) {
-  if (plan.count(r) > 0) {
-    for (const auto &part : plan.at(r)) {
-      // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-      if (part.t(0) > t || part.t(-1) < t) {
-        continue;
-      }
-
-      for (uint i = 0; i < part.t.N; ++i) {
-        if (part.t(i) == t) {
-          return part.path[i];
-          // std::cout <<part.path[i] << std::endl;
-        }
-      }
-    }
-  }
-
-  return home_poses.at(r);
-}
-
-std::map<Robot, std::vector<TaskPart>>
-reoptimize_plan(rai::Configuration C,
-                const std::map<Robot, std::vector<TaskPart>> &unscaled_plan,
-                const std::map<Robot, arr> &home_poses) {
-  // formulate KOMO problem for multiple robots
-  std::vector<std::string> all_robots;
-  for (const auto per_robot_plan : unscaled_plan) {
-    all_robots.push_back(per_robot_plan.first);
-  }
-
-  for (const auto element : all_robots) {
-    std::cout << element << std::endl;
-  }
-
-  setActive(C, all_robots);
-
-  rai::Animation A;
-  for (const auto &p : unscaled_plan) {
-    for (const auto path : p.second) {
-      A.A.append(path.anim);
-    }
-  }
-
-  setActive(C, all_robots);
-
-  // extract complete trajectory
-  std::cout << "extracting traj" << std::endl;
-  arr smoothed_path(A.getT(), (unscaled_plan.begin()->second)[0].path.d1 *
-                                  all_robots.size());
-  for (uint i = 0; i < A.getT(); ++i) {
-    uint offset = 0;
-    for (uint j = 0; j < all_robots.size(); ++j) {
-      const arr pose =
-          get_robot_pose_at_time(i, all_robots[j], home_poses, unscaled_plan);
-      for (uint k = 0; k < pose.N; ++k) {
-        smoothed_path[i](k + offset) = pose(k);
-      }
-      offset += pose.N;
-    }
-  }
-
-  // get joints per robot
-  std::map<Robot, StringA> per_robot_joints;
-  for (auto f : C.frames) {
-    for (const auto r : all_robots) {
-      if (f->name.contains(STRING(r)) && f->joint) {
-        per_robot_joints[r].append(f->name);
-      }
-    }
-  }
-
-  const uint horizon_length = 50;
-  const uint total_length = A.getT();
-  const uint step_size = 20;
-
-  OptOptions options;
-  options.stopIters = 10;
-  options.damping = 1e-3;
-  options.stopLineSteps = 5;
-
-  KOMO komo;
-  komo.setModel(C, true);
-  komo.setTiming(1., horizon_length, 1, 2);
-  komo.verbose = 0;
-  komo.solver = rai::KS_sparse;
-
-  for (uint i = 0; i < total_length - horizon_length; i += step_size) {
-    std::cout << "iteration " << i << std::endl;
-    komo.add_collision(true, .001, 1e1);
-    komo.add_qControlObjective({}, 2, 1e1);
-    komo.add_qControlObjective({}, 1, 1e1);
-
-    // start constraint
-    if (i > 0) {
-      komo.setConfiguration(-2, smoothed_path[i - 2]);
-      komo.setConfiguration(-1, smoothed_path[i - 1]);
-    }
-
-    const arr q0 = smoothed_path[i];
-    komo.setConfiguration(0, q0);
-
-    for (uint j = 0; j < horizon_length; ++j) {
-      komo.setConfiguration(j, smoothed_path[i + j]);
-    }
-
-    // goal constraint
-    const arr q_final = smoothed_path[i + horizon_length];
-
-    komo.addObjective({1}, FS_qItself, {}, OT_eq, {1e1}, q_final);
-
-    // add constraints for positions of actions
-    // TODO: check if this is actually correct
-    for (const auto robot_tasks : unscaled_plan) {
-      const auto r = robot_tasks.first;
-      const auto tasks = robot_tasks.second;
-
-      for (const auto task : tasks) {
-        const double task_end_time = task.t(0) + task.t.d0;
-        if (task_end_time >= i && task_end_time < i + horizon_length) {
-          const double scaled_time = 1. * (task_end_time - i) / horizon_length;
-          const double constr_start_time =
-              std::max(0., scaled_time - 0.5 / horizon_length);
-          const double constr_end_time =
-              std::min(1., scaled_time + 0.5 / horizon_length);
-
-          std::cout << "Adding constraint at time " << task_end_time
-                    << std::endl;
-          std::cout << "for robot " << r << std::endl;
-          std::cout << scaled_time << std::endl;
-          std::cout << constr_start_time << " " << constr_end_time << std::endl;
-
-          // position
-          komo.addObjective({constr_start_time, constr_end_time},
-                            make_shared<F_qItself>(F_qItself::byJointNames,
-                                                   per_robot_joints[r],
-                                                   komo.world),
-                            {}, OT_eq, {1e1}, task.path[-1]);
-
-          // velocity
-          komo.addObjective({constr_start_time, constr_end_time},
-                            make_shared<F_qItself>(F_qItself::byJointNames,
-                                                   per_robot_joints[r],
-                                                   komo.world),
-                            {}, OT_eq, {1e1}, {}, 1);
-        }
-      }
-    }
-
-    // optimize
-    komo.run_prepare(0.0, true);
-    std::cout << "running" << std::endl;
-    komo.run(options);
-    std::cout << "done" << std::endl;
-
-    // TODO: ensure that everything is collision free
-
-    // get results from komo
-    for (uint j = 0; j < horizon_length; ++j) {
-      smoothed_path[i + j] = komo.getPath_q(j);
-    }
-
-    const double ineq = komo.getReport(false).get<double>("ineq");
-    const double eq = komo.getReport(false).get<double>("eq");
-
-    std::cout << ineq << " " << eq << std::endl;
-
-    if (false) {
-      std::cout << komo.getReport(true, 0) << std::endl;
-      komo.pathConfig.watch(true);
-    }
-
-    komo.clearObjectives();
-  }
-
-  std::map<Robot, arr> per_robot_paths;
-  for (const auto r : all_robots) {
-    per_robot_paths[r].resize(A.getT(), home_poses.at(r).d0);
-  }
-
-  for (uint i = 0; i < A.getT(); ++i) {
-    C.setJointState(smoothed_path[i]);
-    C.watch(false);
-    rai::wait(0.01);
-
-    for (const auto r : all_robots) {
-      setActive(C, r);
-      const arr pose = C.getJointState();
-      per_robot_paths[r][i] = pose;
-    }
-
-    setActive(C, all_robots);
-  }
-
-  std::map<Robot, std::vector<TaskPart>> optimized_plan;
-
-  for (const auto per_robot_plan : unscaled_plan) {
-    const auto robot = per_robot_plan.first;
-    const auto tasks = per_robot_plan.second;
-
-    for (const auto task : tasks) {
-      TaskPart new_task_part;
-
-      new_task_part.t = task.t;
-      new_task_part.r = task.r;
-      new_task_part.task_index = task.task_index;
-      new_task_part.algorithm = task.algorithm;
-      new_task_part.name = task.name;
-      new_task_part.is_exit = task.is_exit;
-
-      new_task_part.path =
-          per_robot_paths[task.r]({task.t(0), task.t(0) + task.t.d0 - 1});
-
-      FrameL robot_frames;
-      for (const auto frame : task.anim.frameNames) {
-        robot_frames.append(C[frame]);
-      }
-      setActive(C, robot);
-      const auto anim_part =
-          make_animation_part(C, new_task_part.path, robot_frames, task.t(0));
-      new_task_part.anim = anim_part;
-
-      optimized_plan[robot].push_back(new_task_part);
-    }
-  }
-
-  return optimized_plan;
 }
 
 // TODO
@@ -1706,7 +323,7 @@ double estimate_task_duration(const arr &start_pose, const arr &goal_pose,
   return dt;
 }
 
-double compute_lb_for_sequence(const TaskSequence &seq,
+double compute_lb_for_sequence(const OrderedTaskSequence &seq,
                                const RobotTaskPoseMap &rtpm,
                                const std::map<Robot, arr> &start_poses,
                                const uint start_index = 0,
@@ -1718,8 +335,8 @@ double compute_lb_for_sequence(const TaskSequence &seq,
 
   for (uint i = start_index; i < seq.size(); ++i) {
     const auto task_tuple = seq[i];
-    const auto robot = task_tuple.first;
-    const auto task_index = task_tuple.second;
+    const auto robot = task_tuple.robots[0];
+    const auto task_index = task_tuple.task.object;
 
     // std::cout << robot << std::endl;
 
@@ -1730,7 +347,7 @@ double compute_lb_for_sequence(const TaskSequence &seq,
     std::cout << robot << " " << task_index << std::endl;
 
     const arr start_pose = robot_pos[robot];
-    const arr goal_pose = rtpm.at(robot)[task_index][0];
+    const arr goal_pose = rtpm.at(task_tuple)[0][0];
 
     const double max_acc = 0.1;
 
@@ -1738,8 +355,9 @@ double compute_lb_for_sequence(const TaskSequence &seq,
         estimate_task_duration(start_pose, goal_pose, VMAX, max_acc);
     robot_time[robot] += dt;
 
-    // since we know that there is a precendence constraint on the task-completion-order
-    // we set the time to the highest current time if it was lower than that
+    // since we know that there is a precendence constraint on the
+    // task-completion-order we set the time to the highest current time if it
+    // was lower than that
     for (const auto &rt : robot_time) {
       if (robot_time[robot] < rt.second) {
         robot_time[robot] = rt.second;
@@ -1751,7 +369,7 @@ double compute_lb_for_sequence(const TaskSequence &seq,
 
   // extract the maximum time of all the robot times
   double max = 0;
-  for (const auto rt : robot_time) {
+  for (const auto &rt : robot_time) {
     if (max < rt.second) {
       max = rt.second;
     }
@@ -1772,19 +390,20 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
     // A.setToTime(C, t);
 
     // std::cout << t << std::endl;
-    for (const auto tp : plan) {
+    for (const auto &tp : plan) {
       const auto r = tp.first;
       const auto parts = tp.second;
 
       bool done = false;
-      for (auto part : parts) {
+      for (const auto &part : parts) {
         // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
         if (part.t(0) > t || part.t(-1) < t) {
           continue;
         }
 
-        for (uint i = 0; i < part.t.N - 1; ++i) {
-          if (part.t(i) <= t && part.t(i + 1) > t) {
+        for (uint i = 0; i < part.t.N; ++i) {
+          if ((i == part.t.N-1 && t == part.t(-1)) ||
+              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
             setActive(C, r);
             C.setJointState(part.path[i]);
             // std::cout <<part.path[i] << std::endl;
@@ -1804,7 +423,7 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
             break;
           }
         }
-
+        
         if (done) {
           break;
         }
@@ -1819,12 +438,14 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
       Vf.savePng();
     }
   }
+  rai::wait(0.01);
+  std::cout << "B" << std::endl;
 }
 
-void export_plan(const std::vector<Robot> &robots,
+void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
                  const std::map<Robot, arr> &home_poses,
-                 const std::map<Robot, std::vector<TaskPart>> &plan,
-                 const TaskSequence &seq, const std::string base_folder,
+                 const Plan &plan,
+                 const OrderedTaskSequence &seq, const std::string base_folder,
                  const uint iteration, const uint computation_time) {
   std::cout << "exporting plan" << std::endl;
   // make folder
@@ -1835,7 +456,7 @@ void export_plan(const std::vector<Robot> &robots,
 
   rai::Animation A;
   for (const auto &p : plan) {
-    for (const auto path : p.second) {
+    for (const auto &path : p.second) {
       A.A.append(path.anim);
     }
   }
@@ -1845,7 +466,7 @@ void export_plan(const std::vector<Robot> &robots,
   {
     std::ofstream f;
     f.open(folder + "comptime.txt", std::ios_base::trunc);
-    f << computation_time;
+    f << computation_time / 1000.;
   }
 
   // -- makespan
@@ -1860,20 +481,120 @@ void export_plan(const std::vector<Robot> &robots,
     std::ofstream f;
     f.open(folder + "sequence.txt", std::ios_base::trunc);
     for (const auto &s : seq) {
-      f << "(" << s.first << " " << s.second << ")";
+      f << "(" << s.robots[0] << " " << s.task.object << ")";
     }
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "robot_pose.json", std::ios_base::trunc);
+    
+    // robots
+    json data;
+    for (const auto &e: home_poses){
+      const auto r = e.first;
+      const rai::String robot_base STRING(r << "base");
+
+      data[robot_base.p] = C[robot_base]->getPose();
+    }
+
+    f << data;
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "obj_goals.json", std::ios_base::trunc);
+    
+    json data;
+    // goals
+    for (const auto frame: C.frames){
+      if (frame->name.contains("goal")){
+        data[frame->name.p] = frame->getPose().vec();
+      }
+    }
+
+    f << data;
+  }
+
+  {
+    std::map<rai::String, arr> objs;
+    for (const auto frame: C.frames){
+      if (frame->name.contains("obj")){
+        objs[frame->name] = arr(0, 7);
+      }
+    }
+
+    const double makespan = get_makespan_from_plan(plan);
+    for (uint t = 0; t < makespan; ++t) {
+      // std::cout << t << std::endl;
+      for (const auto &tp : plan) {
+        const auto r = tp.first;
+        const auto parts = tp.second;
+
+        bool done = false;
+        for (const auto &part : parts) {
+          // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+          if (part.t(0) > t || part.t(-1) < t) {
+            continue;
+          }
+
+          for (uint i = 0; i < part.t.N - 1; ++i) {
+            if (part.t(i) <= t && part.t(i + 1) > t) {
+              setActive(C, r);
+              C.setJointState(part.path[i]);
+              // std::cout <<part.path[i] << std::endl;
+              done = true;
+
+              // set bin picking things
+              const auto task_index = part.task_index;
+              const auto obj_name = STRING("obj" << task_index + 1);
+
+              if (part.anim.frameNames.contains(obj_name)) {
+                const auto pose =
+                    part.anim.X[uint(std::floor(t - part.anim.start))];
+                arr tmp(1, 7);
+                tmp[0] = pose[-1];
+                C.setFrameState(tmp, {C[obj_name]});
+              }
+              break;
+            }
+          }
+
+          if (done) {
+            break;
+          }
+        }
+      }
+
+      for (const auto &obj: objs){
+        objs[obj.first].append(C[obj.first]->getPose());
+      }
+    }
+
+    std::ofstream f;
+    f.open(folder + "obj_poses.json", std::ios_base::trunc);
+    
+    json data;
+    for (const auto &obj: objs){
+      std::vector<arr> tmp;
+      for (uint i=0; i<obj.second.d0; ++i) tmp.push_back(obj.second[i]);
+      data[obj.first.p] = tmp;
+    }
+
+    f << data;
   }
 
   // -- plan
   {
     std::ofstream f;
     f.open(folder + "plan.txt", std::ios_base::trunc);
-    for (const auto per_robot_plan : plan) {
+
+    for (const auto &per_robot_plan : plan) {
       const auto robot = per_robot_plan.first;
       const auto tasks = per_robot_plan.second;
 
       f << robot << ": ";
-      for (const auto task : tasks) {
+      for (const auto &task : tasks) {
         f << task.name << "(" << task.algorithm << ")"
           << " " << task.task_index << ", " << task.t(0) << ", " << task.t(-1)
           << "; ";
@@ -1882,19 +603,53 @@ void export_plan(const std::vector<Robot> &robots,
     }
   }
 
+  {
+    std::ofstream f;
+    f.open(folder + "plan.json", std::ios_base::trunc);
+    json data;
+
+    for (const auto &per_robot_plan : plan) {
+      const auto robot = per_robot_plan.first;
+      const auto tasks = per_robot_plan.second;
+
+      json tmp;
+      tmp["robot"] = robot;
+
+      for (const auto &task : tasks) {
+        json task_description;
+        task_description["name"] = task.name;
+        task_description["algorithm"]= task.algorithm;
+        task_description["index"] = task.task_index;
+        task_description["start"] = task.t(0);
+        task_description["end"] = task.t(-1);
+
+        tmp["tasks"].push_back(task_description);
+      }
+
+      data.push_back(tmp);
+    }
+
+    f << data;
+  }
+
   // -- compute times
   {
     std::ofstream f;
     f.open(folder + "computation_times.txt", std::ios_base::trunc);
-    for (const auto per_robot_plan : plan) {
+    for (const auto &per_robot_plan : plan) {
       const auto robot = per_robot_plan.first;
       const auto tasks = per_robot_plan.second;
 
       f << robot << ": ";
-      for (const auto task : tasks) {
+      for (const auto &task : tasks) {
         f << task.name << "(" << task.algorithm << ")"
           << " " << task.task_index << ", " << task.stats.total_compute_time
           << ", " << task.stats.rrt_compute_time << ", "
+          << task.stats.rrt_plan_time << ", "
+          << task.stats.rrt_coll_time << ", "
+          << task.stats.rrt_nn_time << ", "
+          << task.stats.rrt_smoothing_time << ", "
+          << task.stats.rrt_shortcut_time << ", "
           << task.stats.komo_compute_time << "; ";
       }
       f << std::endl;
@@ -1919,6 +674,25 @@ void export_plan(const std::vector<Robot> &robots,
 
     f << path;
   }
+
+  {
+    std::ofstream f;
+    f.open(folder + "robot_controls.json", std::ios_base::trunc);
+    json data;
+
+    // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
+    std::map<Robot, std::vector<arr>> paths;
+    for (uint i = 0; i < A.getT(); ++i) {
+      uint offset = 0;
+      for (uint j = 0; j < robots.size(); ++j) {
+        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
+        paths[robots[j]].push_back(pose);
+      }
+    }
+    data = paths;
+
+    f << data;
+  }
 }
 
 Plan plan_multiple_arms_random_search(rai::Configuration &C,
@@ -1926,12 +700,17 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
                                       const std::map<Robot, arr> &home_poses) {
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
-  for (auto element : home_poses) {
+  for (const auto &element : home_poses) {
     robots.push_back(element.first);
   }
-  const uint num_tasks = rtpm.begin()->second.size();
+  int num_tasks = 0;
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
+      num_tasks += 1;
+    }
+  }
 
-  TaskSequence best_seq;
+  OrderedTaskSequence best_seq;
   Plan best_plan;
   double best_makespan = 1e6;
 
@@ -1941,7 +720,7 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
     const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
     std::cout << "LB for sequence " << lb << std::endl;
     for (auto s : seq) {
-      std::cout << "(" << s.first << " " << s.second << ")";
+      std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
     }
     std::cout << std::endl;
 
@@ -1959,7 +738,7 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
       std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
                 << best_makespan << std::endl;
       for (auto s : seq) {
-        std::cout << "(" << s.first << " " << s.second << ")";
+        std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
       }
       std::cout << "\n\n\n" << std::endl;
 
@@ -1974,27 +753,31 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
   return best_plan;
 }
 
-TaskSequence swap_robot(const TaskSequence &seq,
-                        const std::vector<Robot> &robots) {
+OrderedTaskSequence swap_robot(const OrderedTaskSequence &seq,
+                               const std::vector<Robot> &robots) {
+  // randomly choose what to swap in the sequence
   const uint task_index = rand() % seq.size();
   while (true) {
     const uint r = rand() % robots.size();
 
-    TaskSequence seq_new = seq;
-    if (seq_new[task_index].first != robots[r]) {
-      seq_new[task_index].first = robots[r];
+    OrderedTaskSequence seq_new = seq;
+    // check if the robots in the chosen task are different from the randomly sampled one
+    if (seq_new[task_index].robots[0] != robots[r]) {
+      seq_new[task_index].robots[0] = robots[r];
       return seq_new;
     }
   }
 }
 
-TaskSequence swap_tasks(const TaskSequence &seq) {
+OrderedTaskSequence swap_tasks(const OrderedTaskSequence &seq) {
   while (true) {
+    // randomly sample task-indices
     const uint t1_index = rand() % seq.size();
     const uint t2_index = rand() % seq.size();
 
+    // enusre that they are different
     if (t1_index != t2_index) {
-      TaskSequence seq_new = seq;
+      OrderedTaskSequence seq_new = seq;
       auto tmp = seq_new[t1_index];
       seq_new[t1_index] = seq_new[t2_index];
       seq_new[t2_index] = tmp;
@@ -2004,7 +787,7 @@ TaskSequence swap_tasks(const TaskSequence &seq) {
   }
 }
 
-TaskSequence reverse_subtour(const TaskSequence &seq) {
+OrderedTaskSequence reverse_subtour(const OrderedTaskSequence &seq) {
   uint start = rand() % seq.size();
   uint end = rand() % seq.size();
 
@@ -2017,7 +800,7 @@ TaskSequence reverse_subtour(const TaskSequence &seq) {
     std::swap(start, end);
   }
 
-  TaskSequence seq_new = seq;
+  OrderedTaskSequence seq_new = seq;
   for (uint i = 0; i <= end - start; ++i) {
     seq_new[start + i] = seq[end - i];
   }
@@ -2025,8 +808,8 @@ TaskSequence reverse_subtour(const TaskSequence &seq) {
   return seq_new;
 }
 
-TaskSequence neighbour(const TaskSequence &seq,
-                       const std::vector<Robot> &robots) {
+OrderedTaskSequence neighbour(const OrderedTaskSequence &seq,
+                              const std::vector<Robot> &robots) {
   arr rnd(1);
   rndUniform(rnd, 0, 1);
 
@@ -2042,13 +825,13 @@ TaskSequence neighbour(const TaskSequence &seq,
   }
 }
 
-bool sequence_is_feasible(const TaskSequence &seq,
+bool sequence_is_feasible(const OrderedTaskSequence &seq,
                           const RobotTaskPoseMap &rtpm) {
   for (const auto &s : seq) {
-    const Robot r = s.first;
-    const auto task_index = s.second;
+    const Robot r = s.robots[0];
+    const auto task_index = s.task.object;
 
-    if (rtpm.at(r)[task_index].size() == 0) {
+    if (rtpm.at(s).size() == 0) {
       return false;
     }
   }
@@ -2060,7 +843,9 @@ void get_plan_from_cache() {}
 
 Plan plan_multiple_arms_squeaky_wheel(rai::Configuration &C,
                                       const RobotTaskPoseMap &rtpm,
-                                      const std::map<Robot, arr> &home_poses) {}
+                                      const std::map<Robot, arr> &home_poses) {
+  return {};
+}
 
 Plan plan_multiple_arms_greedy_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,
@@ -2074,23 +859,29 @@ Plan plan_multiple_arms_greedy_random_search(
 
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
-  for (auto element : home_poses) {
+  for (const auto &element : home_poses) {
     robots.push_back(element.first);
   }
-  const uint num_tasks = rtpm.begin()->second.size();
+  // const uint num_tasks = rtpm.begin()->second.size();
+  int num_tasks = 0;
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
+      num_tasks += 1;
+    }
+  }
 
-  TaskSequence best_seq;
+  OrderedTaskSequence best_seq;
   Plan best_plan;
   double best_makespan = 1e6;
 
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  std::vector<std::pair<TaskSequence, Plan>> cache;
+  std::vector<std::pair<OrderedTaskSequence, Plan>> cache;
 
   uint iter = 0;
   for (uint i = 0; i < 20000; ++i) {
     std::cout << "Generating completely new seq. " << i << std::endl;
-    TaskSequence seq;
+    OrderedTaskSequence seq;
     // seq = generate_alternating_random_sequence(robots, num_tasks, rtpm);
     // seq = generate_single_arm_sequence(robots, num_tasks);
     seq = generate_alternating_greedy_sequence(robots, num_tasks, rtpm,
@@ -2114,7 +905,7 @@ Plan plan_multiple_arms_greedy_random_search(
     double prev_makespan = 1e6;
     for (uint j = 0; j < 30; ++j) {
       ++iter;
-      TaskSequence new_seq = seq;
+      OrderedTaskSequence new_seq = seq;
       while (true) {
         if (j > 0) {
           new_seq = neighbour(seq, robots);
@@ -2130,7 +921,7 @@ Plan plan_multiple_arms_greedy_random_search(
       const double lb = compute_lb_for_sequence(new_seq, rtpm, home_poses);
       std::cout << "LB for sequence " << lb << std::endl;
       for (const auto &s : new_seq) {
-        std::cout << "(" << s.first << " " << s.second << ")";
+        std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
       }
       std::cout << std::endl;
 
@@ -2149,8 +940,8 @@ Plan plan_multiple_arms_greedy_random_search(
         // compute index where the new sequence starts
         uint change_in_sequence = 0;
         for (uint k = 0; k < seq.size(); ++k) {
-          if (seq[k].first != new_seq[k].first ||
-              seq[k].second != new_seq[k].second) {
+          if (seq[k].robots[0] != new_seq[k].robots[0] ||
+              seq[k].task.object != new_seq[k].task.object) {
             change_in_sequence = k;
             break;
           }
@@ -2167,19 +958,19 @@ Plan plan_multiple_arms_greedy_random_search(
         const double makespan = get_makespan_from_plan(new_plan);
 
         const auto end_time = std::chrono::high_resolution_clock::now();
-        const auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                                   end_time - start_time)
                                   .count();
 
         // cache.push_back(std::make_pair(new_seq, new_plan));
 
-        export_plan(robots, home_poses, new_plan, new_seq, buffer.str(), iter,
+        export_plan(C, robots, home_poses, new_plan, new_seq, buffer.str(), iter,
                     duration);
 
         std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
                   << best_makespan << " (" << prev_makespan << ")" << std::endl;
         for (const auto &s : new_seq) {
-          std::cout << "(" << s.first << " " << s.second << ")";
+          std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
         }
         std::cout << "\n\n\n" << std::endl;
 
@@ -2189,6 +980,7 @@ Plan plan_multiple_arms_greedy_random_search(
           prev_makespan = makespan;
 
           visualize_plan(C, plan);
+          std::cout << "A" << std::endl;
         }
 
         if (makespan < best_makespan) {
@@ -2243,10 +1035,16 @@ Plan plan_multiple_arms_simulated_annealing(
 
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
-  for (const auto element : home_poses) {
+  for (const auto &element : home_poses) {
     robots.push_back(element.first);
   }
-  const uint num_tasks = rtpm.begin()->second.size();
+  // const uint num_tasks = rtpm.begin()->second.size();
+  int num_tasks = 0;
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
+      num_tasks += 1;
+    }
+  }
   auto seq = generate_random_sequence(robots, num_tasks);
 
   // plan for it
@@ -2264,9 +1062,9 @@ Plan plan_multiple_arms_simulated_annealing(
   {
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration =
-        std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time)
+        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time)
             .count();
-    export_plan(robots, home_poses, best_plan, seq, buffer.str(), 0, duration);
+    export_plan(C, robots, home_poses, best_plan, seq, buffer.str(), 0, duration);
   }
 
   auto p = [](const double e, const double eprime, const double temperature) {
@@ -2291,7 +1089,7 @@ Plan plan_multiple_arms_simulated_annealing(
     T = T * cooling_factor; // temp(i);
 
     // modify sequence
-    const TaskSequence seq_new = neighbour(seq, robots);
+    const OrderedTaskSequence seq_new = neighbour(seq, robots);
 
     // compute lower bound
     const double lb_makespan =
@@ -2306,20 +1104,20 @@ Plan plan_multiple_arms_simulated_annealing(
 
       if (new_plan_result.status == PlanStatus::success) {
         const auto end_time = std::chrono::high_resolution_clock::now();
-        const auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                                   end_time - start_time)
                                   .count();
 
         const Plan new_plan = new_plan_result.plan;
         const double makespan = get_makespan_from_plan(new_plan);
 
-        export_plan(robots, home_poses, new_plan, seq_new, buffer.str(), i + 1,
+        export_plan(C, robots, home_poses, new_plan, seq_new, buffer.str(), i + 1,
                     duration);
 
         std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
                   << best_makespan << std::endl;
         for (const auto &s : seq_new) {
-          std::cout << "(" << s.first << " " << s.second << ")";
+          std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
         }
 
         if (p(curr_makespan, makespan, T) > rnd(0)) {
@@ -2343,106 +1141,38 @@ Plan plan_multiple_arms_simulated_annealing(
   return best_plan;
 }
 
-RobotTaskPoseMap
-compute_pick_and_place_positions(rai::Configuration &C,
-                                 const std::vector<std::string> &robots,
-                                 const uint num_objects = 6) {
-  RobotTaskPoseMap rtpm;
+OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
+                                           const uint num_tasks,
+                                           const RobotTaskPoseMap &rtpm) {
+  OrderedTaskSequence seq;
+  for (uint i = 0; i < num_tasks; ++i) {
+    while (true) {
+      // choose random action
+      const uint a = rand() % 2;
 
-  for (const auto prefix : robots) {
-    for (uint i = 0; i < num_objects; ++i) {
-      setActive(C, prefix);
+      // choose random robot
+      uint r1 = rand() % robots.size();
+      uint r2 = rand() % robots.size();
 
-      const auto home = C.getJointState();
+      RobotTaskPair rtp;
 
-      OptOptions options;
-      options.stopIters = 100;
-      options.damping = 1e-3;
-
-      KOMO komo;
-      komo.verbose = 0;
-      komo.setModel(C, true);
-
-      komo.setDiscreteOpt(2);
-
-      // komo.world.stepSwift();
-
-      komo.add_collision(true, .01, 1e1);
-      komo.add_jointLimits(true, 0., 1e1);
-
-      auto pen_tip = STRING(prefix << "pen_tip");
-      auto obj = STRING("obj" << i + 1);
-      auto goal = STRING("goal" << i + 1);
-
-      Skeleton S = {
-          {1., 1., SY_touch, {pen_tip, obj}},
-          {1., 2., SY_stable, {pen_tip, obj}},
-          {2., 2., SY_poseEq, {obj, goal}},
-      };
-
-      komo.setSkeleton(S);
-
-      // komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
-      // OT_eq,
-      //                  {1e2}, point);
-      // komo.addObjective({1., 1.}, FS_distance, {STRING(prefix << "pen_tip"),
-      // STRING(obj << i + 1)}, OT_eq, {1e1});
-
-      komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-                        {1e1}, {0., 0., -1.});
-      // komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
-      // OT_sos, {1e0}, C[obj]->getPosition());
-
-      // komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-      // {1e1}, {0., 0., -1.}); komo.addObjective({1.}, FS_vectorZDiff,
-      // {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1}, {0., 0., -0.9});
-      ConfigurationProblem cp(komo.world);
-      setActive(cp.C, prefix);
-
-      for (uint i = 0; i < 10; ++i) {
-        komo.run_prepare(0.0, true);
-        komo.run(options);
-
-        const arr q0 = komo.getPath()[0]();
-        const arr q1 = komo.getPath()[1]();
-        // komo.pathConfig.watch(true);
-
-        // ensure via sampling as well
-        const bool res1 = cp.query(q0)->isFeasible;
-        const bool res2 = cp.query(q1)->isFeasible;
-
-        if (res1 && res2 && komo.getReport(false).get<double>("ineq") < 1. &&
-            komo.getReport(false).get<double>("eq") < 1.) {
-          rtpm[prefix].push_back({q0, q1});
-          break;
-        } else {
-          std::cout << "failed for a bit" << std::endl;
-        }
-      }
-    }
-  }
-
-  return rtpm;
-}
-
-RobotTaskPoseMap
-compute_stippling_poses_for_arms(rai::Configuration &C, const arr &pts,
-                                 const std::vector<Robot> &robots) {
-  RobotTaskPoseMap rtpm;
-  for (const Robot &r : robots) {
-    const TaskPoses poses = computeConfigurationsForPoints(pts, C, r);
-    std::vector<TaskPoses> tp;
-    for (const arr &p : poses) {
-      if (p.N > 0) {
-        tp.push_back({p});
+      if (a == 0) {
+        rtp.robots = {robots[r1]};
+        rtp.task = Task{.object = i, .type = TaskType::pick};
       } else {
-        tp.push_back({});
+        rtp.robots = {robots[r1], robots[r2]};
+        rtp.task = Task{.object = i, .type = TaskType::handover};
+      }
+
+      // check if the task is feasible with the chosen robot(s)
+      if (rtpm.count(rtp) != 0) {
+        seq.push_back(rtp);
+        break;
       }
     }
-    rtpm[r] = tp;
   }
 
-  return rtpm;
+  return seq;
 }
 
 std::map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
@@ -2557,23 +1287,13 @@ void load_and_viz(rai::Configuration C, const bool pick_and_place) {
   }
 }
 
-void line_test(){
-  rai::Configuration C;
-  labSetting(C);
-
-  std::vector<arr> line;
-  for (uint i=0; i<20; ++i){
-    line.push_back({-0.2 + 0.4 * i / 20., 0.1});
-  }
-
-  rai::String prefix = "a1_";
-
+arr plan_line(rai::Configuration C, const rai::String &robot_prefix, const std::vector<arr> &pts){
   OptOptions options;
   options.stopIters = 100;
   options.damping = 1e-3;
   options.stopLineSteps = 5;
 
-  const uint horizon_length = 50;
+  const uint horizon_length = pts.size();
 
   KOMO komo;
   komo.setModel(C, true);
@@ -2582,42 +1302,62 @@ void line_test(){
   komo.solver = rai::KS_sparse;
 
   komo.add_collision(true, .001, 1e1);
-  komo.add_qControlObjective({}, 2, 1e1);
   komo.add_qControlObjective({}, 1, 1e1);
 
   // velocity 0
-  komo.addObjective({0.5, 0.5},
-                    FS_qItself,
-                    {}, OT_eq, {1e1}, {}, 1);
+  komo.addObjective({0.0, 0.0}, FS_qItself, {}, OT_eq, {1e1}, {}, 1);
 
-  komo.addObjective({0.7, 0.7},
-                    FS_qItself,
-                    {}, OT_eq, {1e1}, {}, 1);
+  komo.addObjective({1.0}, FS_qItself, {}, OT_eq, {1e1}, {}, 1);
 
-  for (uint i=0; i<line.size(); ++i){
-    const arr pt = C["table"]->getPosition() + ARR(line[i](0), line[i](1), 0.075);
-    double constr_time = 0.5 + 1.*i/horizon_length*2;
+  for (uint i = 0; i < pts.size(); ++i) {
+    const arr pt =
+        C["table"]->getPosition() + ARR(pts[i](0), pts[i](1), 0.075);
+    double constr_time = 1. * i / horizon_length;
 
-    komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_position, {STRING(prefix << "pen_tip")}, OT_eq,
-                      {1e1}, pt);
+    komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_position,
+                      {STRING(robot_prefix << "pen_tip")}, OT_eq, {1e1}, pt);
 
-    komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-                      {1e0}, {0., 0., -1.});
+    //komo.addObjective({constr_time - 0.01, constr_time + 0.01}, FS_vectorZ,
+    //                  {STRING(robot_prefix << "pen")}, OT_sos, {1e0}, {0., 0., -1.});
   }
 
   komo.run_prepare(0.0);
-  komo.run();
+  komo.run(options);
   komo.pathConfig.watch(true);
 
-  for (uint i = 0; i <  horizon_length; ++i) {
-    C.setJointState(komo.getPath_q(i));
+  arr path(horizon_length, C.getJointState().d0);
+  for (uint j = 0; j < horizon_length; ++j) {
+    path[j] = komo.getPath_q(j);
+  }
+
+  return path;
+}
+
+void line_test() {
+  rai::Configuration C;
+  labSetting(C);
+
+  std::vector<arr> line;
+  for (uint i = 0; i < 20; ++i) {
+    line.push_back({-0.2 + 0.4 * i / 20., 0.1});
+  }
+
+  rai::String prefix = "a1_";
+
+  const arr path = plan_line(C, prefix, line);
+
+  for (uint i = 0; i < path.d0; ++i) {
+    C.setJointState(path[i]);
     C.watch(true);
     rai::wait(0.01);
   }
 }
 
-int main(int argc, char **argv) {
+// TODO:
+// - improve handover sampler
+// - constrained motion planning 
 
+int main(int argc, char **argv) {
   rai::initCmdLine(argc, argv);
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
@@ -2627,6 +1367,12 @@ int main(int argc, char **argv) {
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
+
+  const uint num_objects =
+      rai::getParameter<double>("objects", 5); // number of objects
+
+  const double vmax =
+      rai::getParameter<double>("vmax", 0.1); // does not do anything atm.
 
   // possible modes:
   // - benchmark
@@ -2646,8 +1392,11 @@ int main(int argc, char **argv) {
 
   rai::Configuration C;
   if (plan_pick_and_place) {
-    pick_and_place(C);
-    robots = {"a0_", "a1_"};
+    // pick_and_place(C);
+    // robots = {"a0_", "a1_"};
+
+    random_objects(C, num_objects);
+    robots = {"a0_", "a1_", "a2_"};
   } else {
     if (env == "lab") {
       labSetting(C);
@@ -2658,6 +1407,17 @@ int main(int argc, char **argv) {
     }
   }
 
+  // {
+  //   rai::Configuration tmp;
+  //   random_objects(tmp, 10);
+  //   tmp.watch(true);
+  // }
+
+  // {
+  //   rai::Configuration tmp;
+  //   side_by_side_robot_configuration(tmp);
+  // }
+
   // maps [robot] to home_pose
   const std::map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
 
@@ -2667,9 +1427,24 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (mode == "line_test"){
+  if (mode == "line_test") {
     line_test();
     return 0;
+  }
+
+  if (mode == "handover_test"){
+    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+
+    // merge both maps
+    RobotTaskPoseMap rtpm;
+    rtpm.insert(pick_rtpm.begin(), pick_rtpm.end());
+    rtpm.insert(handover_rtpm.begin(), handover_rtpm.end());
+
+    const auto test_sequence_for_handover = make_handover_sequence(robots, num_objects, rtpm);
+    auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_handover, home_poses);
+    visualize_plan(C, plan.plan, true);
+
   }
 
   // stippling

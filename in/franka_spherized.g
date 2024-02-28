@@ -1,4 +1,4 @@
-Include: '../../rai-robotModels/panda/panda.g'
+Include: '../../rai-robotModels/panda/panda_spherized.g'
 
 ## zero position
 
@@ -42,10 +42,18 @@ Edit robotiq_base (panda_joint8) { Q:[0 0 .05] }
 gripper_fill (panda_joint8){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.1 .031]}
 
 # pen
-pen_tip (robotiq_base){ 
+pen (robotiq_base){ 
+    shape:cylinder, 
+    color:[.1, .1, .1 ,1], 
+    Q:<t(.0 0.0 .15)>,
+    size:[0.1 .005],
+    contact:1
+}
+
+pen_tip (pen){ 
     shape:sphere,
     color:[.9, 0, 0 ,1], 
-    Q:<t(.0 0.0 .15)>,
+    Q:<t(.0 0.0 .05)>,
     size:[0.005],
     contact:1
 }
