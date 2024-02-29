@@ -23,8 +23,6 @@
 #include <GL/gl.h>
 #include <Gui/opengl.h>
 
-#include "json.h"
-
 #include <PlanningSubroutines/Animation.h>
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
@@ -34,6 +32,8 @@
 #include "path_util.h"
 #include "stippling.h"
 #include "util.h"
+
+#include "sequencing.h"
 
 #include "planners/optimal_planner.h"
 #include "planners/prioritized_planner.h"
@@ -61,8 +61,6 @@
 // -- constrained sampling based planning
 // - more statistics
 // - joint optimization over the whole path
-
-using json = nlohmann::json;
 
 void drawPts(rai::Configuration C, arr pts, arr color = {0., 0., 0., 1.}) {
   for (uint i = 0; i < pts.d0; ++i) {
@@ -100,129 +98,6 @@ void drawPts(rai::Configuration C, std::map<uint, arr> tmp,
   }
 
   C.watch(true);
-}
-
-OrderedTaskSequence generate_random_sequence(const std::vector<Robot> &robots,
-                                             const uint num_tasks) {
-  OrderedTaskSequence seq;
-
-  for (uint i = 0; i < num_tasks; ++i) {
-    // sample robot
-    const uint r = rand() % robots.size();
-
-    // make pair
-    seq.push_back(RobotTaskPair{.robots={robots[r]}, .task = Task{.object=i}});
-  }
-
-  auto seed = static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
-  auto rng = std::default_random_engine{seed};
-  std::shuffle(std::begin(seq), std::end(seq), rng);
-
-  return seq;
-}
-
-OrderedTaskSequence
-generate_single_arm_sequence(const std::vector<Robot> &robots,
-                             const uint num_tasks) {
-  // sample robot _once_.
-  const uint r = rand() % robots.size();
-
-  OrderedTaskSequence seq;
-  for (uint i = 0; i < num_tasks; ++i) {
-    // make pair
-    seq.push_back(RobotTaskPair{.robots = {robots[r]}, .task=Task{.object=i}});
-  }
-
-  auto seed = static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
-  auto rng = std::default_random_engine{seed};
-  std::shuffle(std::begin(seq), std::end(seq), rng);
-
-  return seq;
-}
-
-OrderedTaskSequence
-generate_alternating_random_sequence(const std::vector<Robot> &robots,
-                                     const uint num_tasks,
-                                     const RobotTaskPoseMap &rtpm) {
-  uint r = rand() % robots.size();
-
-  auto available_tasks = straightPerm(num_tasks);
-  OrderedTaskSequence seq;
-  while (available_tasks.size() > 0) {
-    for (uint j = 0; j < 10; ++j) {
-      const uint task_index = available_tasks[rand() % available_tasks.size()];
-      RobotTaskPair rtp;
-      rtp.robots = {robots[r]};
-      rtp.task = Task{.object=task_index, .type=TaskType::pick};
-
-      // check if the task is feasible with the chosen robot
-      if (rtpm.count(rtp) != 0) {
-        seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index}});
-
-        available_tasks.erase(std::remove(available_tasks.begin(),
-                                          available_tasks.end(), task_index),
-                              available_tasks.end());
-
-        break;
-      }
-    }
-    r = (r + 1) % robots.size();
-  }
-
-  return seq;
-}
-
-OrderedTaskSequence generate_alternating_greedy_sequence(
-    const std::vector<Robot> &robots, const uint num_tasks,
-    const RobotTaskPoseMap &rtpm, const std::map<Robot, arr> &home_poses) {
-  std::cout << "Generating alternating greedy" << std::endl;
-  auto available_tasks = straightPerm(num_tasks);
-
-  // sample starting_ robot.
-  uint r = rand() % robots.size();
-  std::map<Robot, arr> poses = home_poses;
-
-  OrderedTaskSequence seq;
-  while (available_tasks.size() > 0) {
-    // find minimum dist pose to current robot
-    auto min_dist = 1e6;
-    uint task_index = 0;
-    bool assigned_task = false;
-    for (auto t : available_tasks) {
-      RobotTaskPair rtp;
-      rtp.robots = {robots[r]};
-      rtp.task = Task{.object=t, .type=TaskType::pick};
-
-      // check if a valid pose exists for the object/action pair
-      if (rtpm.count(rtp) != 0) {
-        // estimate pose-distance
-        const auto dist = absMax(poses[robots[r]] - rtpm.at(rtp)[0][0]);
-        if (dist < min_dist) {
-          task_index = t;
-          min_dist = dist;
-          assigned_task = true;
-        }
-      }
-    }
-
-    if (assigned_task) {
-      // remove task from available tasks
-      available_tasks.erase(std::remove(available_tasks.begin(),
-                                        available_tasks.end(), task_index),
-                            available_tasks.end());
-
-      // make pair
-      std::cout << "adding " << robots[r] << " with index " << r << std::endl;
-      seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=TaskType::pick}});
-    }
-    else{
-      std::cout << "not asigned task" << std::endl;
-    }
-
-    r = (r + 1) % robots.size();
-  }
-
-  return seq;
 }
 
 PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseMap &rtpm,
@@ -442,259 +317,6 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
   std::cout << "B" << std::endl;
 }
 
-void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
-                 const std::map<Robot, arr> &home_poses,
-                 const Plan &plan,
-                 const OrderedTaskSequence &seq, const std::string base_folder,
-                 const uint iteration, const uint computation_time) {
-  std::cout << "exporting plan" << std::endl;
-  // make folder
-  const std::string folder =
-      "./out/" + base_folder + "/" + std::to_string(iteration) + "/";
-  const int res = system(STRING("mkdir -p " << folder).p);
-  (void)res;
-
-  rai::Animation A;
-  for (const auto &p : plan) {
-    for (const auto &path : p.second) {
-      A.A.append(path.anim);
-    }
-  }
-
-  // - add info
-  // -- comp. time
-  {
-    std::ofstream f;
-    f.open(folder + "comptime.txt", std::ios_base::trunc);
-    f << computation_time / 1000.;
-  }
-
-  // -- makespan
-  {
-    std::ofstream f;
-    f.open(folder + "makespan.txt", std::ios_base::trunc);
-    f << A.getT();
-  }
-
-  // -- sequence
-  {
-    std::ofstream f;
-    f.open(folder + "sequence.txt", std::ios_base::trunc);
-    for (const auto &s : seq) {
-      f << "(" << s.robots[0] << " " << s.task.object << ")";
-    }
-  }
-
-  {
-    std::ofstream f;
-    f.open(folder + "robot_pose.json", std::ios_base::trunc);
-    
-    // robots
-    json data;
-    for (const auto &e: home_poses){
-      const auto r = e.first;
-      const rai::String robot_base STRING(r << "base");
-
-      data[robot_base.p] = C[robot_base]->getPose();
-    }
-
-    f << data;
-  }
-
-  {
-    std::ofstream f;
-    f.open(folder + "obj_goals.json", std::ios_base::trunc);
-    
-    json data;
-    // goals
-    for (const auto frame: C.frames){
-      if (frame->name.contains("goal")){
-        data[frame->name.p] = frame->getPose().vec();
-      }
-    }
-
-    f << data;
-  }
-
-  {
-    std::map<rai::String, arr> objs;
-    for (const auto frame: C.frames){
-      if (frame->name.contains("obj")){
-        objs[frame->name] = arr(0, 7);
-      }
-    }
-
-    const double makespan = get_makespan_from_plan(plan);
-    for (uint t = 0; t < makespan; ++t) {
-      // std::cout << t << std::endl;
-      for (const auto &tp : plan) {
-        const auto r = tp.first;
-        const auto parts = tp.second;
-
-        bool done = false;
-        for (const auto &part : parts) {
-          // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-          if (part.t(0) > t || part.t(-1) < t) {
-            continue;
-          }
-
-          for (uint i = 0; i < part.t.N - 1; ++i) {
-            if (part.t(i) <= t && part.t(i + 1) > t) {
-              setActive(C, r);
-              C.setJointState(part.path[i]);
-              // std::cout <<part.path[i] << std::endl;
-              done = true;
-
-              // set bin picking things
-              const auto task_index = part.task_index;
-              const auto obj_name = STRING("obj" << task_index + 1);
-
-              if (part.anim.frameNames.contains(obj_name)) {
-                const auto pose =
-                    part.anim.X[uint(std::floor(t - part.anim.start))];
-                arr tmp(1, 7);
-                tmp[0] = pose[-1];
-                C.setFrameState(tmp, {C[obj_name]});
-              }
-              break;
-            }
-          }
-
-          if (done) {
-            break;
-          }
-        }
-      }
-
-      for (const auto &obj: objs){
-        objs[obj.first].append(C[obj.first]->getPose());
-      }
-    }
-
-    std::ofstream f;
-    f.open(folder + "obj_poses.json", std::ios_base::trunc);
-    
-    json data;
-    for (const auto &obj: objs){
-      std::vector<arr> tmp;
-      for (uint i=0; i<obj.second.d0; ++i) tmp.push_back(obj.second[i]);
-      data[obj.first.p] = tmp;
-    }
-
-    f << data;
-  }
-
-  // -- plan
-  {
-    std::ofstream f;
-    f.open(folder + "plan.txt", std::ios_base::trunc);
-
-    for (const auto &per_robot_plan : plan) {
-      const auto robot = per_robot_plan.first;
-      const auto tasks = per_robot_plan.second;
-
-      f << robot << ": ";
-      for (const auto &task : tasks) {
-        f << task.name << "(" << task.algorithm << ")"
-          << " " << task.task_index << ", " << task.t(0) << ", " << task.t(-1)
-          << "; ";
-      }
-      f << std::endl;
-    }
-  }
-
-  {
-    std::ofstream f;
-    f.open(folder + "plan.json", std::ios_base::trunc);
-    json data;
-
-    for (const auto &per_robot_plan : plan) {
-      const auto robot = per_robot_plan.first;
-      const auto tasks = per_robot_plan.second;
-
-      json tmp;
-      tmp["robot"] = robot;
-
-      for (const auto &task : tasks) {
-        json task_description;
-        task_description["name"] = task.name;
-        task_description["algorithm"]= task.algorithm;
-        task_description["index"] = task.task_index;
-        task_description["start"] = task.t(0);
-        task_description["end"] = task.t(-1);
-
-        tmp["tasks"].push_back(task_description);
-      }
-
-      data.push_back(tmp);
-    }
-
-    f << data;
-  }
-
-  // -- compute times
-  {
-    std::ofstream f;
-    f.open(folder + "computation_times.txt", std::ios_base::trunc);
-    for (const auto &per_robot_plan : plan) {
-      const auto robot = per_robot_plan.first;
-      const auto tasks = per_robot_plan.second;
-
-      f << robot << ": ";
-      for (const auto &task : tasks) {
-        f << task.name << "(" << task.algorithm << ")"
-          << " " << task.task_index << ", " << task.stats.total_compute_time
-          << ", " << task.stats.rrt_compute_time << ", "
-          << task.stats.rrt_plan_time << ", "
-          << task.stats.rrt_coll_time << ", "
-          << task.stats.rrt_nn_time << ", "
-          << task.stats.rrt_smoothing_time << ", "
-          << task.stats.rrt_shortcut_time << ", "
-          << task.stats.komo_compute_time << "; ";
-      }
-      f << std::endl;
-    }
-  }
-
-  // -- actual path
-  {
-    std::ofstream f;
-    f.open(folder + "robot_controls.txt", std::ios_base::trunc);
-    arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    for (uint i = 0; i < A.getT(); ++i) {
-      uint offset = 0;
-      for (uint j = 0; j < robots.size(); ++j) {
-        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
-        for (uint k = 0; k < pose.N; ++k) {
-          path[i](k + offset) = pose(k);
-        }
-        offset += pose.N;
-      }
-    }
-
-    f << path;
-  }
-
-  {
-    std::ofstream f;
-    f.open(folder + "robot_controls.json", std::ios_base::trunc);
-    json data;
-
-    // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    std::map<Robot, std::vector<arr>> paths;
-    for (uint i = 0; i < A.getT(); ++i) {
-      uint offset = 0;
-      for (uint j = 0; j < robots.size(); ++j) {
-        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
-        paths[robots[j]].push_back(pose);
-      }
-    }
-    data = paths;
-
-    f << data;
-  }
-}
-
 Plan plan_multiple_arms_random_search(rai::Configuration &C,
                                       const RobotTaskPoseMap &rtpm,
                                       const std::map<Robot, arr> &home_poses) {
@@ -751,78 +373,6 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
     }
   }
   return best_plan;
-}
-
-OrderedTaskSequence swap_robot(const OrderedTaskSequence &seq,
-                               const std::vector<Robot> &robots) {
-  // randomly choose what to swap in the sequence
-  const uint task_index = rand() % seq.size();
-  while (true) {
-    const uint r = rand() % robots.size();
-
-    OrderedTaskSequence seq_new = seq;
-    // check if the robots in the chosen task are different from the randomly sampled one
-    if (seq_new[task_index].robots[0] != robots[r]) {
-      seq_new[task_index].robots[0] = robots[r];
-      return seq_new;
-    }
-  }
-}
-
-OrderedTaskSequence swap_tasks(const OrderedTaskSequence &seq) {
-  while (true) {
-    // randomly sample task-indices
-    const uint t1_index = rand() % seq.size();
-    const uint t2_index = rand() % seq.size();
-
-    // enusre that they are different
-    if (t1_index != t2_index) {
-      OrderedTaskSequence seq_new = seq;
-      auto tmp = seq_new[t1_index];
-      seq_new[t1_index] = seq_new[t2_index];
-      seq_new[t2_index] = tmp;
-
-      return seq_new;
-    }
-  }
-}
-
-OrderedTaskSequence reverse_subtour(const OrderedTaskSequence &seq) {
-  uint start = rand() % seq.size();
-  uint end = rand() % seq.size();
-
-  while (start == end) {
-    start = rand() % seq.size();
-    end = rand() % seq.size();
-  }
-
-  if (start > end) {
-    std::swap(start, end);
-  }
-
-  OrderedTaskSequence seq_new = seq;
-  for (uint i = 0; i <= end - start; ++i) {
-    seq_new[start + i] = seq[end - i];
-  }
-
-  return seq_new;
-}
-
-OrderedTaskSequence neighbour(const OrderedTaskSequence &seq,
-                              const std::vector<Robot> &robots) {
-  arr rnd(1);
-  rndUniform(rnd, 0, 1);
-
-  if (rnd(0) < 1. / 3.) {
-    std::cout << "Swapping robots" << std::endl;
-    return swap_robot(seq, robots);
-  } else if (rnd(0) < 2. / 3.) {
-    std::cout << "Swapping tasks" << std::endl;
-    return swap_tasks(seq);
-  } else {
-    std::cout << "Reversing subtour" << std::endl;
-    return reverse_subtour(seq);
-  }
 }
 
 bool sequence_is_feasible(const OrderedTaskSequence &seq,
@@ -1141,6 +691,15 @@ Plan plan_multiple_arms_simulated_annealing(
   return best_plan;
 }
 
+OrderedTaskSequence load_sequence(const std::string &path) {
+  OrderedTaskSequence seq;
+  return seq;
+}
+
+bool check_sequence_validity(const OrderedTaskSequence &seq){
+  return false;
+}
+
 OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
                                            const uint num_tasks,
                                            const RobotTaskPoseMap &rtpm) {
@@ -1184,107 +743,6 @@ std::map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
   }
 
   return poses;
-}
-
-void load_and_viz(rai::Configuration C, const bool pick_and_place) {
-  arr path;
-
-  const std::string filepath =
-      "/home/valentin/git/manipulation-planning/examples/23-sim-an/out/"
-      "greedy_20230401_010325/17/robot_controls.txt";
-  std::vector<std::vector<uint>> timings;
-  timings.push_back({0, 25});
-  timings.push_back({0, 52});
-  timings.push_back({0, 66});
-  timings.push_back({0, 94});
-  timings.push_back({0, 105});
-  timings.push_back({0, 172});
-
-  timings.push_back({1, 116});
-  timings.push_back({1, 171});
-
-  timings.push_back({2, 34});
-  timings.push_back({2, 60});
-  timings.push_back({2, 141});
-
-  timings.push_back({3, 26});
-  timings.push_back({3, 35});
-  timings.push_back({3, 53});
-  timings.push_back({3, 59});
-  timings.push_back({3, 153});
-  timings.push_back({3, 194});
-
-  FILE(filepath.c_str()) >> path;
-
-  const std::vector<Robot> robots{"a0_", "a1_", "a2_", "a3_"};
-  // const std::vector<Robot> robots{"a0_", "a1_"};
-
-  setActive(C, robots);
-
-  rai::ConfigurationViewer Vf;
-  Vf.setConfiguration(C, "\"Real World\"", true);
-
-  for (uint i = 0; i < path.d0; ++i) {
-    C.setJointState(path[i]);
-    // C.watch(false);
-    // rai::wait(0.01);
-
-    if (pick_and_place) {
-      for (uint j = 0; j < timings.size(); ++j) {
-        const auto pen_tip = STRING("a" << timings[j][0] << "_pen_tip");
-        const auto obj = STRING("obj" << timings[j][1] + 1);
-
-        if (i == timings[j][2]) {
-          auto from = C[pen_tip];
-          auto to = C[obj];
-
-          to->unLink();
-
-          // create a new joint
-          to->linkFrom(from, true);
-          // to->joint->makeRigid();
-        }
-
-        if (i == timings[j][3]) {
-          auto to = C[obj];
-          auto from = C["table_base"];
-
-          to->unLink();
-
-          // create a new joint
-          to->linkFrom(from, true);
-          // to->joint->makeRigid();
-        }
-      }
-    } else {
-      // draw dots
-      for (uint j = 0; j < timings.size(); ++j) {
-        const auto pen_tip = STRING("a" << timings[j][0] << "_pen_tip");
-        const arr pos = C[pen_tip]->getPosition();
-
-        if (timings[j][1] == i) {
-          // add small sphere
-          auto *dot = C.addFrame("goal", "table");
-          dot->setShape(rai::ST_sphere, {0.01});
-          dot->setPosition(pos);
-          dot->setContact(0.);
-
-          if (timings[j][0] == 0) {
-            dot->setColor({0, 0., 0., 0.5});
-          } else if (timings[j][0] == 1) {
-            dot->setColor({1., 0., 0., 0.5});
-          } else if (timings[j][0] == 2) {
-            dot->setColor({1., 0., 1., 0.5});
-          } else if (timings[j][0] == 3) {
-            dot->setColor({1., 1., 0., 0.5});
-          }
-        }
-      }
-    }
-    Vf.setConfiguration(C, ".", false);
-    rai::wait(0.01);
-    Vf.savePng();
-  }
 }
 
 arr plan_line(rai::Configuration C, const rai::String &robot_prefix, const std::vector<arr> &pts){
@@ -1385,27 +843,39 @@ int main(int argc, char **argv) {
   const rai::String stippling_scenario =
       rai::getParameter<rai::String>("stippling_pts", "random"); // scenario
 
+  const rai::String gripper =
+      rai::getParameter<rai::String>("gripper", "two_finger"); // which gripper
+
   const rai::String env =
       rai::getParameter<rai::String>("env", ""); // environment
 
   std::vector<std::string> robots; // string-prefix for robots
+  robots = {"a0_", "a1_", "a2_"};
 
   rai::Configuration C;
-  if (plan_pick_and_place) {
-    // pick_and_place(C);
-    // robots = {"a0_", "a1_"};
+  opposite_three_robot_configuration(C, gripper == "two_finger");
 
+  if (env == "random"){
     random_objects(C, num_objects);
-    robots = {"a0_", "a1_", "a2_"};
-  } else {
-    if (env == "lab") {
-      labSetting(C);
-      robots = {"a0_", "a1_"};
-    } else {
-      more_robots(C, 4);
-      robots = {"a0_", "a1_", "a2_", "a3_"};
-    }
   }
+  else if (env == "line"){
+    line(C, num_objects);
+  }
+  else if (env == "shuffled_line"){
+    shuffled_line(C, num_objects);
+  }
+
+  // C.watch(true);
+
+  // } else {
+  //   if (env == "lab") {
+  //     labSetting(C);
+  //     robots = {"a0_", "a1_"};
+  //   } else {
+  //     more_robots(C, 4);
+  //     robots = {"a0_", "a1_", "a2_", "a3_"};
+  //   }
+  // }
 
   // {
   //   rai::Configuration tmp;
@@ -1420,12 +890,6 @@ int main(int argc, char **argv) {
 
   // maps [robot] to home_pose
   const std::map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
-
-  // show prev path
-  if (mode == "show_plan") {
-    load_and_viz(C, plan_pick_and_place);
-    return 0;
-  }
 
   if (mode == "line_test") {
     line_test();
@@ -1445,6 +909,29 @@ int main(int argc, char **argv) {
     auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_handover, home_poses);
     visualize_plan(C, plan.plan, true);
 
+    return 0;
+  }
+
+  if (mode == "plan_for_sequence"){
+    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+
+    // merge both maps
+    RobotTaskPoseMap rtpm;
+    rtpm.insert(pick_rtpm.begin(), pick_rtpm.end());
+    rtpm.insert(handover_rtpm.begin(), handover_rtpm.end());
+
+    const std::string path;
+    const auto seq = load_sequence(path);
+    if (!check_sequence_validity(seq)){
+      std::cout << "sequence invalid." << std::endl;
+      return 0;
+    }
+    auto plan = plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
+  
+    // export_plan(C, robots, home_poses, plan.plan, seq, );
+
+    return 0;
   }
 
   // stippling
