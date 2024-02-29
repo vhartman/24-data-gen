@@ -304,6 +304,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
       std::cout << "Q" << std::endl;
       std::cout << "Q" << std::endl;
       res->writeDetails(cout, TP.C);
+      
       // TP.A.setToTime(TP.C, t0 + horizon);
       // TP.C.setJointState(q1);
       // TP.C.watch(true);
@@ -792,13 +793,27 @@ class PrioritizedTaskPlanner {
 
       if (rtp.task.type == TaskType::handover){
         std::cout << "handover" << std::endl;
-        std::cout << "not supported currenlty" << std::endl;
 
         // r1 [ pick ] [handover] [ exit ]
         // r2  xx ] [  move to  ] [  place  ] [exit]
+        const auto r1 = rtp.robots[0];
+        const auto r2 = rtp.robots[1];
 
         // plan pick for r1
         {
+          bool removed_exit_path = false;
+          const uint max_start_time_shift = 0;
+          if (paths.count(r1) > 0 && paths[r1].back().is_exit &&
+              prev_finishing_time <
+                  paths[r1].back().t(-1) + 1 + max_start_time_shift) {
+            std::cout << "removing exit path of " << r1 << std::endl;
+            std::cout << "exit path end time: " << paths[r1].back().t(-1)
+                      << std::endl;
+            paths[r1].pop_back();
+
+            removed_exit_path = true;
+          }
+
           rai::Animation A;
           for (const auto &p : paths) {
             for (const auto &path : p.second) {
@@ -808,20 +823,20 @@ class PrioritizedTaskPlanner {
 
           // set configuration to plannable for current robot
           std::cout << "setting up C" << std::endl;
-          std::cout << rtp.robots[0] << std::endl;
-          setActive(CPlanner, rtp.robots[0]);
+          std::cout << r1 << std::endl;
+          setActive(CPlanner, r1);
 
           TP.A = A;
 
-          const uint pick_start_time = (paths.count(rtp.robots[1]) > 0) ? paths[rtp.robots[0]].back().t(-1): 0;
-          const arr pick_start_pose = (paths.count(rtp.robots[1]) > 0) ? paths[rtp.robots[0]].back().path[-1]: home_poses[rtp.robots[0]];
+          const uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
+          const arr pick_start_pose = (paths.count(r1) > 0) ? paths[r1].back().path[-1]: home_poses[r1];
           const arr pick_pose = rtpm[rtp][0][0];
 
           std::cout << pick_start_pose << std::endl;
           std::cout << pick_pose << std::endl;
           
           auto path = plan_in_animation(TP, pick_start_time, pick_start_pose, pick_pose,
-                                        0, rtp.robots[0], false);
+                                        0, r1, false);
 
           if (path.has_solution) {
             if (false) {
@@ -831,12 +846,12 @@ class PrioritizedTaskPlanner {
                 CPlanner.watch(false);
                 rai::wait(0.05);
               }
-              CPlanner.setJointState(home_poses.at(rtp.robots[0]));
+              CPlanner.setJointState(home_poses.at(r1));
             }
 
             // TODO: need to add the whoel thing with animation making etc
             // make animation part
-            auto tmp_frames = robot_frames.at(rtp.robots[0]);
+            auto tmp_frames = robot_frames.at(r1);
             // add obj. frame to the anim-part.
             const auto obj = STRING("obj" << rtp.task.object + 1);
             auto to = CPlanner[obj];
@@ -852,7 +867,7 @@ class PrioritizedTaskPlanner {
               return PlanStatus::aborted;
             }
 
-            paths[rtp.robots[0]].push_back(path);
+            paths[r1].push_back(path);
           }
           else{
             return PlanStatus::failed;
@@ -864,9 +879,9 @@ class PrioritizedTaskPlanner {
           std::cout << "handovering" << std::endl;
 
           // link obj to robot 1
-          CPlanner.setJointState(paths[rtp.robots[0]].back().path[-1]);
+          CPlanner.setJointState(paths[r1].back().path[-1]);
           // CPlanner.watch(true);
-          const auto pen_tip = STRING(rtp.robots[0] << "pen_tip");
+          const auto pen_tip = STRING(r1 << "pen_tip");
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto from = CPlanner[pen_tip];
@@ -889,23 +904,23 @@ class PrioritizedTaskPlanner {
 
           // set configuration to plannable for current robot
           std::cout << "setting up C" << std::endl;
-          std::cout << rtp.robots[0] << std::endl;
+          std::cout << r1 << std::endl;
 
           TP.A = A;
 
-          const uint pick_end_time = (paths.count(rtp.robots[0]) > 0) ? paths[rtp.robots[0]].back().t(-1): 0;
-          const uint other_end_time = (paths.count(rtp.robots[1]) > 0) ? paths[rtp.robots[1]].back().t(-1): 0;
+          const uint pick_end_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
+          const uint other_end_time = (paths.count(r2) > 0) ? paths[r2].back().t(-1): 0;
           const uint start_time = std::max({pick_end_time, other_end_time});
 
           arr handover_start_pose;
           {
-            arr pose_r1 = paths[rtp.robots[0]].back().path[-1];
-            arr pose_r2 = (paths.count(rtp.robots[1])>0 && paths[rtp.robots[1]].size()>0) ? paths[rtp.robots[1]].back().path[-1] : home_poses[rtp.robots[1]];
+            arr pose_r1 = paths[r1].back().path[-1];
+            arr pose_r2 = (paths.count(r2)>0 && paths[r2].size()>0) ? paths[r2].back().path[-1] : home_poses[r2];
           
-            setActive(CPlanner, rtp.robots[0]);
+            setActive(CPlanner, r1);
             CPlanner.setJointState(pose_r1);
           
-            setActive(CPlanner, rtp.robots[1]);
+            setActive(CPlanner, r2);
             CPlanner.setJointState(pose_r2);
 
             setActive(CPlanner, rtp.robots);
@@ -923,7 +938,7 @@ class PrioritizedTaskPlanner {
           std::cout << TP.C.getJointState() << std::endl;
           
           auto path = plan_in_animation(TP, start_time, handover_start_pose, handover_pose,
-                                        0, rtp.robots[0], false);
+                                        0, r1, false);
 
           if (path.has_solution) {
             if (false) {
@@ -933,24 +948,23 @@ class PrioritizedTaskPlanner {
                 CPlanner.watch(true);
                 rai::wait(0.05);
               }
-              setActive(CPlanner, rtp.robots[0]);
-              CPlanner.setJointState(home_poses.at(rtp.robots[0]));
-              setActive(CPlanner, rtp.robots[1]);
-              CPlanner.setJointState(home_poses.at(rtp.robots[1]));
+              setActive(CPlanner, r1);
+              CPlanner.setJointState(home_poses.at(r1));
+              setActive(CPlanner, r2);
+              CPlanner.setJointState(home_poses.at(r2));
               
               setActive(CPlanner, rtp.robots);
             }
 
-            // TODO: need to add the whoel thing with animation making etc
             // make animation part
             {
-              auto tmp_frames = robot_frames.at(rtp.robots[0]);
+              auto tmp_frames = robot_frames.at(r1);
               // add obj. frame to the anim-part.
               const auto obj = STRING("obj" << rtp.task.object + 1);
               auto to = CPlanner[obj];
               tmp_frames.append(to);
               
-              auto r1_joints = get_robot_joints(CPlanner, rtp.robots[0]);
+              auto r1_joints = get_robot_joints(CPlanner, r1);
 
               arr r1_joint_path(path.path.d0, 6);
               for (uint i=0; i<path.path.d0; ++i){
@@ -958,7 +972,7 @@ class PrioritizedTaskPlanner {
                 r1_joint_path[i] = CPlanner.getJointState(r1_joints);
               }
 
-              setActive(CPlanner, rtp.robots[0]);
+              setActive(CPlanner, r1);
               const auto anim_part =
                   make_animation_part(CPlanner,r1_joint_path, tmp_frames, start_time);
               auto r1_path = TaskPart(path.t, r1_joint_path);
@@ -974,13 +988,13 @@ class PrioritizedTaskPlanner {
                 return PlanStatus::aborted;
               }
 
-              paths[rtp.robots[0]].push_back(r1_path);
+              paths[r1].push_back(r1_path);
             }
             {
               setActive(CPlanner, rtp.robots);
 
-              auto tmp_frames = robot_frames.at(rtp.robots[1]);
-              auto r1_joints = get_robot_joints(CPlanner, rtp.robots[1]);
+              auto tmp_frames = robot_frames.at(r2);
+              auto r1_joints = get_robot_joints(CPlanner, r2);
 
               arr r1_joint_path(path.path.d0, 6);
               for (uint i=0; i<path.path.d0; ++i){
@@ -988,7 +1002,7 @@ class PrioritizedTaskPlanner {
                 r1_joint_path[i] = CPlanner.getJointState(r1_joints);
               }
 
-              setActive(CPlanner, rtp.robots[1]);
+              setActive(CPlanner, r2);
               const auto anim_part =
                   make_animation_part(CPlanner,r1_joint_path, tmp_frames, start_time);
               auto r1_path = TaskPart(path.t, r1_joint_path);
@@ -1000,7 +1014,7 @@ class PrioritizedTaskPlanner {
                 return PlanStatus::aborted;
               }
 
-              paths[rtp.robots[1]].push_back(r1_path);
+              paths[r2].push_back(r1_path);
             }
           }
           else{
@@ -1013,13 +1027,13 @@ class PrioritizedTaskPlanner {
         // link obj to r2
         {
           // link obj to robot 1
-          setActive(CPlanner, rtp.robots[0]);
-          CPlanner.setJointState(paths[rtp.robots[0]].back().path[-1]);
-          setActive(CPlanner, rtp.robots[1]);
-          CPlanner.setJointState(paths[rtp.robots[1]].back().path[-1]);
+          setActive(CPlanner, r1);
+          CPlanner.setJointState(paths[r1].back().path[-1]);
+          setActive(CPlanner, r2);
+          CPlanner.setJointState(paths[r2].back().path[-1]);
           
           // CPlanner.watch(true);
-          const auto pen_tip = STRING(rtp.robots[1] << "pen_tip");
+          const auto pen_tip = STRING(r2 << "pen_tip");
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto from = CPlanner[pen_tip];
@@ -1033,9 +1047,9 @@ class PrioritizedTaskPlanner {
 
         // plan exit path for r1
         {
-          setActive(CPlanner, rtp.robots[0]);
-          const uint exit_start_time = paths[rtp.robots[0]].back().t(-1);
-          const arr exit_path_start_pose = paths[rtp.robots[0]].back().path[-1];
+          setActive(CPlanner, r1);
+          const uint exit_start_time = paths[r1].back().t(-1);
+          const arr exit_path_start_pose = paths[r1].back().path[-1];
 
           rai::Animation A;
           for (const auto &p : paths) {
@@ -1048,17 +1062,17 @@ class PrioritizedTaskPlanner {
 
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                home_poses.at(rtp.robots[0]), exit_start_time, rtp.robots[0], true);
-          exit_path.r = rtp.robots[0];
+                                home_poses.at(r1), exit_start_time, r1, true);
+          exit_path.r = r1;
           exit_path.task_index = 0;
           exit_path.is_exit = true;
           exit_path.name = "exit";
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
-                CPlanner, exit_path.path, robot_frames.at(rtp.robots[0]), exit_start_time);
+                CPlanner, exit_path.path, robot_frames.at(r1), exit_start_time);
             exit_path.anim = exit_anim_part;
-            paths[rtp.robots[0]].push_back(exit_path);
+            paths[r1].push_back(exit_path);
           }
           else{
             return PlanStatus::failed;
@@ -1067,9 +1081,9 @@ class PrioritizedTaskPlanner {
 
         // plan place
         {
-          setActive(CPlanner, rtp.robots[1]);
-          const uint exit_start_time = paths[rtp.robots[1]].back().t(-1);
-          const arr exit_path_start_pose = paths[rtp.robots[1]].back().path[-1];
+          setActive(CPlanner, r2);
+          const uint exit_start_time = paths[r2].back().t(-1);
+          const arr exit_path_start_pose = paths[r2].back().path[-1];
 
           rai::Animation A;
           for (const auto &p : paths) {
@@ -1082,8 +1096,8 @@ class PrioritizedTaskPlanner {
 
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                rtpm[rtp][0][2], exit_start_time, rtp.robots[1], true);
-          exit_path.r = rtp.robots[1];
+                                rtpm[rtp][0][2], exit_start_time, r2, true);
+          exit_path.r = r2;
           exit_path.task_index = rtp.task.object;
           exit_path.is_exit = false;
           exit_path.name = "place";
@@ -1096,10 +1110,10 @@ class PrioritizedTaskPlanner {
                 CPlanner.watch(true);
                 rai::wait(0.05);
               }
-              setActive(CPlanner, rtp.robots[1]);
-              CPlanner.setJointState(home_poses.at(rtp.robots[1]));
+              setActive(CPlanner, r2);
+              CPlanner.setJointState(home_poses.at(r2));
             }
-            auto tmp_frames = robot_frames.at(rtp.robots[1]);
+            auto tmp_frames = robot_frames.at(r2);
             const auto obj = STRING("obj" << rtp.task.object + 1);
             auto to = CPlanner[obj];
             tmp_frames.append(to);  
@@ -1107,7 +1121,7 @@ class PrioritizedTaskPlanner {
             const auto exit_anim_part = make_animation_part(
                 CPlanner, exit_path.path, tmp_frames, exit_start_time);
             exit_path.anim = exit_anim_part;
-            paths[rtp.robots[1]].push_back(exit_path);
+            paths[r2].push_back(exit_path);
           }
           else{
             return PlanStatus::failed;
@@ -1116,10 +1130,10 @@ class PrioritizedTaskPlanner {
 
         // link to floorr
         {            
-          setActive(CPlanner, rtp.robots[1]);
-          CPlanner.setJointState(paths[rtp.robots[1]].back().path[-1]);
+          setActive(CPlanner, r2);
+          CPlanner.setJointState(paths[r2].back().path[-1]);
             // CPlanner.watch(true);
-          const auto pen_tip = STRING(rtp.robots[1] << "pen_tip");
+          const auto pen_tip = STRING(r2 << "pen_tip");
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto to = CPlanner[obj];
@@ -1134,9 +1148,9 @@ class PrioritizedTaskPlanner {
 
         // plan exit
         {
-          setActive(CPlanner, rtp.robots[1]);
-          const uint exit_start_time = paths[rtp.robots[1]].back().t(-1);
-          const arr exit_path_start_pose = paths[rtp.robots[1]].back().path[-1];
+          setActive(CPlanner, r2);
+          const uint exit_start_time = paths[r2].back().t(-1);
+          const arr exit_path_start_pose = paths[r2].back().path[-1];
 
           rai::Animation A;
           for (const auto &p : paths) {
@@ -1149,17 +1163,17 @@ class PrioritizedTaskPlanner {
 
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                home_poses.at(rtp.robots[1]), exit_start_time, rtp.robots[0], true);
-          exit_path.r = rtp.robots[1];
+                                home_poses.at(r2), exit_start_time, r1, true);
+          exit_path.r = r2;
           exit_path.task_index = 0;
           exit_path.is_exit = true;
           exit_path.name = "exit";
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
-                CPlanner, exit_path.path, robot_frames.at(rtp.robots[1]), exit_start_time);
+                CPlanner, exit_path.path, robot_frames.at(r2), exit_start_time);
             exit_path.anim = exit_anim_part;
-            paths[rtp.robots[1]].push_back(exit_path);
+            paths[r2].push_back(exit_path);
           }
           else{
             return PlanStatus::failed;
@@ -1495,9 +1509,9 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     }*/
   }
 
-  // actually plan
   PrioritizedTaskPlanner planner(home_poses, rtpm, best_makespan_so_far, early_stopping);
-
+  
+  // actually plan
   for (uint i = start_index; i < sequence.size(); ++i) {
     uint prev_finishing_time = 0;
 

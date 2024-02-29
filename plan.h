@@ -1,13 +1,16 @@
-#ifndef PLAN_H
-#define PLAN_H
+#pragma once
 
 #include <string>
 #include <vector>
+
+#include "json.h"
 
 #include <Core/array.h>
 
 #include "util.h"
 #include "env_util.h"
+
+using json = nlohmann::json;
 
 enum class TaskType {pick, handover, go_to, joint_pick};
 struct Task{
@@ -354,5 +357,318 @@ reoptimize_plan(rai::Configuration C,
   return optimized_plan;
 }
 
+void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
+                 const std::map<Robot, arr> &home_poses, const Plan &plan,
+                 const OrderedTaskSequence &seq, const std::string base_folder,
+                 const uint iteration, const uint computation_time) {
+  std::cout << "exporting plan" << std::endl;
+  // make folder
+  const std::string folder =
+      "./out/" + base_folder + "/" + std::to_string(iteration) + "/";
+  const int res = system(STRING("mkdir -p " << folder).p);
+  (void)res;
 
-#endif
+  rai::Animation A;
+  for (const auto &p : plan) {
+    for (const auto &path : p.second) {
+      A.A.append(path.anim);
+    }
+  }
+
+  // - add info
+  // -- comp. time
+  {
+    std::ofstream f;
+    f.open(folder + "comptime.txt", std::ios_base::trunc);
+    f << computation_time / 1000.;
+  }
+
+  // -- makespan
+  {
+    std::ofstream f;
+    f.open(folder + "makespan.txt", std::ios_base::trunc);
+    f << A.getT();
+  }
+
+  // -- sequence
+  {
+    std::ofstream f;
+    f.open(folder + "sequence.txt", std::ios_base::trunc);
+    for (const auto &s : seq) {
+      f << "(" << s.robots[0] << " " << s.task.object << ")";
+    }
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "robot_pose.json", std::ios_base::trunc);
+    
+    // robots
+    json data;
+    for (const auto &e: home_poses){
+      const auto r = e.first;
+      const rai::String robot_base STRING(r << "base");
+
+      data[robot_base.p] = C[robot_base]->getPose();
+    }
+
+    f << data;
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "obj_goals.json", std::ios_base::trunc);
+    
+    json data;
+    // goals
+    for (const auto frame: C.frames){
+      if (frame->name.contains("goal")){
+        data[frame->name.p] = frame->getPose().vec();
+      }
+    }
+
+    f << data;
+  }
+
+  {
+    std::map<rai::String, arr> objs;
+    for (const auto frame: C.frames){
+      if (frame->name.contains("obj")){
+        objs[frame->name] = arr(0, 7);
+      }
+    }
+
+    const double makespan = get_makespan_from_plan(plan);
+    for (uint t = 0; t < makespan; ++t) {
+      // std::cout << t << std::endl;
+      for (const auto &tp : plan) {
+        const auto r = tp.first;
+        const auto parts = tp.second;
+
+        bool done = false;
+        for (const auto &part : parts) {
+          // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+          if (part.t(0) > t || part.t(-1) < t) {
+            continue;
+          }
+
+          for (uint i = 0; i < part.t.N - 1; ++i) {
+            if (part.t(i) <= t && part.t(i + 1) > t) {
+              setActive(C, r);
+              C.setJointState(part.path[i]);
+              // std::cout <<part.path[i] << std::endl;
+              done = true;
+
+              // set bin picking things
+              const auto task_index = part.task_index;
+              const auto obj_name = STRING("obj" << task_index + 1);
+
+              if (part.anim.frameNames.contains(obj_name)) {
+                const auto pose =
+                    part.anim.X[uint(std::floor(t - part.anim.start))];
+                arr tmp(1, 7);
+                tmp[0] = pose[-1];
+                C.setFrameState(tmp, {C[obj_name]});
+              }
+              break;
+            }
+          }
+
+          if (done) {
+            break;
+          }
+        }
+      }
+
+      for (const auto &obj: objs){
+        objs[obj.first].append(C[obj.first]->getPose());
+      }
+    }
+
+    std::ofstream f;
+    f.open(folder + "obj_poses.json", std::ios_base::trunc);
+    
+    json data;
+    for (const auto &obj: objs){
+      std::vector<arr> tmp;
+      for (uint i=0; i<obj.second.d0; ++i) tmp.push_back(obj.second[i]);
+      data[obj.first.p] = tmp;
+    }
+
+    f << data;
+  }
+
+  // -- plan
+  {
+    std::ofstream f;
+    f.open(folder + "plan.txt", std::ios_base::trunc);
+
+    for (const auto &per_robot_plan : plan) {
+      const auto robot = per_robot_plan.first;
+      const auto tasks = per_robot_plan.second;
+
+      f << robot << ": ";
+      for (const auto &task : tasks) {
+        f << task.name << "(" << task.algorithm << ")"
+          << " " << task.task_index << ", " << task.t(0) << ", " << task.t(-1)
+          << "; ";
+      }
+      f << std::endl;
+    }
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "plan.json", std::ios_base::trunc);
+    json data;
+
+    for (const auto &per_robot_plan : plan) {
+      const auto robot = per_robot_plan.first;
+      const auto tasks = per_robot_plan.second;
+
+      json tmp;
+      tmp["robot"] = robot;
+
+      for (const auto &task : tasks) {
+        json task_description;
+        task_description["name"] = task.name;
+        task_description["algorithm"]= task.algorithm;
+        task_description["index"] = task.task_index;
+        task_description["start"] = task.t(0);
+        task_description["end"] = task.t(-1);
+
+        tmp["tasks"].push_back(task_description);
+      }
+
+      data.push_back(tmp);
+    }
+
+    f << data;
+  }
+
+  // -- compute times
+  {
+    std::ofstream f;
+    f.open(folder + "computation_times.txt", std::ios_base::trunc);
+    for (const auto &per_robot_plan : plan) {
+      const auto robot = per_robot_plan.first;
+      const auto tasks = per_robot_plan.second;
+
+      f << robot << ": ";
+      for (const auto &task : tasks) {
+        f << task.name << "(" << task.algorithm << ")"
+          << " " << task.task_index << ", " << task.stats.total_compute_time
+          << ", " << task.stats.rrt_compute_time << ", "
+          << task.stats.rrt_plan_time << ", "
+          << task.stats.rrt_coll_time << ", "
+          << task.stats.rrt_nn_time << ", "
+          << task.stats.rrt_smoothing_time << ", "
+          << task.stats.rrt_shortcut_time << ", "
+          << task.stats.komo_compute_time << "; ";
+      }
+      f << std::endl;
+    }
+  }
+
+  // -- actual path
+  {
+    std::ofstream f;
+    f.open(folder + "robot_controls.txt", std::ios_base::trunc);
+    arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
+    for (uint i = 0; i < A.getT(); ++i) {
+      uint offset = 0;
+      for (uint j = 0; j < robots.size(); ++j) {
+        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
+        for (uint k = 0; k < pose.N; ++k) {
+          path[i](k + offset) = pose(k);
+        }
+        offset += pose.N;
+      }
+    }
+
+    f << path;
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "robot_controls.json", std::ios_base::trunc);
+    json data;
+
+    // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
+    std::map<Robot, std::vector<arr>> paths;
+    for (uint i = 0; i < A.getT(); ++i) {
+      uint offset = 0;
+      for (uint j = 0; j < robots.size(); ++j) {
+        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
+        paths[robots[j]].push_back(pose);
+      }
+    }
+    data = paths;
+
+    f << data;
+  }
+}
+
+void visualize_plan(rai::Configuration C, const Plan &plan,
+                    const bool save = false) {
+  rai::ConfigurationViewer Vf;
+  // Vf.setConfiguration(C, "\"Real World\"", true);
+  Vf.setConfiguration(C, "\"Real World\"", false);
+
+  const double makespan = get_makespan_from_plan(plan);
+
+  for (uint t = 0; t < makespan; ++t) {
+    // A.setToTime(C, t);
+
+    // std::cout << t << std::endl;
+    for (const auto &tp : plan) {
+      const auto r = tp.first;
+      const auto parts = tp.second;
+
+      bool done = false;
+      for (const auto &part : parts) {
+        // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+        if (part.t(0) > t || part.t(-1) < t) {
+          continue;
+        }
+
+        for (uint i = 0; i < part.t.N; ++i) {
+          if ((i == part.t.N-1 && t == part.t(-1)) ||
+              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+            setActive(C, r);
+            C.setJointState(part.path[i]);
+            // std::cout <<part.path[i] << std::endl;
+            done = true;
+
+            // set bin picking things
+            const auto task_index = part.task_index;
+            const auto obj_name = STRING("obj" << task_index + 1);
+
+            if (part.anim.frameNames.contains(obj_name)) {
+              const auto pose =
+                  part.anim.X[uint(std::floor(t - part.anim.start))];
+              arr tmp(1, 7);
+              tmp[0] = pose[-1];
+              C.setFrameState(tmp, {C[obj_name]});
+            }
+            break;
+          }
+        }
+        
+        if (done) {
+          break;
+        }
+      }
+    }
+
+    // C.watch(false);
+    Vf.setConfiguration(C, ".", false);
+    rai::wait(0.01);
+
+    if (save) {
+      Vf.savePng();
+    }
+  }
+  rai::wait(0.01);
+  std::cout << "B" << std::endl;
+}
