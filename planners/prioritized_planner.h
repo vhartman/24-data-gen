@@ -198,21 +198,25 @@ double get_max_speed(const arr &path) {
 
 double get_earliest_feasible_time(TimedConfigurationProblem &TP, const arr &q,
                                   const uint t_max, const uint t_min) {
+  // idea: start at the maximum time (where we know that ut is feasible),
+  // and decrease the time, and check if it is feasible at this time
   uint t_earliest_feas = t_max;
   while (t_earliest_feas > t_min) {
     const auto res = TP.query(q, t_earliest_feas);
     if (!res->isFeasible) {
+      spdlog::info("Not feasible at time {}", t_earliest_feas);
       t_earliest_feas += 2;
       break;
     }
     --t_earliest_feas;
   }
 
-  if (t_max == t_earliest_feas + 2) {
-    std::cout << "C" << std::endl;
-    std::cout << "C" << std::endl;
-    std::cout << "C" << std::endl;
-  }
+  // if (t_max == t_earliest_feas + 2) {
+  //   spdlog::error("Configuration never feasible.");
+  //   spdlog::error("tmax {}, tmin {}, anim duration {}", t_max, t_min, TP.A.getT());
+    
+  //   TP.C.watch(true);
+  // }
 
   return t_earliest_feas;
 }
@@ -225,11 +229,15 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
 
   // Check if start q is feasible
   const auto start_res = TP.query(q0, t0);
-  if (!start_res->isFeasible && min(start_res->coll_y) < -0.1) {
-    std::cout << t0 << std::endl;
-    LOG(-1) << "q_start is not feasible! This should not happen ";
+  // if (!start_res->isFeasible && min(start_res->coll_y) < -0.1) {
+  if (!start_res->isFeasible) {
+    // std::cout << t0 << std::endl;
+    // LOG(-1) << "q_start is not feasible! This should not happen ";
+    spdlog::error("q_start is not feasible at time {}! This should not happen", t0);
+    spdlog::error("penetration is {}", min(start_res->coll_y));
+
     start_res->writeDetails(cout, TP.C);
-    std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
+    // std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
 
     // TP.A.setToTime(TP.C, t0);
     // TP.C.setJointState(q0);
@@ -248,8 +256,9 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
   const double t_earliest_feas = get_earliest_feasible_time(
       TP, q1, t_max_to_check, std::max({time_lb, t0 + dt_max_vel}));
 
-  std::cout << "Final time for komo: " << t_earliest_feas
-            << " dt: " << t_earliest_feas - t0 << std::endl;
+  spdlog::info("Final time for komo: {}, dt: ", t_earliest_feas, t_earliest_feas - t0);
+  // std::cout << "Final time for komo: " << t_earliest_feas
+  //           << " dt: " << t_earliest_feas - t0 << std::endl;
 
   // the minimum horizon length is mainly given by the earliest possible finish
   // time
@@ -268,18 +277,14 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     }
 
     if (time_ub_prev_found > 0 && time_ub_prev_found < ts(-1)) {
-      std::cout << "found cheaper path before" << std::endl;
+      spdlog::info("found cheaper path before, aborting.");
       return TaskPart();
     }
 
     // ensure that the goal is truly free. Sanity check.
     const auto res = TP.query(q1, t0 + horizon);
     if (!res->isFeasible) {
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
-      std::cout << "Q" << std::endl;
+      spdlog::error("Goal is not valid.");
       res->writeDetails(cout, TP.C);
       
       // TP.A.setToTime(TP.C, t0 + horizon);
@@ -317,7 +322,6 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
       for (uint i = 0; i < ts.N; ++i) {
         const auto res = TP.query(path[i], ts(i));
         if (!res->isFeasible) {
-          std::cout << "R " << ts(i) << std::endl;
           TP.A.setToTime(TP.C, ts(i));
           TP.C.setJointState(path[i]);
           TP.C.watch(true);
@@ -327,21 +331,20 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
 
     // check max. speed
     const double max_speed = get_max_speed(path);
-    std::cout << "max speed: " << max_speed << std::endl;
+    spdlog::info("Komo max speed: {}", max_speed);
 
+    // if the violations are this high, we give up
     if (eq > 15 && ineq > 15) {
       return TaskPart();
     }
 
     if (max_speed <= prefix.vmax && eq < 1.5 && ineq < 1.5) {
-      std::cout << "done, accepting komo. ineq: " << ineq << " eq. " << eq
-                << std::endl;
+      spdlog::info("done, found a komo solution with ineq {}, and eq {}", ineq, eq);
       return TaskPart(ts, path);
     }
 
     if (iters >= max_komo_run_attempts) {
-      std::cout << "too many reruns. ineq: " << ineq << " eq. " << eq
-                << std::endl;
+      spdlog::info("Stopping komo attempts, too many attempts. ineq {}, eq {}", ineq, eq);
       return TaskPart();
     }
 
@@ -353,16 +356,16 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
         std::max({0, int(std::ceil(horizon * ((max_speed / prefix.vmax) - 1)))});
     const uint num_add_timesteps =
         std::max({(iters + 1) * 3u, uint(add_timesteps_for_speed)});
-    std::cout << "adding " << num_add_timesteps << " steps" << std::endl;
+        spdlog::info("adding {} timesteps to decrease the maximum speed", num_add_timesteps);
 
     if (num_add_timesteps > 300){
-      std::cout << "too many timesteps" << std::endl;
+      spdlog::info("komo path too long, aborting.");;
       return TaskPart();
     }
 
     horizon += num_add_timesteps;
 
-    std::cout << "rerunning komo; ineq: " << ineq << " eq: " << eq << std::endl;
+    spdlog::info("rerunning komo, current violation: ineq {}, eq {}", ineq, eq);
 
     ++iters;
   }
@@ -381,10 +384,12 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // Check if start q is feasible
   const auto start_res = TP.query(q0, t0);
   if (!start_res->isFeasible) {
-    std::cout << t0 << std::endl;
-    LOG(-1) << "q_start is not feasible! This should not happen ";
+    spdlog::error("q_start is not feasible at time {}! This should not happen", t0);
+    spdlog::error("penetration is {}", min(start_res->coll_y));
+    // std::cout << t0 << std::endl;
+    // LOG(-1) << "q_start is not feasible! This should not happen ";
     start_res->writeDetails(cout, TP.C);
-    std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
+    // std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
 
     TP.A.setToTime(TP.C, t0);
     TP.C.setJointState(q0);
@@ -416,8 +421,10 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   const uint t_earliest_feas = get_earliest_feasible_time(
       TP, q1, t_max_to_check, std::max({time_lb, t0 + dt_max_vel}));
 
-  std::cout << "t_earliest_feas " << t_earliest_feas << std::endl;
-  std::cout << "last anim time " << TP.A.getT() << std::endl;
+  spdlog::info("t_earliest_feas {}", t_earliest_feas);
+  spdlog::info("last anim time {}", TP.A.getT());
+  // std::cout << "t_earliest_feas " << t_earliest_feas << std::endl;
+  // std::cout << "last anim time " << TP.A.getT() << std::endl;
 
   if (false) {
     TP.A.setToTime(TP.C, TP.A.getT());
@@ -440,7 +447,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
     std::cout << i << " " << time_ub << std::endl;
     if (time_ub > time_ub_prev_found && time_ub_prev_found > 0) {
-      std::cout << "Aborting bc. faster path found" << std::endl;
+      spdlog::info("Aborting bc. faster path found");
       break;
     }
 
@@ -507,7 +514,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   for (uint i = 0; i < t.N; ++i) {
     const auto res = TP.query(path[i], t(i));
     if (!res->isFeasible) {
-      LOG(-1) << "resampled path is not feasible! This should not happen.";
+      spdlog::error("resampled path is not feasible! This should not happen.");
       start_res->writeDetails(cout, TP.C);
 
       // TP.A.setToTime(TP.C, t0);
@@ -525,7 +532,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
   // shortcutting
   // TODO: add timing
-  std::cout << "shortcutting" << std::endl;
+  spdlog::info("Running shortcutter");
   const auto shortcut_start_time = std::chrono::high_resolution_clock::now();
   const bool should_shortcut = rai::getParameter<bool>("shortcutting", true);
 
@@ -544,7 +551,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // std::cout << new_path[-1] << "\n" << q1 << std::endl;
 
   // smoothing and imposing bunch of constraints
-  std::cout << "smoothing rrt path using komo" << std::endl;
+  spdlog::info("Running smoother");
   const auto smoothing_start_time = std::chrono::high_resolution_clock::now();
   
   // TP.C.fcl()->stopEarly = false;
@@ -561,7 +568,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     const auto res = TP.query(smooth_path[i], t(i));
     // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < 0) {
     if (!res->isFeasible) {
-      std::cout << "smoothed path infeasible" << std::endl;
+      spdlog::error("smoothed path infeasible");
       smooth_path = new_path;
       break;
     }
@@ -575,9 +582,9 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // const arr smooth_path = new_path;
 
   const double max_speed = get_max_speed(smooth_path);
-  std::cout << "rrt final time " << t(-1) << std::endl;
-  std::cout << "rrt max_speed " << max_speed << std::endl;
-
+  spdlog::info("RRT final time at {}", t(-1));
+  spdlog::info("RRT maximum speed {}", max_speed);
+  
   TaskPart tp(t, smooth_path);
   tp.stats.rrt_plan_time = total_rrt_time;
   tp.stats.rrt_nn_time = total_nn_time;
@@ -669,13 +676,15 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
       // TP.C.fcl()->deactivatePairs(pairs);
       // TP.activeOnly = true;
 
+      spdlog::info("Checking komo path for colisions");
       for (uint i = 0; i < komo_path.t.N; ++i) {
         const auto res = TP.query(komo_path.path[i], komo_path.t(i));
         if (res->coll_y.N > 0){
-          std::cout << "coll violation:" <<  min(res->coll_y) << std::endl;
+          spdlog::error("komo path is colliding, penetrating {}", min(res->coll_y));
         }
-        if (!res->isFeasible && min(res->coll_y) < -0.01) {
-          std::cout << "komo actually infeasible" << std::endl;
+        // if (!res->isFeasible && min(res->coll_y) < -0.01) {
+        if (!res->isFeasible) {
+          spdlog::error("komo actually infeasible");
           komo_path.has_solution = false;
           break;
         }
@@ -711,21 +720,21 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
   komo_path.stats.rrt_plan_time = rrt_path.stats.rrt_plan_time;
 
   if (komo_path.has_solution && !rrt_path.has_solution) {
-    std::cout << "using komo" << std::endl;
+    spdlog::info("Using KOMO");
     return komo_path;
   }
   if (!komo_path.has_solution && rrt_path.has_solution) {
-    std::cout << "using rrt" << std::endl;
+    spdlog::info("Using RRT");
     return rrt_path;
   }
 
   if (komo_path.has_solution && rrt_path.has_solution &&
       komo_path.t(-1) < rrt_path.t(-1)) {
-    std::cout << "using komo" << std::endl;
+    spdlog::info("Using KOMO, as the path is shorter");
     return komo_path;
   }
 
-  std::cout << "using rrt" << std::endl;
+  spdlog::info("Using RRT as default");
   return rrt_path;
 }
 
