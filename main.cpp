@@ -46,6 +46,9 @@
 #include "samplers/sampler.h"
 #include "tests/test.h"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 // TODO:
 // Code
 // - split main planning subroutine
@@ -270,12 +273,17 @@ void line_test() {
 // - constrained motion planning 
 
 int main(int argc, char **argv) {
+  auto console = spdlog::stdout_color_mt("console");    
+
   rai::initCmdLine(argc, argv);
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
 
   const uint verbosity = rai::getParameter<double>(
       "verbosity", 0); // verbosity, does not do anything atm
+
+  // TODO: map verbosity to logging level
+  spdlog::set_level(spdlog::level::debug);
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no

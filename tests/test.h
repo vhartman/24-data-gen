@@ -1,10 +1,14 @@
 #pragma once
 
+#include "spdlog/spdlog.h"
+
 #include "../samplers/sampler.h"
 #include "env_util.h"
 #include "types.h"
 
 void single_arm_two_finger_keyframe_test(const bool show = false) {
+  spdlog::info("Running single arm keyframe test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -27,7 +31,7 @@ void single_arm_two_finger_keyframe_test(const bool show = false) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -43,6 +47,8 @@ void single_arm_two_finger_keyframe_test(const bool show = false) {
 }
 
 void two_arms_two_finger_keyframe_test(const bool show = false) {
+  spdlog::info("Running dual arm keyframe test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -66,7 +72,7 @@ void two_arms_two_finger_keyframe_test(const bool show = false) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -82,6 +88,8 @@ void two_arms_two_finger_keyframe_test(const bool show = false) {
 }
 
 void three_arms_two_finger_keyframe_test(const bool show = false) {
+  spdlog::info("Running triple arm keyframe test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -106,7 +114,7 @@ void three_arms_two_finger_keyframe_test(const bool show = false) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -122,6 +130,8 @@ void three_arms_two_finger_keyframe_test(const bool show = false) {
 }
 
 void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
+  spdlog::info("Running dual arm handover keyframe test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -150,7 +160,7 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -168,6 +178,8 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
 }
 
 void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
+  spdlog::info("Running triple arm handover keyframe test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -197,7 +209,7 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -217,6 +229,8 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
 // TODO: test if the path is actually feasible
 
 void single_arm_two_finger_planning_test(const bool show = false) {
+  spdlog::info("Running single arm planning test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -240,7 +254,7 @@ void single_arm_two_finger_planning_test(const bool show = false) {
       const arr initial_pose = C.getJointState();
 
       if (show) {
-        std::cout << pose << std::endl;
+        // std::cout << pose << std::endl;
         C.setJointState(pose);
         C.watch(true);
       }
@@ -261,6 +275,8 @@ void single_arm_two_finger_planning_test(const bool show = false) {
 }
 
 void two_arm_two_finger_planning_test(const bool show = false) {
+  spdlog::info("Running dual arm planning test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -289,7 +305,7 @@ void two_arm_two_finger_planning_test(const bool show = false) {
         const arr initial_pose = C.getJointState();
 
         if (show) {
-          std::cout << pose << std::endl;
+          //   std::cout << pose << std::endl;
           C.setJointState(pose);
           C.watch(true);
         }
@@ -311,6 +327,8 @@ void two_arm_two_finger_planning_test(const bool show = false) {
 }
 
 void three_arm_two_finger_planning_test(const bool show = false) {
+  spdlog::info("Running triple arm planning test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -339,7 +357,7 @@ void three_arm_two_finger_planning_test(const bool show = false) {
         const arr initial_pose = C.getJointState();
 
         if (show) {
-          std::cout << pose << std::endl;
+          //   std::cout << pose << std::endl;
           C.setJointState(pose);
           C.watch(true);
         }
@@ -361,6 +379,8 @@ void three_arm_two_finger_planning_test(const bool show = false) {
 }
 
 void two_arm_two_finger_handover_planning_test(const bool show = true) {
+  spdlog::info("Running dual arm handover planning test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -393,7 +413,7 @@ void two_arm_two_finger_handover_planning_test(const bool show = true) {
         const arr initial_pose = C.getJointState();
 
         if (show) {
-          std::cout << pose << std::endl;
+          //   std::cout << pose << std::endl;
           C.setJointState(pose);
           C.watch(true);
         }
@@ -420,6 +440,8 @@ void two_arm_two_finger_handover_planning_test(const bool show = true) {
 }
 
 void three_arm_two_finger_handover_planning_test(const bool show = true) {
+  spdlog::info("Running triple arm handover planning test");
+
   const double vmax = 0.05;
 
   std::vector<Robot> robots;
@@ -453,7 +475,7 @@ void three_arm_two_finger_handover_planning_test(const bool show = true) {
         const arr initial_pose = C.getJointState();
 
         if (show) {
-          std::cout << pose << std::endl;
+          // std::cout << pose << std::endl;
           C.setJointState(pose);
           C.watch(true);
         }

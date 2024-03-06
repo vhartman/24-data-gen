@@ -11,4 +11,7 @@ DEPEND = Algo Control KOMO Core Geo Kin Gui Optim LGP Logic Manip Control Planni
 
 #OPTIM = debug
 
+LIBS += -lspdlog -lfmt
+LPATHS += -L/usr/lib/x86_64-linux-gnu/libspdlog.so
+
 include $(BASE)/build/generic.mk

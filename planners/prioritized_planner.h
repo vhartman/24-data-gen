@@ -1,5 +1,7 @@
 #pragma once
 
+#include "spdlog/spdlog.h"
+
 #include <Core/array.h>
 #include <KOMO/komo.h>
 #include <Kin/kin.h>
@@ -27,6 +29,15 @@
 };
 
 */
+
+struct PathPlannerOptions {
+  // optimizatoin based planning
+  bool attempt_komo{false};
+
+  // sampling based planning
+  bool shortcut{true};
+  bool smooth{true};
+};
 
 FrameL get_robot_frames(rai::Configuration &C, const Robot &robot) {
   FrameL frames;
@@ -72,7 +83,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   options.stopLineSteps = 5;
   options.stopTolerance = 0.1;
 
-  std::cout << "setting up komo" << std::endl;
+  spdlog::info("setting up komo");
   KOMO komo;
 
   komo.setModel(C, true);
@@ -124,10 +135,12 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
 
   setKomoToAnimation(komo, C, A, scaled_ts);
 
-  std::cout << "running komo" << std::endl;
+  spdlog::info("Running komo planner");
+
   komo.run_prepare(0.01);
   komo.run(options);
-  std::cout << "done komo" << std::endl;
+
+  spdlog::info("Finished komo planner");
 
   /*if (komo.getReport(false).get<double>("ineq") > 1. ||
   komo.getReport(false).get<double>("eq") > 1.){ std::cout << "infeasible komo
@@ -153,11 +166,13 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   }
 
   if (length(path[0] - q0) > 1e-3) {
-    std::cout << length(path[0] - q0) << std::endl;
+    spdlog::debug("Start pose difference to desired {:03.2f}",
+                  length(path[0] - q0));
   }
 
   if (length(path[-1] - q1) > 1e-3) {
-    std::cout << length(path[-1] - q1) << std::endl;
+    spdlog::debug("Goal pose difference to desired {:03.2f}",
+                  length(path[-1] - q1));
   }
 
   path[0] = q0;

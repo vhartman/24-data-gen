@@ -1,10 +1,12 @@
 #pragma once
 
+#include "spdlog/spdlog.h"
+
+#include <Kin/featureSymbols.h>
+
 #include "../plan.h"
 #include "../planners/prioritized_planner.h"
 #include "../util.h"
-#include "util.h"
-#include <Kin/featureSymbols.h>
 
 // class RobotTaskPoseSampler{
 //   public:
@@ -84,20 +86,7 @@ compute_pick_and_place_positions(rai::Configuration C,
     }
   }
 
-  // deleteUnnecessaryFrames(C);
-  for (const auto f: C.frames){
-    if (f->name.contains("goal")){
-      f->setContact(1);
-    }
-  }
-
   delete_unnecessary_frames(C);
-
-  for (const auto f: C.frames){
-    if (f->name.contains("goal")){
-      f->setContact(0);
-    }
-  }
 
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
@@ -142,20 +131,19 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       komo.setSkeleton(S);
 
-      // komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
-      // OT_eq,
-      //                  {1e2}, point);
-      //komo.addObjective({1., 1.}, FS_distance, {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos, {1e1});
-      komo.addObjective({1., 2.}, FS_positionDiff,
-                        {pen_tip, STRING(obj)}, OT_sos,
-                        {1e1});
+    //   komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")}, OT_eq,
+    //                     {1e2}, point);
+    //   komo.addObjective({1., 1.}, FS_distance,
+    //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
+    //                     {1e1});
+      komo.addObjective({1., 2.}, FS_positionDiff, {pen_tip, STRING(obj)},
+                        OT_sos, {1e1});
 
       komo.addObjective({1., 2.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
                         {1e1});
 
-
-        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
-                          {1e1}, {1.});
+      komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
+                        {1e1}, {1.});
 
       //   const double margin = 0.05;
       //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
@@ -204,14 +192,15 @@ compute_pick_and_place_positions(rai::Configuration C,
 
           break;
         } else {
-          std::cout << "pick/place failed for robot " << r << " and obj " << obj
-                    << " ineq: " << ineq << " eq: " << eq << std::endl;
-          std::cout << "\t pose 1 coll: " << res1->isFeasible << " pose 2 coll: " << res2->isFeasible
-                    << std::endl;
-          if (!res1->isFeasible){
-            res1->writeDetails(std::cout, cp.C);}
-          if (!res2->isFeasible){
-            res2->writeDetails(std::cout, cp.C);}
+          spdlog::info("pick/place failed for robot {0} and {1} ineq: {:03.2f} eq: {:03.2f}", r.prefix, obj, ineq, eq);
+          spdlog::info("Collisions: pose 1 coll: {0} pose 2 coll: {1}", res1->isFeasible, res2->isFeasible);
+
+          if (!res1->isFeasible) {
+            res1->writeDetails(std::cout, cp.C);
+          }
+          if (!res2->isFeasible) {
+            res2->writeDetails(std::cout, cp.C);
+          }
         //   komo.pathConfig.watch(true);
         }
       }
@@ -230,20 +219,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
     }
   }
 
-  // deleteUnnecessaryFrames(C);
-  for (const auto f : C.frames) {
-    if (f->name.contains("goal")) {
-      f->setContact(1);
-    }
-  }
-
   delete_unnecessary_frames(C);
-
-  for (const auto f : C.frames) {
-    if (f->name.contains("goal")) {
-      f->setContact(0);
-    }
-  }
 
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
@@ -310,7 +286,9 @@ compute_handover_poses(rai::Configuration C,
       cp.limits = cp.C.getLimits();
 
       for (uint i = 0; i < num_objects; ++i) {
-        std::cout << "computing handover for " << r1 << " " << r2 << " and " << i << std::endl;
+        spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
+                     r2.prefix, i + 1);
+                     
         RobotTaskPair rtp;
         rtp.robots = {r1, r2};
         rtp.task = Task{.object=i, .type=TaskType::handover};
@@ -387,7 +365,7 @@ compute_handover_poses(rai::Configuration C,
 
         // homing
         if (true) {
-          for (const auto base_name : {r1.prefix, r2.prefix}) {
+          for (const auto &base_name : {r1.prefix, r2.prefix}) {
             uintA bodies;
             rai::Joint *j;
             for (rai::Frame *f : komo.world.frames)
@@ -440,20 +418,28 @@ compute_handover_poses(rai::Configuration C,
 
             break;
           } else {
-            std::cout << "handover failed for robot " << r1 << " " << r2 << " and obj " << obj << " with ineq " << ineq << " eq " << eq 
-                      << std::endl;
+            spdlog::debug(
+                "pick/place failed for robot {} and {}, obj {} ineq: "
+                "{:03.2f} eq: {:03.2f}",
+                r1.prefix, r2.prefix, obj, ineq, eq);
+            spdlog::debug("Collisions: pose 1 coll: {0}, pose 2 coll: {1}, pose "
+                         "3 coll: {2}",
+                         res1->isFeasible, res2->isFeasible, res3->isFeasible);
 
-            std::cout << "\t pose 1 coll: " << res1->isFeasible
-                      << " pose 2 coll: " << res2->isFeasible
-                      << " pose 3 coll: " << res3->isFeasible << std::endl;
             if (!res1->isFeasible) {
-              res1->writeDetails(std::cout, cp.C);
+              std::stringstream ss;
+              res1->writeDetails(ss, cp.C);
+              spdlog::debug(ss.str());
             }
             if (!res2->isFeasible) {
-              res2->writeDetails(std::cout, cp.C);
+              std::stringstream ss;
+              res2->writeDetails(ss, cp.C);
+              spdlog::debug(ss.str());
             }
             if (!res3->isFeasible) {
-              res3->writeDetails(std::cout, cp.C);
+              std::stringstream ss;
+              res3->writeDetails(ss, cp.C);
+              spdlog::debug(ss.str());
             }
             // komo.pathConfig.watch(true);
           }
