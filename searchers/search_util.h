@@ -1,4 +1,7 @@
 #pragma once
+#include <Core/array.h>
+#include "plan.h"
+#include "../planners/prioritized_planner.h"
 
 double estimate_task_duration(const arr &start_pose, const arr &goal_pose,
                               const double max_vel, const double max_acc) {
@@ -21,13 +24,13 @@ double estimate_task_duration(const arr &start_pose, const arr &goal_pose,
 
 double compute_lb_for_sequence(const OrderedTaskSequence &seq,
                                const RobotTaskPoseMap &rtpm,
-                               const std::map<Robot, arr> &start_poses,
+                               const std::unordered_map<Robot, arr> &start_poses,
                                const uint start_index = 0,
-                               const std::map<Robot, double> start_times = {}) {
+                               const std::unordered_map<Robot, double> start_times = {}) {
   // the lower bound can be computed by finding the minimum time
   // of the current task, and using the precedence constraints as well.
-  std::map<Robot, double> robot_time = start_times;
-  std::map<Robot, arr> robot_pos = start_poses;
+  std::unordered_map<Robot, double> robot_time = start_times;
+  std::unordered_map<Robot, arr> robot_pos = start_poses;
 
   for (uint i = start_index; i < seq.size(); ++i) {
     const auto task_tuple = seq[i];
@@ -48,7 +51,7 @@ double compute_lb_for_sequence(const OrderedTaskSequence &seq,
     const double max_acc = 0.1;
 
     const double dt =
-        estimate_task_duration(start_pose, goal_pose, VMAX, max_acc);
+        estimate_task_duration(start_pose, goal_pose, robot.vmax, max_acc);
     robot_time[robot] += dt;
 
     // since we know that there is a precendence constraint on the

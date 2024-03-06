@@ -6,7 +6,7 @@
 
 Plan plan_multiple_arms_random_search(rai::Configuration &C,
                                       const RobotTaskPoseMap &rtpm,
-                                      const std::map<Robot, arr> &home_poses) {
+                                      const std::unordered_map<Robot, arr> &home_poses) {
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
   for (const auto &element : home_poses) {
@@ -60,4 +60,4 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
     }
   }
   return best_plan;
-}
+} 

@@ -6,7 +6,7 @@
 
 Plan plan_multiple_arms_simulated_annealing(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const std::map<Robot, arr> &home_poses) {
+    const std::unordered_map<Robot, arr> &home_poses) {
   std::time_t t = std::time(nullptr);
   std::tm tm = *std::localtime(&t);
   std::stringstream buffer;

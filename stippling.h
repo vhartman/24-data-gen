@@ -364,7 +364,7 @@ compute_stippling_poses_for_arms(rai::Configuration &C, const arr &pts,
                                  const std::vector<Robot> &robots) {
   RobotTaskPoseMap rtpm;
   for (const Robot &r : robots) {
-    const TaskPoses poses = computeStipplingConfigurationsForPoints(pts, C, r);
+    const TaskPoses poses = computeStipplingConfigurationsForPoints(pts, C, r.prefix);
     std::vector<TaskPoses> tp;
     for (const arr &p : poses) {
       if (p.N > 0) {

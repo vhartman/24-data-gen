@@ -150,13 +150,13 @@ generate_alternating_random_sequence(const std::vector<Robot> &robots,
 
 OrderedTaskSequence generate_alternating_greedy_sequence(
     const std::vector<Robot> &robots, const uint num_tasks,
-    const RobotTaskPoseMap &rtpm, const std::map<Robot, arr> &home_poses) {
+    const RobotTaskPoseMap &rtpm, const std::unordered_map<Robot, arr> &home_poses) {
   std::cout << "Generating alternating greedy" << std::endl;
   auto available_tasks = straightPerm(num_tasks);
 
   // sample starting_ robot.
   uint r = rand() % robots.size();
-  std::map<Robot, arr> poses = home_poses;
+  std::unordered_map<Robot, arr> poses = home_poses;
 
   OrderedTaskSequence seq;
   while (available_tasks.size() > 0) {
@@ -196,6 +196,47 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
     }
 
     r = (r + 1) % robots.size();
+  }
+
+  return seq;
+}
+
+OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
+                                           const uint num_tasks,
+                                           const RobotTaskPoseMap &rtpm, const uint max_attempts = 100) {
+  OrderedTaskSequence seq;
+  for (uint i = 0; i < num_tasks; ++i) {
+    uint cnt = 0;
+    while (true) {
+      ++cnt;
+      // choose random action
+      const uint a = rand() % 2;
+
+      // choose random robot
+      uint r1 = rand() % robots.size();
+      uint r2 = rand() % robots.size();
+
+      RobotTaskPair rtp;
+
+      if (a == 0) {
+        rtp.robots = {robots[r1]};
+        rtp.task = Task{.object = i, .type = TaskType::pick};
+      } else {
+        rtp.robots = {robots[r1], robots[r2]};
+        rtp.task = Task{.object = i, .type = TaskType::handover};
+      }
+
+      // check if the task is feasible with the chosen robot(s)
+      if (rtpm.count(rtp) != 0) {
+        seq.push_back(rtp);
+        break;
+      }
+
+      if (cnt > max_attempts){
+        std::cout << "No sequence feasible" << std::endl;
+        break;
+      }
+    }
   }
 
   return seq;

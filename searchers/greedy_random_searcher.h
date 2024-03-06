@@ -6,7 +6,7 @@
 
 Plan plan_multiple_arms_greedy_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,
-    const std::map<Robot, arr> &home_poses) {
+    const std::unordered_map<Robot, arr> &home_poses) {
   // make foldername for current run
   std::time_t t = std::time(nullptr);
   std::tm tm = *std::localtime(&t);

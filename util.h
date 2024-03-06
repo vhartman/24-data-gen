@@ -1,6 +1,7 @@
 #pragma once
 
 #include <numeric>
+#include "types.h"
 
 rai::Animation::AnimationPart make_animation_part(rai::Configuration &C,
                                                   const arr &path,
@@ -46,36 +47,49 @@ std::vector<uint> straightPerm(const std::vector<arr> &qs) {
 
 
 void delete_unnecessary_frames(rai::Configuration &C){
+  // collect all frames that are collidable
+  std::vector<std::string> do_not_delete{"tip", "goal"};
+
   FrameL allCollidingFrames;
-  for (auto f: C.frames){
-    if (f->shape && f->getShape().cont != 0){
+  for (auto f : C.frames) {
+    if (f->shape && f->getShape().cont != 0) {
       allCollidingFrames.append(f);
     }
   }
 
   FrameL joints = C.getJoints();
   std::vector<uint> ids;
-  for (auto f: allCollidingFrames){
+  for (const auto f : allCollidingFrames) {
     ids.push_back(f->ID);
-    rai::Frame* upwards = f->parent;
-    while(upwards){
+    rai::Frame *upwards = f->parent;
+    while (upwards) {
       ids.push_back(upwards->ID);
       upwards = upwards->parent;
     }
   }
 
   FrameL remove;
-  for(auto f: C.frames){
-    if (f->getShape().cont == 0 && std::find(ids.begin(), ids.end(), f->ID) == ids.end()){
-      //std::cout << f->name << std::endl;
+  for (auto f : C.frames) {
+    bool skip = false;
+    for (const auto &str: do_not_delete){
+      if (f->name.contains(str.c_str())){
+        skip = true;
+        break;
+      }
+    }
+    if(skip){continue;}
+    if (f->getShape().cont == 0 &&
+        std::find(ids.begin(), ids.end(), f->ID) == ids.end()) {
+      // std::cout << f->name << std::endl;
       remove.append(f);
     }
   }
 
-  for (auto f: remove){
+  for (auto f : remove) {
     delete f;
   }
 }
+
 
 uintA get_cant_collide_pairs(const rai::Configuration &C) {
   uintA cantCollidePairs;
@@ -86,6 +100,7 @@ uintA get_cant_collide_pairs(const rai::Configuration &C) {
 
       if (!a->getShape().canCollideWith(b)){
         cantCollidePairs.append(TUP(a->ID, b->ID));
+        // std::cout << a->name << " " << b->name << std::endl;
       }
 
       if (b == a->parent || a == b->parent){
@@ -124,4 +139,3 @@ void setKomoToAnimation(KOMO &komo, const rai::Configuration &C,
   // komo.pathConfig.ensure_indexedJoints();
   // komo.pathConfig.ensure_q();
 }
-

@@ -28,44 +28,6 @@
 
 */
 
-//#define VMAX 0.1;
-const double VMAX = 0.05;
-// const double VMAX = 0.1;
-
-void deleteUnnecessaryFrames(rai::Configuration &C) {
-  // collect all frames that are collidable
-  FrameL allCollidingFrames;
-  for (auto f : C.frames) {
-    if (f->shape && f->getShape().cont != 0) {
-      allCollidingFrames.append(f);
-    }
-  }
-
-  FrameL joints = C.getJoints();
-  std::vector<uint> ids;
-  for (const auto f : allCollidingFrames) {
-    ids.push_back(f->ID);
-    rai::Frame *upwards = f->parent;
-    while (upwards) {
-      ids.push_back(upwards->ID);
-      upwards = upwards->parent;
-    }
-  }
-
-  FrameL remove;
-  for (auto f : C.frames) {
-    if (f->getShape().cont == 0 &&
-        std::find(ids.begin(), ids.end(), f->ID) == ids.end()) {
-      // std::cout << f->name << std::endl;
-      remove.append(f);
-    }
-  }
-
-  for (auto f : remove) {
-    delete f;
-  }
-}
-
 FrameL get_robot_frames(rai::Configuration &C, const Robot &robot) {
   FrameL frames;
 
@@ -93,7 +55,7 @@ FrameL get_robot_joints(rai::Configuration &C, const Robot &robot) {
 
 arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
                                  const arr &q0, const arr &q1, const arr &ts,
-                                 const std::string prefix, double &ineq,
+                                 const Robot r, double &ineq,
                                  double &eq) {
   // TODO: smarter scaling computation
   const double scaling = 3;
@@ -120,7 +82,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
-  komo.add_collision(true, .001, 1e1);
+  komo.add_collision(true, .0, 1e2);
   komo.add_qControlObjective({}, 2, 1e1);
   komo.add_qControlObjective({}, 1, 1e1);
 
@@ -130,9 +92,9 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
 
   // make pen tip go a way from the table
   const double offset = 0.06;
-  komo.addObjective({0.1, 0.9}, FS_distance,
-                    {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e1},
-                    {-offset});
+  // komo.addObjective({0.1, 0.9}, FS_distance,
+  //                   {"table", STRING(r.prefix << "pen_tip")}, OT_ineq, {1e1},
+  //                   {-offset});
   // komo.addObjective({0.1, 0.8}, FS_distance,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
 
@@ -153,7 +115,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
                     2); // slow at end
 
   if (false) {
-    const arr v_constr = q0 * 0. + VMAX;
+    const arr v_constr = q0 * 0. + r.vmax;
     komo.addObjective({0.0, 1.}, FS_qItself, {}, OT_ineq, {1e0}, {v_constr},
                       1); // slow at beginning
     komo.addObjective({0.0, 1.}, FS_qItself, {}, OT_ineq, {-1e0}, {-v_constr},
@@ -242,7 +204,7 @@ double get_earliest_feasible_time(TimedConfigurationProblem &TP, const arr &q,
 
 TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
                                 const uint t0, const arr &q0, const arr &q1,
-                                const uint time_lb, const std::string prefix,
+                                const uint time_lb, const Robot prefix,
                                 const int time_ub_prev_found = -1) {
   // return TaskPart();
 
@@ -261,7 +223,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     return TaskPart();
   }
 
-  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / VMAX));
+  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / prefix.vmax));
 
   // the goal should always be free at the end of the animation, as we always
   // plan an exit path but it can be the case that we are currently planning an
@@ -356,7 +318,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
       return TaskPart();
     }
 
-    if (max_speed <= VMAX && eq < 1.5 && ineq < 1.5) {
+    if (max_speed <= prefix.vmax && eq < 1.5 && ineq < 1.5) {
       std::cout << "done, accepting komo. ineq: " << ineq << " eq. " << eq
                 << std::endl;
       return TaskPart(ts, path);
@@ -373,7 +335,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     // (max_horizon_length
     // - min_horizon_length) / max_komo_run_attempts);
     const int add_timesteps_for_speed =
-        std::max({0, int(std::ceil(horizon * ((max_speed / VMAX) - 1)))});
+        std::max({0, int(std::ceil(horizon * ((max_speed / prefix.vmax) - 1)))});
     const uint num_add_timesteps =
         std::max({(iters + 1) * 3u, uint(add_timesteps_for_speed)});
     std::cout << "adding " << num_add_timesteps << " steps" << std::endl;
@@ -393,7 +355,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
 
 TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
                                const uint t0, const arr &q0, const arr &q1,
-                               const uint time_lb, const std::string prefix,
+                               const uint time_lb, const Robot prefix,
                                int time_ub_prev_found = -1) {
   // TimedConfigurationProblem TP(C, A);
   // deleteUnnecessaryFrames(TP.C);
@@ -409,9 +371,9 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     start_res->writeDetails(cout, TP.C);
     std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
 
-    // TP.A.setToTime(TP.C, t0);
-    // TP.C.setJointState(q0);
-    // TP.C.watch(true);
+    TP.A.setToTime(TP.C, t0);
+    TP.C.setJointState(q0);
+    TP.C.watch(true);
 
     return TaskPart();
   }
@@ -421,7 +383,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // TP.C.watch(true);
 
   PathFinder_RRT_Time planner(TP);
-  planner.vmax = VMAX;
+  planner.vmax = prefix.vmax;
   planner.lambda = 0.5;
   // planner.disp = true;
   // planner.optimize = optimize;
@@ -429,7 +391,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   planner.maxIter = 500;
   planner.goalSampleProbability = 0.9; // 0.9
 
-  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / VMAX));
+  const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / prefix.vmax));
 
   // the goal should always be free at the end of the animation, as we always
   // plan an exit path but it can be the case that we are currently planning an
@@ -576,14 +538,14 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
   arr smooth_path = new_path;
   if (should_smooth){
-    smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix);
+    smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix);
   }
   // TP.C.fcl()->stopEarly = true;
 
-
   for (uint i = 0; i < smooth_path.d0; ++i) {
     const auto res = TP.query(smooth_path[i], t(i));
-    if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.01) {
+    // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < 0) {
+    if (!res->isFeasible) {
       std::cout << "smoothed path infeasible" << std::endl;
       smooth_path = new_path;
       break;
@@ -611,10 +573,12 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   return tp;
 }
 
+// TODO: remove prefix from here
+
 // robust 'time-optimal' planning method
 TaskPart plan_in_animation(TimedConfigurationProblem &TP,
                            const uint t0, const arr &q0, const arr &q1,
-                           const uint time_lb, const std::string prefix,
+                           const uint time_lb, const Robot r,
                            const bool exit_path) {
   const auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -631,9 +595,9 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
   // TP.activeOnly = true;
 
   // run rrt
-  // TP.C.fcl()->stopEarly = true;
+  // TP.C.fcl()->stopEarly = false;
 
-  TaskPart rrt_path = plan_in_animation_rrt(TP, t0, q0, q1, time_lb, prefix);
+  TaskPart rrt_path = plan_in_animation_rrt(TP, t0, q0, q1, time_lb, r);
   rrt_path.algorithm = "rrt";
 
   // TP.C.fcl()->stopEarly = false;
@@ -674,7 +638,7 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
   TaskPart komo_path;
   if (attempt_komo_planning){
     komo_path =
-        plan_in_animation_komo(TP, t0, q0, q1, time_lb, prefix, time_ub);
+        plan_in_animation_komo(TP, t0, q0, q1, time_lb, r, time_ub);
     komo_path.algorithm = "komo";
 
     /*if(komo_path.has_solution){
@@ -752,14 +716,14 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
 
 class PrioritizedTaskPlanner {
   public:
-    std::map<Robot, arr> home_poses;
+    std::unordered_map<Robot, arr> home_poses;
     RobotTaskPoseMap rtpm;
 
     uint best_makespan_so_far;
     bool early_stopping;
 
     // swap to goal sampler not precomputed goal poses
-    PrioritizedTaskPlanner(const std::map<Robot, arr> &_home_poses,
+    PrioritizedTaskPlanner(const std::unordered_map<Robot, arr> &_home_poses,
                 const RobotTaskPoseMap &_rtpm, const uint _best_makespan_so_far,
                 const bool _early_stopping)
         : home_poses(_home_poses), rtpm(_rtpm),
@@ -785,7 +749,7 @@ class PrioritizedTaskPlanner {
         CPlanner.setJointState(r.second);
       }
 
-      std::map<Robot, FrameL> robot_frames;
+      std::unordered_map<Robot, FrameL> robot_frames;
       for (auto r : home_poses) {
         const auto robot = r.first;
         robot_frames[robot] = get_robot_frames(CPlanner, robot);
@@ -821,6 +785,14 @@ class PrioritizedTaskPlanner {
             }
           }
 
+          if (false) {
+            for (uint i = 0; i < A.getT(); ++i) {
+              A.setToTime(CPlanner, i);
+              CPlanner.watch(false);
+              rai::wait(0.05);
+            }
+          }
+
           // set configuration to plannable for current robot
           std::cout << "setting up C" << std::endl;
           std::cout << r1 << std::endl;
@@ -833,6 +805,7 @@ class PrioritizedTaskPlanner {
           const arr pick_pose = rtpm[rtp][0][0];
 
           std::cout << pick_start_pose << std::endl;
+          std::cout << pick_start_time << std::endl;
           std::cout << pick_pose << std::endl;
           
           auto path = plan_in_animation(TP, pick_start_time, pick_start_pose, pick_pose,
@@ -841,10 +814,14 @@ class PrioritizedTaskPlanner {
           if (path.has_solution) {
             if (false) {
               for (uint i = 0; i < path.path.d0; ++i) {
+                A.setToTime(CPlanner, path.t(i));
                 auto q = path.path[i];
                 CPlanner.setJointState(q);
                 CPlanner.watch(false);
                 rai::wait(0.05);
+
+                auto res = TP.query(q, path.t(i));
+                res->writeDetails(std::cout, TP);
               }
               CPlanner.setJointState(home_poses.at(r1));
             }
@@ -859,7 +836,12 @@ class PrioritizedTaskPlanner {
             
             const auto anim_part =
                 make_animation_part(CPlanner, path.path, tmp_frames, pick_start_time);
+            path.r = r1;
             path.anim = anim_part;
+            path.has_solution = true;
+            path.is_exit = false;
+            path.name = "pick";
+            path.task_index = rtp.task.object;
 
             if (early_stopping && path.t(-1) > best_makespan_so_far) {
               std::cout << "Stopping early due to better prev. path. ("
@@ -877,6 +859,19 @@ class PrioritizedTaskPlanner {
         // plan handover jointly
         {
           std::cout << "handovering" << std::endl;
+
+          // bool removed_exit_path = false;
+          // const uint max_start_time_shift = 0;
+          // if (paths.count(r2) > 0 && paths[r2].back().is_exit &&
+          //     prev_finishing_time <
+          //         paths[r2].back().t(-1) + 1 + max_start_time_shift) {
+          //   std::cout << "removing exit path of " << r2 << std::endl;
+          //   std::cout << "exit path end time: " << paths[r2].back().t(-1)
+          //             << std::endl;
+          //   paths[r2].pop_back();
+
+          //   removed_exit_path = true;
+          // }
 
           // link obj to robot 1
           CPlanner.setJointState(paths[r1].back().path[-1]);
@@ -976,10 +971,12 @@ class PrioritizedTaskPlanner {
               const auto anim_part =
                   make_animation_part(CPlanner,r1_joint_path, tmp_frames, start_time);
               auto r1_path = TaskPart(path.t, r1_joint_path);
+
+              r1_path.r = r1;
               r1_path.anim = anim_part;
               r1_path.has_solution = true;
               r1_path.is_exit = false;
-              r1_path.name = "place";
+              r1_path.name = "handover";
               r1_path.task_index = rtp.task.object;
 
               if (early_stopping && path.t(-1) > best_makespan_so_far) {
@@ -1005,8 +1002,13 @@ class PrioritizedTaskPlanner {
               setActive(CPlanner, r2);
               const auto anim_part =
                   make_animation_part(CPlanner,r1_joint_path, tmp_frames, start_time);
-              auto r1_path = TaskPart(path.t, r1_joint_path);
-              r1_path.anim = anim_part;
+              auto r2_path = TaskPart(path.t, r1_joint_path);
+              r2_path.r = r2;
+              r2_path.anim = anim_part;
+              r2_path.has_solution = true;
+              r2_path.is_exit = false;
+              r2_path.name = "handover";
+              r2_path.task_index = rtp.task.object;
 
               if (early_stopping && path.t(-1) > best_makespan_so_far) {
                 std::cout << "Stopping early due to better prev. path. ("
@@ -1014,15 +1016,13 @@ class PrioritizedTaskPlanner {
                 return PlanStatus::aborted;
               }
 
-              paths[r2].push_back(r1_path);
+              paths[r2].push_back(r2_path);
             }
           }
           else{
             return PlanStatus::failed;
           }
         }
-
-        std::cout << "fini" << std::endl;
 
         // link obj to r2
         {
@@ -1063,15 +1063,17 @@ class PrioritizedTaskPlanner {
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
                                 home_poses.at(r1), exit_start_time, r1, true);
-          exit_path.r = r1;
-          exit_path.task_index = 0;
-          exit_path.is_exit = true;
-          exit_path.name = "exit";
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
                 CPlanner, exit_path.path, robot_frames.at(r1), exit_start_time);
+           
             exit_path.anim = exit_anim_part;
+            exit_path.r = r1;
+            exit_path.task_index = 0;
+            exit_path.is_exit = true;
+            exit_path.name = "exit";
+
             paths[r1].push_back(exit_path);
           }
           else{
@@ -1094,18 +1096,14 @@ class PrioritizedTaskPlanner {
 
           TP.A = A;
 
-          auto exit_path =
+          auto path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
                                 rtpm[rtp][0][2], exit_start_time, r2, true);
-          exit_path.r = r2;
-          exit_path.task_index = rtp.task.object;
-          exit_path.is_exit = false;
-          exit_path.name = "place";
 
-          if (exit_path.has_solution) {
+          if (path.has_solution) {
             if (false) {
-              for (uint i = 0; i < exit_path.path.d0; ++i) {
-                auto q = exit_path.path[i];
+              for (uint i = 0; i < path.path.d0; ++i) {
+                auto q = path.path[i];
                 CPlanner.setJointState(q);
                 CPlanner.watch(true);
                 rai::wait(0.05);
@@ -1118,10 +1116,16 @@ class PrioritizedTaskPlanner {
             auto to = CPlanner[obj];
             tmp_frames.append(to);  
 
-            const auto exit_anim_part = make_animation_part(
-                CPlanner, exit_path.path, tmp_frames, exit_start_time);
-            exit_path.anim = exit_anim_part;
-            paths[r2].push_back(exit_path);
+            const auto anim_part = make_animation_part(
+                CPlanner, path.path, tmp_frames, exit_start_time);
+          
+            path.anim = anim_part;
+            path.r = r2;
+            path.task_index = rtp.task.object;
+            path.is_exit = false;
+            path.name = "place";
+
+            paths[r2].push_back(path);
           }
           else{
             return PlanStatus::failed;
@@ -1164,15 +1168,17 @@ class PrioritizedTaskPlanner {
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
                                 home_poses.at(r2), exit_start_time, r1, true);
-          exit_path.r = r2;
-          exit_path.task_index = 0;
-          exit_path.is_exit = true;
-          exit_path.name = "exit";
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
                 CPlanner, exit_path.path, robot_frames.at(r2), exit_start_time);
+
             exit_path.anim = exit_anim_part;
+            exit_path.r = r2;
+            exit_path.task_index = rtp.task.object;
+            exit_path.is_exit = true;
+            exit_path.name = "exit";
+
             paths[r2].push_back(exit_path);
           }
           else{
@@ -1397,7 +1403,7 @@ class PrioritizedTaskPlanner {
 PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
     const OrderedTaskSequence &sequence, const uint start_index,
-    const Plan prev_paths, const std::map<Robot, arr> &home_poses,
+    const Plan prev_plan, const std::unordered_map<Robot, arr> &home_poses,
     const uint best_makespan_so_far = 1e6, const bool early_stopping = false) {
   rai::Configuration CPlanner = C;
   // C.watch(true);
@@ -1407,7 +1413,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 
   // CPlanner.watch(true);
 
-  std::map<Robot, FrameL> robot_frames;
+  std::unordered_map<Robot, FrameL> robot_frames;
   for (auto r : home_poses) {
     const auto robot = r.first;
     robot_frames[robot] = get_robot_frames(CPlanner, robot);
@@ -1419,9 +1425,9 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     unplanned_tasks.push_back(sequence[i].task.object);
   }
 
-  std::map<Robot, std::vector<TaskPart>> paths;
+  std::unordered_map<Robot, std::vector<TaskPart>> paths;
 
-  for (const auto &p : prev_paths) {
+  for (const auto &p : prev_plan) {
     const auto r = p.first;
     for (auto plan : p.second) {
       if (std::find(unplanned_tasks.begin(), unplanned_tasks.end(),
@@ -1548,6 +1554,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     }
 
     if (res != PlanStatus::success) {
+      std::cout << "Failed planning" << std::endl;
       return PlanResult(res);
     }
   }
@@ -1573,7 +1580,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 // overload (not in the literal or in the c++ sense) of the above
 PlanResult plan_multiple_arms_given_sequence(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const OrderedTaskSequence &sequence, const std::map<Robot, arr> &home_poses,
+    const OrderedTaskSequence &sequence, const std::unordered_map<Robot, arr> &home_poses,
     const uint best_makespan_so_far = 1e6, const bool early_stopping = false) {
 
   Plan paths;

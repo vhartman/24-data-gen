@@ -35,11 +35,16 @@
 
 #include "sequencing.h"
 
+#include "searchers/annealing_searcher.h"
+#include "searchers/greedy_random_searcher.h"
+#include "searchers/random_searcher.h"
+
 #include "planners/optimal_planner.h"
-#include "planners/prioritized_planner.h"
 #include "planners/planner.h"
+#include "planners/prioritized_planner.h"
 
 #include "samplers/sampler.h"
+#include "tests/test.h"
 
 // TODO:
 // Code
@@ -101,7 +106,7 @@ void drawPts(rai::Configuration C, std::map<uint, arr> tmp,
 }
 
 PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const OrderedTaskSequence &sequence, const std::map<Robot, arr> &home_poses){
+    const OrderedTaskSequence &sequence, const std::unordered_map<Robot, arr> &home_poses){
   CompoundTreePlanner ctp(C, sequence);
   auto plan = ctp.plan();
   return PlanResult(PlanStatus::failed);
@@ -109,7 +114,7 @@ PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseM
 
 Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
                                        const RobotTaskPoseMap &rtpm,
-                                       const std::map<Robot, arr> &home_poses) {
+                                       const std::unordered_map<Robot, arr> &home_poses) {
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
   for (const auto &element : home_poses) {
@@ -179,516 +184,10 @@ p.second) { A.A.append(path.anim);
   return scaled_plan;
 }*/
 
-double estimate_task_duration(const arr &start_pose, const arr &goal_pose,
-                              const double max_vel, const double max_acc) {
-  const double max_dist = absMax(goal_pose - start_pose);
-  const double time_to_accelerate = max_vel / max_acc;
-  const double acc_dist = 0.5 * max_vel * max_vel / max_acc * 2;
-
-  double dt = 0;
-  if (acc_dist > max_dist) {
-    // this is wrong
-    std::cout << "using acc. timing only" << std::endl;
-    dt = 2 * time_to_accelerate;
-  } else {
-    std::cout << "using acc. timing and max-vel" << std::endl;
-    dt = (max_dist - acc_dist) / max_vel + 2 * time_to_accelerate;
-  }
-
-  return dt;
-}
-
-double compute_lb_for_sequence(const OrderedTaskSequence &seq,
-                               const RobotTaskPoseMap &rtpm,
-                               const std::map<Robot, arr> &start_poses,
-                               const uint start_index = 0,
-                               const std::map<Robot, double> start_times = {}) {
-  // the lower bound can be computed by finding the minimum time
-  // of the current task, and using the precedence constraints as well.
-  std::map<Robot, double> robot_time = start_times;
-  std::map<Robot, arr> robot_pos = start_poses;
-
-  for (uint i = start_index; i < seq.size(); ++i) {
-    const auto task_tuple = seq[i];
-    const auto robot = task_tuple.robots[0];
-    const auto task_index = task_tuple.task.object;
-
-    // std::cout << robot << std::endl;
-
-    if (!robot_time.count(robot)) {
-      robot_time[robot] = 0.;
-    }
-
-    std::cout << robot << " " << task_index << std::endl;
-
-    const arr start_pose = robot_pos[robot];
-    const arr goal_pose = rtpm.at(task_tuple)[0][0];
-
-    const double max_acc = 0.1;
-
-    const double dt =
-        estimate_task_duration(start_pose, goal_pose, VMAX, max_acc);
-    robot_time[robot] += dt;
-
-    // since we know that there is a precendence constraint on the
-    // task-completion-order we set the time to the highest current time if it
-    // was lower than that
-    for (const auto &rt : robot_time) {
-      if (robot_time[robot] < rt.second) {
-        robot_time[robot] = rt.second;
-      }
-    }
-
-    robot_pos[robot] = goal_pose;
-  }
-
-  // extract the maximum time of all the robot times
-  double max = 0;
-  for (const auto &rt : robot_time) {
-    if (max < rt.second) {
-      max = rt.second;
-    }
-  }
-
-  return max;
-}
-
-void visualize_plan(rai::Configuration C, const Plan &plan,
-                    const bool save = false) {
-  rai::ConfigurationViewer Vf;
-  // Vf.setConfiguration(C, "\"Real World\"", true);
-  Vf.setConfiguration(C, "\"Real World\"", false);
-
-  const double makespan = get_makespan_from_plan(plan);
-
-  for (uint t = 0; t < makespan; ++t) {
-    // A.setToTime(C, t);
-
-    // std::cout << t << std::endl;
-    for (const auto &tp : plan) {
-      const auto r = tp.first;
-      const auto parts = tp.second;
-
-      bool done = false;
-      for (const auto &part : parts) {
-        // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-        if (part.t(0) > t || part.t(-1) < t) {
-          continue;
-        }
-
-        for (uint i = 0; i < part.t.N; ++i) {
-          if ((i == part.t.N-1 && t == part.t(-1)) ||
-              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
-            setActive(C, r);
-            C.setJointState(part.path[i]);
-            // std::cout <<part.path[i] << std::endl;
-            done = true;
-
-            // set bin picking things
-            const auto task_index = part.task_index;
-            const auto obj_name = STRING("obj" << task_index + 1);
-
-            if (part.anim.frameNames.contains(obj_name)) {
-              const auto pose =
-                  part.anim.X[uint(std::floor(t - part.anim.start))];
-              arr tmp(1, 7);
-              tmp[0] = pose[-1];
-              C.setFrameState(tmp, {C[obj_name]});
-            }
-            break;
-          }
-        }
-        
-        if (done) {
-          break;
-        }
-      }
-    }
-
-    // C.watch(false);
-    Vf.setConfiguration(C, ".", false);
-    rai::wait(0.01);
-
-    if (save) {
-      Vf.savePng();
-    }
-  }
-  rai::wait(0.01);
-  std::cout << "B" << std::endl;
-}
-
-Plan plan_multiple_arms_random_search(rai::Configuration &C,
-                                      const RobotTaskPoseMap &rtpm,
-                                      const std::map<Robot, arr> &home_poses) {
-  // generate random sequence of robot/pt pairs
-  std::vector<Robot> robots;
-  for (const auto &element : home_poses) {
-    robots.push_back(element.first);
-  }
-  int num_tasks = 0;
-  for (auto f : C.frames) {
-    if (f->name.contains("obj")) {
-      num_tasks += 1;
-    }
-  }
-
-  OrderedTaskSequence best_seq;
-  Plan best_plan;
-  double best_makespan = 1e6;
-
-  for (uint i = 0; i < 100; ++i) {
-    const auto seq = generate_random_sequence(robots, num_tasks);
-
-    const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
-    std::cout << "LB for sequence " << lb << std::endl;
-    for (auto s : seq) {
-      std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-    }
-    std::cout << std::endl;
-
-    if (lb > best_makespan) {
-      continue;
-    }
-
-    // plan for it
-    const auto plan_result = plan_multiple_arms_given_sequence(
-        C, rtpm, seq, home_poses, best_makespan);
-    if (plan_result.status == PlanStatus::success) {
-      const Plan plan = plan_result.plan;
-      const double makespan = get_makespan_from_plan(plan);
-
-      std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
-                << best_makespan << std::endl;
-      for (auto s : seq) {
-        std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-      }
-      std::cout << "\n\n\n" << std::endl;
-
-      if (makespan < best_makespan) {
-        best_makespan = makespan;
-        best_plan = plan;
-
-        visualize_plan(C, best_plan);
-      }
-    }
-  }
-  return best_plan;
-}
-
-bool sequence_is_feasible(const OrderedTaskSequence &seq,
-                          const RobotTaskPoseMap &rtpm) {
-  for (const auto &s : seq) {
-    const Robot r = s.robots[0];
-    const auto task_index = s.task.object;
-
-    if (rtpm.at(s).size() == 0) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-void get_plan_from_cache() {}
-
 Plan plan_multiple_arms_squeaky_wheel(rai::Configuration &C,
                                       const RobotTaskPoseMap &rtpm,
-                                      const std::map<Robot, arr> &home_poses) {
+                                      const std::unordered_map<Robot, arr> &home_poses) {
   return {};
-}
-
-Plan plan_multiple_arms_greedy_random_search(
-    rai::Configuration &C, const RobotTaskPoseMap &rtpm,
-    const std::map<Robot, arr> &home_poses) {
-  // make foldername for current run
-  std::time_t t = std::time(nullptr);
-  std::tm tm = *std::localtime(&t);
-
-  std::stringstream buffer;
-  buffer << "greedy_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
-
-  // generate random sequence of robot/pt pairs
-  std::vector<Robot> robots;
-  for (const auto &element : home_poses) {
-    robots.push_back(element.first);
-  }
-  // const uint num_tasks = rtpm.begin()->second.size();
-  int num_tasks = 0;
-  for (auto f : C.frames) {
-    if (f->name.contains("obj")) {
-      num_tasks += 1;
-    }
-  }
-
-  OrderedTaskSequence best_seq;
-  Plan best_plan;
-  double best_makespan = 1e6;
-
-  auto start_time = std::chrono::high_resolution_clock::now();
-
-  std::vector<std::pair<OrderedTaskSequence, Plan>> cache;
-
-  uint iter = 0;
-  for (uint i = 0; i < 20000; ++i) {
-    std::cout << "Generating completely new seq. " << i << std::endl;
-    OrderedTaskSequence seq;
-    // seq = generate_alternating_random_sequence(robots, num_tasks, rtpm);
-    // seq = generate_single_arm_sequence(robots, num_tasks);
-    seq = generate_alternating_greedy_sequence(robots, num_tasks, rtpm,
-                                               home_poses);
-    /*if (true || i == 0) {
-      // seq = generate_single_arm_sequence(robots, num_tasks);
-      //seq = generate_random_sequence(robots, num_tasks);
-      // seq = generate_alternating_greedy_sequence(robots, num_tasks, rtpm,
-    home_poses); } else if (i == 1) { seq =
-    generate_alternating_random_sequence(robots, num_tasks, rtpm); } else if (i
-    == 2) { seq = generate_single_arm_sequence(robots, num_tasks); } else { seq
-    = generate_random_sequence(robots, num_tasks);
-    }*/
-
-    if (!sequence_is_feasible(seq, rtpm)) {
-      std::cout << "Generated sequence no feasible" << std::endl;
-      continue;
-    }
-
-    Plan plan;
-    double prev_makespan = 1e6;
-    for (uint j = 0; j < 30; ++j) {
-      ++iter;
-      OrderedTaskSequence new_seq = seq;
-      while (true) {
-        if (j > 0) {
-          new_seq = neighbour(seq, robots);
-        }
-
-        // ensure that sequence is actually feasible, i.e. robots can do the
-        // assigned tasks
-        if (sequence_is_feasible(new_seq, rtpm)) {
-          break;
-        }
-      }
-
-      const double lb = compute_lb_for_sequence(new_seq, rtpm, home_poses);
-      std::cout << "LB for sequence " << lb << std::endl;
-      for (const auto &s : new_seq) {
-        std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-      }
-      std::cout << std::endl;
-
-      if (lb > best_makespan) {
-        std::cout << "skipping planning, since lb is larger than best plan"
-                  << std::endl;
-        continue;
-      }
-
-      // plan for it
-      PlanResult new_plan_result;
-      if (plan.empty()) {
-        new_plan_result = plan_multiple_arms_given_sequence(
-            C, rtpm, new_seq, home_poses, prev_makespan);
-      } else {
-        // compute index where the new sequence starts
-        uint change_in_sequence = 0;
-        for (uint k = 0; k < seq.size(); ++k) {
-          if (seq[k].robots[0] != new_seq[k].robots[0] ||
-              seq[k].task.object != new_seq[k].task.object) {
-            change_in_sequence = k;
-            break;
-          }
-        }
-        std::cout << "planning only subsequence " << change_in_sequence
-                  << std::endl;
-        new_plan_result = plan_multiple_arms_given_subsequence_and_prev_plan(
-            C, rtpm, new_seq, change_in_sequence, plan, home_poses,
-            prev_makespan);
-      }
-
-      if (new_plan_result.status == PlanStatus::success) {
-        const Plan new_plan = new_plan_result.plan;
-        const double makespan = get_makespan_from_plan(new_plan);
-
-        const auto end_time = std::chrono::high_resolution_clock::now();
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  end_time - start_time)
-                                  .count();
-
-        // cache.push_back(std::make_pair(new_seq, new_plan));
-
-        export_plan(C, robots, home_poses, new_plan, new_seq, buffer.str(), iter,
-                    duration);
-
-        std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
-                  << best_makespan << " (" << prev_makespan << ")" << std::endl;
-        for (const auto &s : new_seq) {
-          std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-        }
-        std::cout << "\n\n\n" << std::endl;
-
-        if (makespan < prev_makespan) {
-          seq = new_seq;
-          plan = new_plan;
-          prev_makespan = makespan;
-
-          visualize_plan(C, plan);
-          std::cout << "A" << std::endl;
-        }
-
-        if (makespan < best_makespan) {
-          best_makespan = makespan;
-          best_plan = plan;
-          best_seq = new_seq;
-
-          // visualize_plan(C, best_plan);
-        }
-      } else {
-        const std::string folder =
-            "./out/" + buffer.str() + "/" + std::to_string(iter) + "/";
-        const int res = system(STRING("mkdir -p " << folder).p);
-        (void)res;
-
-        {
-          std::ofstream f;
-          f.open(folder + "comptime.txt", std::ios_base::trunc);
-          const auto end_time = std::chrono::high_resolution_clock::now();
-          const auto duration =
-              std::chrono::duration_cast<std::chrono::seconds>(end_time -
-                                                               start_time)
-                  .count();
-          f << duration;
-        }
-        {
-          std::ofstream f;
-          if (new_plan_result.status == PlanStatus::failed) {
-            f.open(folder + "failed.txt", std::ios_base::trunc);
-          } else if (new_plan_result.status == PlanStatus::aborted) {
-            f.open(folder + "aborted.txt", std::ios_base::trunc);
-          }
-        }
-      }
-      if (new_plan_result.status == PlanStatus::failed) {
-        break;
-      }
-    }
-  }
-  return best_plan;
-}
-
-Plan plan_multiple_arms_simulated_annealing(
-    rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const std::map<Robot, arr> &home_poses) {
-  std::time_t t = std::time(nullptr);
-  std::tm tm = *std::localtime(&t);
-  std::stringstream buffer;
-  buffer << "simulated_annealing_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
-
-  auto start_time = std::chrono::high_resolution_clock::now();
-
-  // generate random sequence of robot/pt pairs
-  std::vector<Robot> robots;
-  for (const auto &element : home_poses) {
-    robots.push_back(element.first);
-  }
-  // const uint num_tasks = rtpm.begin()->second.size();
-  int num_tasks = 0;
-  for (auto f : C.frames) {
-    if (f->name.contains("obj")) {
-      num_tasks += 1;
-    }
-  }
-  auto seq = generate_random_sequence(robots, num_tasks);
-
-  // plan for it
-  const auto plan_result =
-      plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
-
-  auto best_plan = plan_result.plan;
-  uint best_makespan = get_makespan_from_plan(plan_result.plan);
-
-  uint curr_makespan = best_makespan;
-
-  std::cout << "Initial path with makespan " << best_makespan << std::endl
-            << std::endl;
-
-  {
-    const auto end_time = std::chrono::high_resolution_clock::now();
-    const auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time)
-            .count();
-    export_plan(C, robots, home_poses, best_plan, seq, buffer.str(), 0, duration);
-  }
-
-  auto p = [](const double e, const double eprime, const double temperature) {
-    if (eprime < e) {
-      return 1.;
-    }
-
-    return exp(-(eprime - e) / temperature);
-  };
-
-  const uint max_iter = 1000;
-  const double T0 = 1e6;
-
-  double T = T0;
-  double cooling_factor = 0.999;
-
-  std::vector<uint> best_makespan_at_iteration;
-  std::vector<double> computation_time_at_iteration;
-
-  for (uint i = 0; i < max_iter; ++i) {
-    // T = T0 * (1 - (i+1.)/nmax);
-    T = T * cooling_factor; // temp(i);
-
-    // modify sequence
-    const OrderedTaskSequence seq_new = neighbour(seq, robots);
-
-    // compute lower bound
-    const double lb_makespan =
-        compute_lb_for_sequence(seq_new, rtpm, home_poses);
-
-    arr rnd(1);
-    rndUniform(rnd);
-
-    if (p(curr_makespan, lb_makespan, T) > rnd(0)) {
-      const auto new_plan_result =
-          plan_multiple_arms_given_sequence(C, rtpm, seq_new, home_poses);
-
-      if (new_plan_result.status == PlanStatus::success) {
-        const auto end_time = std::chrono::high_resolution_clock::now();
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  end_time - start_time)
-                                  .count();
-
-        const Plan new_plan = new_plan_result.plan;
-        const double makespan = get_makespan_from_plan(new_plan);
-
-        export_plan(C, robots, home_poses, new_plan, seq_new, buffer.str(), i + 1,
-                    duration);
-
-        std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
-                  << best_makespan << std::endl;
-        for (const auto &s : seq_new) {
-          std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-        }
-
-        if (p(curr_makespan, makespan, T) > rnd(0)) {
-          curr_makespan = makespan;
-          seq = seq_new;
-        }
-
-        if (makespan < best_makespan) {
-          best_makespan = makespan;
-          best_plan = new_plan;
-
-          visualize_plan(C, best_plan);
-        }
-      }
-    }
-
-    best_makespan_at_iteration.push_back(best_makespan);
-    computation_time_at_iteration.push_back(i);
-  }
-
-  return best_plan;
 }
 
 OrderedTaskSequence load_sequence(const std::string &path) {
@@ -698,51 +197,6 @@ OrderedTaskSequence load_sequence(const std::string &path) {
 
 bool check_sequence_validity(const OrderedTaskSequence &seq){
   return false;
-}
-
-OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
-                                           const uint num_tasks,
-                                           const RobotTaskPoseMap &rtpm) {
-  OrderedTaskSequence seq;
-  for (uint i = 0; i < num_tasks; ++i) {
-    while (true) {
-      // choose random action
-      const uint a = rand() % 2;
-
-      // choose random robot
-      uint r1 = rand() % robots.size();
-      uint r2 = rand() % robots.size();
-
-      RobotTaskPair rtp;
-
-      if (a == 0) {
-        rtp.robots = {robots[r1]};
-        rtp.task = Task{.object = i, .type = TaskType::pick};
-      } else {
-        rtp.robots = {robots[r1], robots[r2]};
-        rtp.task = Task{.object = i, .type = TaskType::handover};
-      }
-
-      // check if the task is feasible with the chosen robot(s)
-      if (rtpm.count(rtp) != 0) {
-        seq.push_back(rtp);
-        break;
-      }
-    }
-  }
-
-  return seq;
-}
-
-std::map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
-                                          const std::vector<Robot> &robots) {
-  std::map<Robot, arr> poses;
-  for (auto r : robots) {
-    setActive(C, r);
-    poses[r] = C.getJointState();
-  }
-
-  return poses;
 }
 
 arr plan_line(rai::Configuration C, const rai::String &robot_prefix, const std::vector<arr> &pts){
@@ -849,9 +303,37 @@ int main(int argc, char **argv) {
   const rai::String env =
       rai::getParameter<rai::String>("env", ""); // environment
 
-  std::vector<std::string> robots; // string-prefix for robots
-  robots = {"a0_", "a1_", "a2_"};
+  if (mode == "two_finger_keyframes_test") {
+    single_arm_two_finger_keyframe_test();
+    two_arms_two_finger_keyframe_test();
+    three_arms_two_finger_keyframe_test();
+    return 0;
+  }
 
+  if (mode == "two_finger_handover_keyframes_test") {
+    two_arm_two_finger_handover_keyframe_test();
+    three_arm_two_finger_handover_keyframe_test();
+    return 0;
+  }
+
+  if (mode == "two_finger_planning_test") {
+    single_arm_two_finger_planning_test();
+    two_arm_two_finger_planning_test();
+    three_arm_two_finger_planning_test();
+    return 0;
+  }
+
+  if (mode == "two_finger_handover_planning_test") {
+    two_arm_two_finger_handover_planning_test();
+    three_arm_two_finger_handover_planning_test();
+    return 0;
+  }
+
+  std::vector<Robot> robots; // string-prefix for robots
+  robots.push_back(Robot("a0_", RobotType::ur5, vmax));//  = {"a0_", "a1_", "a2_"};
+  robots.push_back(Robot("a1_", RobotType::ur5, vmax));
+  robots.push_back(Robot("a2_", RobotType::ur5, vmax));
+  
   rai::Configuration C;
   opposite_three_robot_configuration(C, gripper == "two_finger");
 
@@ -862,7 +344,10 @@ int main(int argc, char **argv) {
     line(C, num_objects);
   }
   else if (env == "shuffled_line"){
-    shuffled_line(C, num_objects);
+    shuffled_line(C, num_objects, 1.5, false);
+  }
+  else if (env == "big_objs"){
+    big_objs(C, num_objects);
   }
 
   // C.watch(true);
@@ -889,7 +374,7 @@ int main(int argc, char **argv) {
   // }
 
   // maps [robot] to home_pose
-  const std::map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
+  const std::unordered_map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
 
   if (mode == "line_test") {
     line_test();
@@ -908,6 +393,14 @@ int main(int argc, char **argv) {
     const auto test_sequence_for_handover = make_handover_sequence(robots, num_objects, rtpm);
     auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_handover, home_poses);
     visualize_plan(C, plan.plan, true);
+
+    std::time_t t = std::time(nullptr);
+    std::tm tm = *std::localtime(&t);
+
+    std::stringstream buffer;
+    buffer << "handover_test_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+    export_plan(C, robots, home_poses, plan.plan, test_sequence_for_handover, buffer.str(), 0, 0);
 
     return 0;
   }

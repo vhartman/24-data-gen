@@ -10,59 +10,16 @@
 #include "util.h"
 #include "env_util.h"
 
+#include "types.h"
+
 using json = nlohmann::json;
-
-enum class TaskType {pick, handover, go_to, joint_pick};
-struct Task{
-  unsigned int object;
-  TaskType type;
-};
-
-typedef std::string Robot; // prefix of the robot -> fully identifies the robot
-
-struct RobotTaskPair{
-  std::vector<Robot> robots;
-  Task task;
-
-  bool operator==(const RobotTaskPair &other)const{
-    if (robots.size() != other.robots.size()){
-      return false;
-    }
-    if (task.type != other.task.type || task.object != other.task.object){
-      return false;
-    }
-
-    for (uint i=0; i<robots.size(); ++i){
-      if (robots[i] != other.robots[i]){
-        return false;
-      }
-    }
-
-    return true;
-  }
-};
-
-template <>
-struct std::hash<RobotTaskPair> {
-  std::size_t operator()(RobotTaskPair const& rtp) const {
-    std::size_t seed = rtp.robots.size();
-    std::hash<std::string> hasher;
-    for(auto& i : rtp.robots) {
-      seed ^= hasher(i) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    }
-    seed ^= std::size_t(rtp.task.type) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    seed ^= rtp.task.object + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-
-    return seed;
-  }
-};
 
 typedef std::vector<arr> TaskPoses;
 typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> RobotTaskPoseMap;
 
 // typedef std::pair<Robot, Task> robot_task_pair;
 typedef std::vector<RobotTaskPair> OrderedTaskSequence;
-typedef std::map<Robot, std::vector<Task>> UnorderedTaskSequence;
+typedef std::unordered_map<Robot, std::vector<Task>> UnorderedTaskSequence;
 
 struct ComputeStatistics {
   double total_compute_time;
@@ -102,7 +59,7 @@ struct TaskPart {
   ComputeStatistics stats;
 };
 
-typedef std::map<Robot, std::vector<TaskPart>> Plan;
+typedef std::unordered_map<Robot, std::vector<TaskPart>> Plan;
 
 enum class PlanStatus { failed, aborted, success, unplanned };
 
@@ -117,7 +74,7 @@ struct PlanResult {
 };
 
 double
-get_makespan_from_plan(const std::map<Robot, std::vector<TaskPart>> &plan) {
+get_makespan_from_plan(const Plan &plan) {
   double max_time = 0.;
   for (const auto &robot_plan : plan) {
     const auto last_subpath = robot_plan.second.back();
@@ -128,8 +85,8 @@ get_makespan_from_plan(const std::map<Robot, std::vector<TaskPart>> &plan) {
 }
 
 arr get_robot_pose_at_time(const uint t, const Robot r,
-                           const std::map<Robot, arr> &home_poses,
-                           const std::map<Robot, std::vector<TaskPart>> &plan) {
+                           const std::unordered_map<Robot, arr> &home_poses,
+                           const Plan &plan) {
   if (plan.count(r) > 0) {
     for (const auto &part : plan.at(r)) {
       // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
@@ -149,12 +106,11 @@ arr get_robot_pose_at_time(const uint t, const Robot r,
   return home_poses.at(r);
 }
 
-std::map<Robot, std::vector<TaskPart>>
-reoptimize_plan(rai::Configuration C,
-                const std::map<Robot, std::vector<TaskPart>> &unscaled_plan,
-                const std::map<Robot, arr> &home_poses) {
+Plan reoptimize_plan(rai::Configuration C,
+                const Plan &unscaled_plan,
+                const std::unordered_map<Robot, arr> &home_poses) {
   // formulate KOMO problem for multiple robots
-  std::vector<std::string> all_robots;
+  std::vector<Robot> all_robots;
   for (const auto &per_robot_plan : unscaled_plan) {
     all_robots.push_back(per_robot_plan.first);
   }
@@ -191,7 +147,7 @@ reoptimize_plan(rai::Configuration C,
   }
 
   // get joints per robot
-  std::map<Robot, StringA> per_robot_joints;
+  std::unordered_map<Robot, StringA> per_robot_joints;
   for (const auto &f : C.frames) {
     for (const auto &r : all_robots) {
       if (f->name.contains(STRING(r)) && f->joint) {
@@ -303,7 +259,7 @@ reoptimize_plan(rai::Configuration C,
     komo.clearObjectives();
   }
 
-  std::map<Robot, arr> per_robot_paths;
+  std::unordered_map<Robot, arr> per_robot_paths;
   for (const auto &r : all_robots) {
     per_robot_paths[r].resize(A.getT(), home_poses.at(r).d0);
   }
@@ -322,7 +278,7 @@ reoptimize_plan(rai::Configuration C,
     setActive(C, all_robots);
   }
 
-  std::map<Robot, std::vector<TaskPart>> optimized_plan;
+  Plan optimized_plan;
 
   for (const auto &per_robot_plan : unscaled_plan) {
     const auto robot = per_robot_plan.first;
@@ -358,7 +314,7 @@ reoptimize_plan(rai::Configuration C,
 }
 
 void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
-                 const std::map<Robot, arr> &home_poses, const Plan &plan,
+                 const std::unordered_map<Robot, arr> &home_poses, const Plan &plan,
                  const OrderedTaskSequence &seq, const std::string base_folder,
                  const uint iteration, const uint computation_time) {
   std::cout << "exporting plan" << std::endl;
@@ -395,7 +351,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     std::ofstream f;
     f.open(folder + "sequence.txt", std::ios_base::trunc);
     for (const auto &s : seq) {
-      f << "(" << s.robots[0] << " " << s.task.object << ")";
+      f << "(" << s.robots[0] << " " << s.task.object << " " << int(s.task.type) << ")";
     }
   }
 
@@ -410,6 +366,34 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       const rai::String robot_base STRING(r << "base");
 
       data[robot_base.p] = C[robot_base]->getPose();
+    }
+
+    f << data;
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "obj_initial_pose.json", std::ios_base::trunc);
+
+    json data;
+    for (const auto frame : C.frames) {
+      if (frame->name.contains("obj")) {
+        data[frame->name.p] = frame->getPose().vec();
+      }
+    }
+
+    f << data;
+  }
+
+{
+    std::ofstream f;
+    f.open(folder + "obj_sizes.json", std::ios_base::trunc);
+
+    json data;
+    for (const auto frame : C.frames) {
+      if (frame->name.contains("obj")) {
+        data[frame->name.p] = frame->getShape().size;
+      }
     }
 
     f << data;
@@ -439,7 +423,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
 
     const double makespan = get_makespan_from_plan(plan);
-    for (uint t = 0; t < makespan; ++t) {
+    std::cout << makespan << " " << A.getT() << std::endl;
+    for (uint t = 0; t < A.getT(); ++t) {
       // std::cout << t << std::endl;
       for (const auto &tp : plan) {
         const auto r = tp.first;
@@ -453,7 +438,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
           }
 
           for (uint i = 0; i < part.t.N - 1; ++i) {
-            if (part.t(i) <= t && part.t(i + 1) > t) {
+            if ((i == part.t.N-1 && t == part.t(-1)) ||
+              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
               setActive(C, r);
               C.setJointState(part.path[i]);
               // std::cout <<part.path[i] << std::endl;
@@ -527,7 +513,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       const auto tasks = per_robot_plan.second;
 
       json tmp;
-      tmp["robot"] = robot;
+      tmp["robot"] = robot.prefix;
 
       for (const auto &task : tasks) {
         json task_description;
@@ -595,7 +581,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     json data;
 
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    std::map<Robot, std::vector<arr>> paths;
+    std::unordered_map<Robot, std::vector<arr>> paths;
     for (uint i = 0; i < A.getT(); ++i) {
       uint offset = 0;
       for (uint j = 0; j < robots.size(); ++j) {
@@ -603,7 +589,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         paths[robots[j]].push_back(pose);
       }
     }
-    data = paths;
+
+    for (const auto &element: paths){
+      data[element.first.prefix] = element.second;
+    }
 
     f << data;
   }
@@ -611,11 +600,14 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 
 void visualize_plan(rai::Configuration C, const Plan &plan,
                     const bool save = false) {
+  std::cout << "Showing plan" << std::endl;
+
   rai::ConfigurationViewer Vf;
   // Vf.setConfiguration(C, "\"Real World\"", true);
   Vf.setConfiguration(C, "\"Real World\"", false);
 
   const double makespan = get_makespan_from_plan(plan);
+  std::cout << "Plan length: " << makespan << std::endl;
 
   for (uint t = 0; t < makespan; ++t) {
     // A.setToTime(C, t);
