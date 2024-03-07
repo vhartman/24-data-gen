@@ -1,5 +1,5 @@
 BASE = ../rai-fork
-BASE2 = ../src
+BASE2 = ../rai-manip
 
 OBJS = main.o 
 
