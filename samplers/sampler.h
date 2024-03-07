@@ -115,7 +115,7 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       // komo.world.stepSwift();
 
-      komo.add_collision(true, .00, 1e2);
+      komo.add_collision(true, .00, 1e1);
       komo.add_jointLimits(true, 0., 1e1);
 
       const auto pen_tip = STRING(r.prefix << "pen_tip");
@@ -165,7 +165,11 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       bool found_solution = false;
       for (uint j = 0; j < 10; ++j) {
-        komo.run_prepare(0.0, true);
+        if (i == 0) {
+          komo.run_prepare(0.0, false);
+        } else {
+          komo.run_prepare(0.0000001, false);
+        }
         komo.run(options);
 
         const arr q0 = komo.getPath()[0]();
@@ -192,17 +196,25 @@ compute_pick_and_place_positions(rai::Configuration C,
 
           break;
         } else {
-          spdlog::info("pick/place failed for robot {0} and {1} ineq: {:03.2f} eq: {:03.2f}", r.prefix, obj, ineq, eq);
+          spdlog::info("pick/place failed for robot {} and {} ineq: {:03.2f} eq: {:03.2f}", r.prefix, obj, ineq, eq);
           spdlog::info("Collisions: pose 1 coll: {0} pose 2 coll: {1}", res1->isFeasible, res2->isFeasible);
 
           if (!res1->isFeasible) {
-            res1->writeDetails(std::cout, cp.C);
+            std::stringstream ss;
+            res1->writeDetails(ss, cp.C);
+            spdlog::debug(ss.str());
           }
           if (!res2->isFeasible) {
+            std::stringstream ss;
             res2->writeDetails(std::cout, cp.C);
+            spdlog::debug(ss.str());
           }
-        //   komo.pathConfig.watch(true);
+          // komo.pathConfig.watch(true);
         }
+      }
+
+      if (!found_solution){
+        spdlog::info("Did not find a solution");
       }
     }
   }
@@ -220,7 +232,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
   }
 
   delete_unnecessary_frames(C);
-
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
 
@@ -247,21 +258,7 @@ compute_handover_poses(rai::Configuration C,
     }
   }
 
-  // deleteUnnecessaryFrames(C);
-  for (const auto f : C.frames) {
-    if (f->name.contains("goal")) {
-      f->setContact(1);
-    }
-  }
-
   delete_unnecessary_frames(C);
-
-  for (const auto f : C.frames) {
-    if (f->name.contains("goal")) {
-      f->setContact(0);
-    }
-  }
-
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
 
@@ -272,6 +269,8 @@ compute_handover_poses(rai::Configuration C,
 
   // C.watch(true);
   OptOptions options;
+  options.allowOverstep = true;
+
   RobotTaskPoseMap rtpm;
 
   ConfigurationProblem cp(C);
@@ -300,7 +299,7 @@ compute_handover_poses(rai::Configuration C,
 
         komo.setDiscreteOpt(3);
 
-        komo.add_collision(true, .00, 1e2);
+        komo.add_collision(true, .00, 1e1);
         komo.add_jointLimits(true, 0., 1e1);
 
         const auto r1_pen_tip = STRING(r1 << "pen_tip");
@@ -357,21 +356,23 @@ compute_handover_poses(rai::Configuration C,
         // komo.addObjective({2.}, FS_scalarProductYX, {obj, r2_pen_tip},
         //                   OT_sos, {1e0}, {1.});
 
-        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
-                          {1e1}, {1.});
+        komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
+                          {1e0}, {1.});
 
-        komo.addObjective({2., 2.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
-                          {1e1}, {1.});
+        komo.addObjective({2., 3.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
+                          {1e0}, {1.});
 
         // homing
         if (true) {
           for (const auto &base_name : {r1.prefix, r2.prefix}) {
             uintA bodies;
             rai::Joint *j;
-            for (rai::Frame *f : komo.world.frames)
+            for (rai::Frame *f : komo.world.frames) {
               if ((j = f->joint) && j->qDim() > 0 &&
-                  (f->name.contains(base_name.c_str()))){
-                bodies.append(f->ID);}
+                  (f->name.contains(base_name.c_str()))) {
+                bodies.append(f->ID);
+              }
+            }
             komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
                               OT_sos, {1e-1}, NoArr); // world.q, prec);
           }
@@ -379,7 +380,12 @@ compute_handover_poses(rai::Configuration C,
 
         bool found_solution = false;
         for (uint j = 0; j < 3; ++j) {
-          komo.run_prepare(0.0, false);
+          if (i==0){
+            komo.run_prepare(0.0, false);
+          }
+          else{
+            komo.run_prepare(0.00001, false);
+          }
           komo.run(options);
 
           const arr q0 = komo.getPath()[0]();
@@ -443,6 +449,10 @@ compute_handover_poses(rai::Configuration C,
             }
             // komo.pathConfig.watch(true);
           }
+        }
+
+        if (!found_solution){
+          spdlog::info("Could not find a solution.");
         }
       }
     }

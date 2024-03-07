@@ -16,13 +16,16 @@ void single_arm_two_finger_keyframe_test(const bool show = false) {
 
   rai::Configuration C;
   single_robot_configuration(C, true);
-  shuffled_line(C, 2, 0.3);
+
+  const uint num_objects = 2;
+  shuffled_line(C, num_objects, 0.3, false);
 
   // C.watch(true);
 
   const auto rtpm = compute_pick_and_place_positions(C, robots);
 
-  assert(rtpm.size() == 2);
+  assert(rtpm.size() == num_objects);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -57,13 +60,16 @@ void two_arms_two_finger_keyframe_test(const bool show = false) {
 
   rai::Configuration C;
   two_robot_configuration(C, true);
-  shuffled_line(C, 2, 0.3);
+
+  const uint num_objects = 2;
+  shuffled_line(C, num_objects, 0.3, false);
 
   // C.watch(true);
 
   const auto rtpm = compute_pick_and_place_positions(C, robots);
 
-  assert(rtpm.size() == 4);
+  assert(rtpm.size() == num_objects * 2);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -99,13 +105,15 @@ void three_arms_two_finger_keyframe_test(const bool show = false) {
 
   rai::Configuration C;
   opposite_three_robot_configuration(C, true);
+  const uint num_objects = 2;
   shuffled_line(C, 2, 0.3);
 
   // C.watch(true);
 
   const auto rtpm = compute_pick_and_place_positions(C, robots);
 
-  assert(rtpm.size() == 6);
+  assert(rtpm.size() == num_objects * 3);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 3);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -140,11 +148,14 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
 
   rai::Configuration C;
   two_robot_configuration(C, true);
-  shuffled_line(C, 2, 0.3, false);
+
+  const uint num_objects = 2;
+  shuffled_line(C, num_objects, 0.3, false);
 
   // C.watch(true);
 
   const auto rtpm = compute_handover_poses(C, robots);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -189,11 +200,14 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
 
   rai::Configuration C;
   opposite_three_robot_configuration(C, true);
-  shuffled_line(C, 2, 0.3, false);
+
+  const uint num_objects = 2;
+  shuffled_line(C, num_objects, 0.3, false);
 
   // C.watch(true);
 
   const auto rtpm = compute_handover_poses(C, robots);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2 * 2);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -238,7 +252,7 @@ void single_arm_two_finger_planning_test(const bool show = false) {
 
   rai::Configuration C;
   single_robot_configuration(C, true);
-  shuffled_line(C, 2, 0.3);
+  shuffled_line(C, 2, 0.3, false);
 
   // C.watch(true);
 
@@ -289,7 +303,7 @@ void two_arm_two_finger_planning_test(const bool show = false) {
     two_robot_configuration(C, true);
 
     const uint num_objects = i + 2;
-    shuffled_line(C, num_objects, 0.15 * num_objects);
+    shuffled_line(C, num_objects, 0.15 * num_objects, false);
 
     // C.watch(true);
 
@@ -341,7 +355,7 @@ void three_arm_two_finger_planning_test(const bool show = false) {
     opposite_three_robot_configuration(C, true);
 
     const uint num_objects = i + 2;
-    shuffled_line(C, num_objects, 0.15 * num_objects);
+    shuffled_line(C, num_objects, 0.15 * num_objects, false);
 
     // C.watch(true);
 

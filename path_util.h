@@ -1,5 +1,7 @@
 #pragma once
 
+#include "spdlog/spdlog.h"
+
 #include <Manip/timedPath.h>
 #include <KOMO/komo.h>
 #include <Geo/fclInterface.h>
@@ -72,12 +74,14 @@ const double pathLength(const arr &path) {
 
 arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initialPath,
                      const uint t0) {
+  spdlog::info("Starting shortcutting");
+  // We do not currently support preplaned frames here
   if (TP.A.prePlannedFrames.N != 0) {
     return initialPath;
   }
 
   // TP.C.fcl()->stopEarly = false;
-  // TP.C.fcl()->stopEarly = true;
+  TP.C.fcl()->stopEarly = true;
 
   arr smoothedPath = initialPath;
   /*for (uint i=0; i<smoothedPath.d0; i+=4){
@@ -142,8 +146,23 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
         const arr point = ps[n] + dir * interp;
         const double t = t0 + i + n + interp;
 
+        // std::cout << t << " " << point << std::endl;
+
         const auto qr = TP.query(point, t);
+
+        // ConfigurationProblem cp(TP.C);
+        // auto tmp = cp.query({}, false);
+
+        // std::cout << qr->isFeasible << std::endl;
+        // std::cout << tmp->isFeasible << std::endl;
+
+        // if (tmp->isFeasible != qr->isFeasible){
+        //   TP.C.watch();
+        //   cp.C.watch(true);
+        // }
+
         if (!qr->isFeasible) {
+          // std::cout << "A" << std::endl;
           shortcutFeasible = false;
           break;
         }
@@ -165,14 +184,12 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     // proxy measure for convergence
     const uint conv = 100;
     if (k > conv && abs(costs.back() - costs[costs.size() - conv - 1]) < 1e-6) {
-      std::cout << "converged after " << k << " iterations " << costs[0] << " "
-                << costs.back() << std::endl;
+      spdlog::info("Converged after {}, iterations", k);
       break;
     }
   }
 
-  std::cout << '\t' << "Change in path costs: " << costs[0] << " "
-            << costs.back() << std::endl;
+  spdlog::info("Change in path cost {}, {}", costs[0], costs.back());
   return smoothedPath;
 }
 
@@ -192,9 +209,11 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   const arr scaled_path = tp.resample(scaled_ts, C);
 
   OptOptions options;
-  options.stopIters = 50;
+  options.stopIters = 10;
   options.damping = 1e-3;
-  options.stopTolerance = 0.01;
+  options.stopTolerance = 0.1;
+  options.allowOverstep = false;
+  options.maxStep = 1;
 
   auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
@@ -203,41 +222,41 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   KOMO komo;
   komo.setModel(C, true);
   komo.setTiming(1., num_timesteps, 5, 2);
-  komo.world.fcl()->stopEarly = false;
+  komo.world.fcl()->stopEarly = true;
 
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
-  komo.add_collision(true, .0, 1e2);
-  komo.add_qControlObjective({}, 2, 1e1);
-  komo.add_qControlObjective({}, 1, 1e1);
+  komo.add_collision(true, .00, 1e0);
+  komo.add_qControlObjective({}, 2, 1e-1);
+  komo.add_qControlObjective({}, 1, 1e-2);
 
   komo.setConfiguration(-2, path[0]);
   komo.setConfiguration(-1, path[0]);
   komo.setConfiguration(0, path[0]);
 
   // make pen tip go a way from the table
-  const double offset = 0.06;
-  komo.addObjective({0.1, 0.9}, FS_distance,
-                    {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e1},
-                    {-offset});
+  // const double offset = 0.06;
+  // komo.addObjective({0.1, 0.9}, FS_distance,
+  //                   {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e1},
+  //                   {-offset});
   // komo.addObjective({0.1, 0.8}, FS_distance,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
 
   // position
   // komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, path[0]);
-  komo.addObjective({1}, FS_qItself, {}, OT_eq, {1e1}, path[-1]);
+  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e1}, path[-1]);
 
   // speed
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  1); // slow at beginning
-  komo.addObjective({0.97, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
+                   1); // slow at beginning
+  komo.addObjective({.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
                     1); // slow at end
 
   // acceleration
   // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
   //                  2); // slow at beginning
-  komo.addObjective({0.97, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({1.0, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
                     2); // slow at end
 
   setKomoToAnimation(komo, C, A, scaled_ts);
@@ -280,6 +299,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   TimedPath tp_smooth(smooth, scaled_ts);
   arr unscaled_path = tp_smooth.resample(ts, C);
 
+  spdlog::info("Done with smoothing");
   return unscaled_path;
 }
 

@@ -136,7 +136,7 @@ Plan plan_multiple_arms_greedy_random_search(
           plan = new_plan;
           prev_makespan = makespan;
 
-          visualize_plan(C, plan);
+          // visualize_plan(C, plan);
           std::cout << "A" << std::endl;
         }
 

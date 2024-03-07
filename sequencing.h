@@ -158,8 +158,12 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
   uint r = rand() % robots.size();
   std::unordered_map<Robot, arr> poses = home_poses;
 
+  const uint max_iter = 1000;
+
   OrderedTaskSequence seq;
+  uint cnt = 0;
   while (available_tasks.size() > 0) {
+    ++cnt;
     // find minimum dist pose to current robot
     auto min_dist = 1e6;
     uint task_index = 0;
@@ -192,10 +196,15 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
       seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=TaskType::pick}});
     }
     else{
-      std::cout << "not asigned task" << std::endl;
+      std::cout << "not assigned task" << std::endl;
     }
 
     r = (r + 1) % robots.size();
+
+    if (cnt > max_iter){
+      std::cout << "stopping sinc emax iter" << std::endl;
+      break;
+    }
   }
 
   return seq;

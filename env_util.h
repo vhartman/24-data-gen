@@ -263,7 +263,7 @@ void opposite_three_robot_configuration(rai::Configuration &C, const bool two_fi
   // C.watch(true);
 }
 
-void random_objects(rai::Configuration &C, const uint N){  
+void random_objects(rai::Configuration &C, const uint N, const double width=.5){  
   for (uint i=0; i<N; ++i){
     auto *obj = C.addFrame(STRING("obj"<<i+1), "table");
 
@@ -278,7 +278,7 @@ void random_objects(rai::Configuration &C, const uint N){
     while(true){
       arr rnd(2);
       rndUniform(rnd, 0, 1);
-      rnd(0) = (rnd(0) - 0.5) * 2;
+      rnd(0) = (rnd(0) - 0.5) * width;
       rnd(1) = (rnd(1) - 0.3) * 0.7;
 
       obj->setPosition({rnd(0), rnd(1), 0.66});
@@ -302,7 +302,7 @@ void random_objects(rai::Configuration &C, const uint N){
       // rnd(0) = (rnd(0) - 0.5) * 0.5;
       // rnd(1) = (rnd(1) - 0.3) * 0.5;
 
-      rnd(0) = (rnd(0) - 0.5) * 2;
+      rnd(0) = (rnd(0) - 0.5) * width;
       rnd(1) = (rnd(1) - 0.3) * 1;
 
       goal->setPosition({rnd(0), rnd(1), 0.66});

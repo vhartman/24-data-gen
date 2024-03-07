@@ -81,10 +81,7 @@ double compute_lb_for_sequence(const OrderedTaskSequence &seq,
 bool sequence_is_feasible(const OrderedTaskSequence &seq,
                           const RobotTaskPoseMap &rtpm) {
   for (const auto &s : seq) {
-    const Robot r = s.robots[0];
-    const auto task_index = s.task.object;
-
-    if (rtpm.at(s).size() == 0) {
+    if (rtpm.count(s) == 0) {
       return false;
     }
   }

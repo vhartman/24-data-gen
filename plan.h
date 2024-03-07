@@ -1,9 +1,11 @@
 #pragma once
 
+#include "spdlog/spdlog.h"
+
 #include <string>
 #include <vector>
 
-#include "json.h"
+#include "json/json.h"
 
 #include <Core/array.h>
 
@@ -600,14 +602,14 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 
 void visualize_plan(rai::Configuration C, const Plan &plan,
                     const bool save = false) {
-  std::cout << "Showing plan" << std::endl;
+  spdlog::info("Showing plan");
 
   rai::ConfigurationViewer Vf;
   // Vf.setConfiguration(C, "\"Real World\"", true);
   Vf.setConfiguration(C, "\"Real World\"", false);
 
   const double makespan = get_makespan_from_plan(plan);
-  std::cout << "Plan length: " << makespan << std::endl;
+  spdlog::info("Plan duration: {}", makespan);
 
   for (uint t = 0; t < makespan; ++t) {
     // A.setToTime(C, t);
@@ -662,5 +664,4 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
     }
   }
   rai::wait(0.01);
-  std::cout << "B" << std::endl;
 }

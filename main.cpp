@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "two_finger_handover_planning_test") {
-    two_arm_two_finger_handover_planning_test();
+    // two_arm_two_finger_handover_planning_test();
     three_arm_two_finger_handover_planning_test();
     return 0;
   }

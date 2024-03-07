@@ -87,7 +87,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   KOMO komo;
 
   komo.setModel(C, true);
-  komo.world.fcl()->stopEarly = false;
+  komo.world.fcl()->stopEarly = true;
 
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.verbose = 0;
@@ -405,6 +405,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   PathFinder_RRT_Time planner(TP);
   planner.vmax = prefix.vmax;
   planner.lambda = 0.5;
+  planner.maxIter = 500;
   // planner.disp = true;
   // planner.optimize = optimize;
   // planner.step_time = 5;
@@ -445,7 +446,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   for (uint i = 0; i < max_iter; ++i) {
     const uint time_ub = t_earliest_feas + max_delta * (i);
 
-    std::cout << i << " " << time_ub << std::endl;
+    spdlog::info("RRT iteration {}, upper bound time {}", i, time_ub);
     if (time_ub > time_ub_prev_found && time_ub_prev_found > 0) {
       spdlog::info("Aborting bc. faster path found");
       break;
@@ -506,9 +507,13 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
   const arr path = timedPath.resample(t, TP.C);
 
-  std::cout << path[-1] << std::endl;
-  std::cout << timedPath.path[-1] << std::endl;
-  std::cout << q1 << std::endl;
+  {
+    const double max_speed = get_max_speed(path);
+    spdlog::info("RRT maximum speed after resampling {}", max_speed);
+  }
+  // std::cout << path[-1] << std::endl;
+  // std::cout << timedPath.path[-1] << std::endl;
+  // std::cout << q1 << std::endl;
 
   // check if resampled path is still fine
   for (uint i = 0; i < t.N; ++i) {
@@ -532,13 +537,16 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
   // shortcutting
   // TODO: add timing
-  spdlog::info("Running shortcutter");
   const auto shortcut_start_time = std::chrono::high_resolution_clock::now();
   const bool should_shortcut = rai::getParameter<bool>("shortcutting", true);
 
   arr new_path = path;
   if (should_shortcut){
+    spdlog::info("Running shortcutter");
     new_path = partial_spacetime_shortcut(TP, path, t0);
+
+    const double max_speed = get_max_speed(new_path);
+    spdlog::info("RRT maximum speed after shortcutting {}", max_speed);
   }
   // const arr new_path = path;
 
@@ -551,28 +559,37 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // std::cout << new_path[-1] << "\n" << q1 << std::endl;
 
   // smoothing and imposing bunch of constraints
-  spdlog::info("Running smoother");
   const auto smoothing_start_time = std::chrono::high_resolution_clock::now();
   
   // TP.C.fcl()->stopEarly = false;
 
   const bool should_smooth = rai::getParameter<bool>("smoothing", false);
 
-  arr smooth_path = new_path;
+  arr smooth_path = new_path * 1.;
   if (should_smooth){
+    spdlog::info("Running smoother");
     smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix);
+    
+    for (uint i = 0; i < smooth_path.d0; ++i) {
+      const auto res = TP.query(smooth_path[i], t(i));
+      // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.05) {
+      if (!res->isFeasible) {
+        spdlog::error(
+            "smoothed path infeasible, penetration {} at time {} (timestep {})",
+            min(res->coll_y), t(i), i);
+        res->writeDetails(std::cout, TP.C);
+        // TP.C.watch(true);
+
+        smooth_path = new_path;
+        break;
+      }
+    }
+
+    const double max_speed = get_max_speed(smooth_path);
+    spdlog::info("RRT maximum speed after smoothing {}", max_speed);
+
   }
   // TP.C.fcl()->stopEarly = true;
-
-  for (uint i = 0; i < smooth_path.d0; ++i) {
-    const auto res = TP.query(smooth_path[i], t(i));
-    // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < 0) {
-    if (!res->isFeasible) {
-      spdlog::error("smoothed path infeasible");
-      smooth_path = new_path;
-      break;
-    }
-  }
   const auto smoothing_end_time = std::chrono::high_resolution_clock::now();
   const auto smoothing_duration =
       std::chrono::duration_cast<std::chrono::microseconds>(smoothing_end_time -
@@ -582,8 +599,8 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // const arr smooth_path = new_path;
 
   const double max_speed = get_max_speed(smooth_path);
-  spdlog::info("RRT final time at {}", t(-1));
   spdlog::info("RRT maximum speed {}", max_speed);
+  spdlog::info("RRT final time at {}", t(-1));
   
   TaskPart tp(t, smooth_path);
   tp.stats.rrt_plan_time = total_rrt_time;
@@ -734,8 +751,12 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
     return komo_path;
   }
 
-  spdlog::info("Using RRT as default");
-  return rrt_path;
+  if (rrt_path.has_solution){
+    spdlog::info("Using RRT as default");
+    return rrt_path;
+  }
+
+  return TaskPart();
 }
 
 class PrioritizedTaskPlanner {
@@ -780,12 +801,11 @@ class PrioritizedTaskPlanner {
       }
 
       if (rtp.task.type == TaskType::handover){
-        std::cout << "handover" << std::endl;
-
         // r1 [ pick ] [handover] [ exit ]
         // r2  xx ] [  move to  ] [  place  ] [exit]
         const auto r1 = rtp.robots[0];
         const auto r2 = rtp.robots[1];
+        spdlog::info("Planning handover for robots {}, {}", r1.prefix, r2.prefix);
 
         // plan pick for r1
         {
@@ -794,12 +814,13 @@ class PrioritizedTaskPlanner {
           if (paths.count(r1) > 0 && paths[r1].back().is_exit &&
               prev_finishing_time <
                   paths[r1].back().t(-1) + 1 + max_start_time_shift) {
-            std::cout << "removing exit path of " << r1 << std::endl;
-            std::cout << "exit path end time: " << paths[r1].back().t(-1)
-                      << std::endl;
-            paths[r1].pop_back();
+            spdlog::info("Removing exit path of robot {}", r1.prefix);
+            spdlog::info("exit path end time: {}", paths[r1].back().t(-1));
 
+            paths[r1].pop_back();
             removed_exit_path = true;
+
+            spdlog::info("New end time: {}", paths[r1].back().t(-1));
           }
 
           rai::Animation A;
@@ -818,20 +839,29 @@ class PrioritizedTaskPlanner {
           }
 
           // set configuration to plannable for current robot
-          std::cout << "setting up C" << std::endl;
-          std::cout << r1 << std::endl;
+          spdlog::info("Setting up configuration for robot {}", r1.prefix);
           setActive(CPlanner, r1);
-
           TP.A = A;
 
-          const uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
+          // TODO: manage start time properly
+          uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
           const arr pick_start_pose = (paths.count(r1) > 0) ? paths[r1].back().path[-1]: home_poses[r1];
           const arr pick_pose = rtpm[rtp][0][0];
 
-          std::cout << pick_start_pose << std::endl;
-          std::cout << pick_start_time << std::endl;
-          std::cout << pick_pose << std::endl;
-          
+          // ensure that the start time is not too far away from the earliest end time.
+          // TODO: fix this computation - at the moment, it can happen that the start time becomes infeasible when the exit path is removed
+          // since we do not start planing from that time
+          if (removed_exit_path) {
+            pick_start_time = paths[r1].back().t(-1);
+          } else {
+            const int horizon = prev_finishing_time - pick_start_time;
+            if (horizon > max_start_time_shift) {
+              pick_start_time = prev_finishing_time - max_start_time_shift;
+            }
+          }
+
+          spdlog::info("Picking start time {}", pick_start_time);
+
           auto path = plan_in_animation(TP, pick_start_time, pick_start_pose, pick_pose,
                                         0, r1, false);
 
@@ -868,8 +898,7 @@ class PrioritizedTaskPlanner {
             path.task_index = rtp.task.object;
 
             if (early_stopping && path.t(-1) > best_makespan_so_far) {
-              std::cout << "Stopping early due to better prev. path. ("
-                        << best_makespan_so_far << ")" << std::endl;
+              spdlog::info("Stopping early due to better prev. path. ({})", best_makespan_so_far);
               return PlanStatus::aborted;
             }
 
@@ -882,7 +911,7 @@ class PrioritizedTaskPlanner {
         
         // plan handover jointly
         {
-          std::cout << "handovering" << std::endl;
+          spdlog::info("Planning handover action");
 
           // bool removed_exit_path = false;
           // const uint max_start_time_shift = 0;
@@ -922,9 +951,7 @@ class PrioritizedTaskPlanner {
           }
 
           // set configuration to plannable for current robot
-          std::cout << "setting up C" << std::endl;
-          std::cout << r1 << std::endl;
-
+          spdlog::info("Setting up configuration and computing times");
           TP.A = A;
 
           const uint pick_end_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
@@ -947,14 +974,15 @@ class PrioritizedTaskPlanner {
           }
           const arr handover_pose = rtpm[rtp][0][1];
 
-          std::cout << start_time << std::endl;
-          std::cout << handover_start_pose << std::endl;
-          std::cout << handover_pose << std::endl;
+          spdlog::info("Start time at {}", start_time);
+          // std::cout << handover_start_pose << std::endl;
+          // std::cout << handover_pose << std::endl;
 
+          // update limits
           setActive(CPlanner, rtp.robots);
           TP.limits = TP.C.getLimits();
 
-          std::cout << TP.C.getJointState() << std::endl;
+          // std::cout << TP.C.getJointState() << std::endl;
           
           auto path = plan_in_animation(TP, start_time, handover_start_pose, handover_pose,
                                         0, r1, false);
@@ -1004,8 +1032,7 @@ class PrioritizedTaskPlanner {
               r1_path.task_index = rtp.task.object;
 
               if (early_stopping && path.t(-1) > best_makespan_so_far) {
-                std::cout << "Stopping early due to better prev. path. ("
-                          << best_makespan_so_far << ")" << std::endl;
+                spdlog::info("Stopping early due to better prev. path. ({})", best_makespan_so_far);
                 return PlanStatus::aborted;
               }
 
@@ -1035,8 +1062,7 @@ class PrioritizedTaskPlanner {
               r2_path.task_index = rtp.task.object;
 
               if (early_stopping && path.t(-1) > best_makespan_so_far) {
-                std::cout << "Stopping early due to better prev. path. ("
-                          << best_makespan_so_far << ")" << std::endl;
+                spdlog::info("Stopping early due to better prev. path. ({})", best_makespan_so_far);
                 return PlanStatus::aborted;
               }
 
@@ -1108,8 +1134,8 @@ class PrioritizedTaskPlanner {
         // plan place
         {
           setActive(CPlanner, r2);
-          const uint exit_start_time = paths[r2].back().t(-1);
-          const arr exit_path_start_pose = paths[r2].back().path[-1];
+          const uint start_time = paths[r2].back().t(-1);
+          const arr start_pose = paths[r2].back().path[-1];
 
           rai::Animation A;
           for (const auto &p : paths) {
@@ -1121,14 +1147,17 @@ class PrioritizedTaskPlanner {
           TP.A = A;
 
           auto path =
-              plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                rtpm[rtp][0][2], exit_start_time, r2, true);
+              plan_in_animation(TP, start_time, start_pose,
+                                rtpm[rtp][0][2], start_time, r2, false);
 
           if (path.has_solution) {
             if (false) {
               for (uint i = 0; i < path.path.d0; ++i) {
                 auto q = path.path[i];
                 CPlanner.setJointState(q);
+                // auto cp = ConfigurationProblem(CPlanner);
+                // auto res = cp.query({}, false);
+                // std::cout << res->isFeasible << std::endl;
                 CPlanner.watch(true);
                 rai::wait(0.05);
               }
@@ -1141,7 +1170,7 @@ class PrioritizedTaskPlanner {
             tmp_frames.append(to);  
 
             const auto anim_part = make_animation_part(
-                CPlanner, path.path, tmp_frames, exit_start_time);
+                CPlanner, path.path, tmp_frames, start_time);
           
             path.anim = anim_part;
             path.r = r2;
@@ -1213,7 +1242,8 @@ class PrioritizedTaskPlanner {
         return PlanStatus::success;
       }
       else{
-        std::cout << "pick planning" << std::endl;
+        spdlog::info("Planning picking");
+        
         // plan for current goal
         const Robot robot = rtp.robots[0];
         const uint task = rtp.task.object;
@@ -1232,12 +1262,13 @@ class PrioritizedTaskPlanner {
         if (paths[robot].size() > 0 && paths[robot].back().is_exit &&
             prev_finishing_time <
                 paths[robot].back().t(-1) + 1 + max_start_time_shift) {
-          std::cout << "removing exit path of " << robot << std::endl;
-          std::cout << "exit path end time: " << paths[robot].back().t(-1)
-                    << std::endl;
-          paths[robot].pop_back();
+          spdlog::info("Removing exit path of robot {}", robot.prefix);
+          spdlog::info("exit path end time: {}", paths[robot].back().t(-1));
 
+          paths[robot].pop_back();
           removed_exit_path = true;
+
+          spdlog::info("New end tim: {}", paths[robot].back().t(-1));
         }
 
         for (uint j = 0; j < poses.size(); ++j) {
@@ -1256,8 +1287,6 @@ class PrioritizedTaskPlanner {
             }
           }
 
-          std::cout << "start time " << start_time << std::endl;
-
           if (!removed_exit_path &&
               prev_finishing_time > start_time + max_start_time_shift + 1) {
             start_time = prev_finishing_time - max_start_time_shift + 1;
@@ -1268,9 +1297,9 @@ class PrioritizedTaskPlanner {
               {(j == poses.size() - 1) ? prev_finishing_time : 0,
               start_time});
 
-          std::cout << "prev finishing time " << prev_finishing_time << std::endl;
-          std::cout << "new start time " << start_time << std::endl;
-          std::cout << "lower bound time " << time_lb << std::endl;
+          spdlog::info("Prev. finishing time at {}", prev_finishing_time);
+          spdlog::info("New start time at {}", start_time);
+          spdlog::info("Lower bound for planning at {}", time_lb);
 
           // make animation from path-parts
           rai::Animation A;
@@ -1289,9 +1318,8 @@ class PrioritizedTaskPlanner {
           }
 
           // set configuration to plannable for current robot
-          std::cout << "setting up C" << std::endl;
+          spdlog::info("Setting up configuration");
           setActive(CPlanner, robot);
-
           TP.A = A;
 
           auto path = plan_in_animation(TP, start_time, start_pose, goal_pose,
@@ -1334,14 +1362,13 @@ class PrioritizedTaskPlanner {
             path.anim = anim_part;
 
             if (early_stopping && path.t(-1) > best_makespan_so_far) {
-              std::cout << "Stopping early due to better prev. path. ("
-                        << best_makespan_so_far << ")" << std::endl;
+              spdlog::info("Stopping early due to better prev. path. ({})", best_makespan_so_far);
               return PlanStatus::aborted;
             }
 
             paths[robot].push_back(path);
           } else {
-            std::cout << "Was not able to find a path" << std::endl;
+            spdlog::info("Was not able to find a path");
             return PlanStatus::failed;
           }
 
@@ -1378,7 +1405,7 @@ class PrioritizedTaskPlanner {
           }
         }
 
-        std::cout << "planning exit path" << std::endl;
+        spdlog::info("Planning exit path.");
 
         const uint exit_start_time = paths[robot].back().t(-1);
         const arr exit_path_start_pose = paths[robot].back().path[-1];
@@ -1406,7 +1433,7 @@ class PrioritizedTaskPlanner {
           exit_path.anim = exit_anim_part;
           paths[robot].push_back(exit_path);
         } else {
-          std::cout << "Was not able to find an exit path" << std::endl;
+          spdlog::error("Unable to plan an exit path.");
           return PlanStatus::failed;
         }
 
@@ -1486,7 +1513,8 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     // -- there is no other path
     // -- we are planning for this robot next
 
-    std::cout << "adding exit path for " << robot << std::endl;
+    spdlog::info("Planning exit path for robot {} with start time {}", robot.prefix, p.second);
+
     // plan exit path for robot
     rai::Animation A;
     for (const auto &p2 : paths) {
@@ -1495,9 +1523,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
       }
     }
 
-    std::cout << "start time:" << p.second << std::endl;
     setActive(CPlanner, robot);
-
     TimedConfigurationProblem TP(CPlanner, A);
 
     const auto pairs = get_cant_collide_pairs(TP.C);
@@ -1518,14 +1544,14 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     }*/
 
     if (exit_path.has_solution) {
-      std::cout << "adding path for " << robot << " at time " << p.second
-                << std::endl;
+      spdlog::info("Adding exit path for robot {} at time {}", robot.prefix, p.second);
+
       const auto exit_anim_part = make_animation_part(
           CPlanner, exit_path.path, robot_frames[robot], p.second);
       exit_path.anim = exit_anim_part;
       paths[robot].push_back(exit_path);
     } else {
-      std::cout << "Was not able to find an exit path" << std::endl;
+      spdlog::info("Was not able to find an exit path");
       return PlanResult(PlanStatus::failed);
     }
     /*{
@@ -1560,13 +1586,16 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
       }
     }
 
-    // std::cout << "planning task " << task << " for robot " << robot << " as "
-    // << i
-    //        << " th task" << std::endl;
+    spdlog::info("Planning for obj {}", sequence[i].task.object);
     const auto res = planner.plan(CPlanner, sequence[i], prev_finishing_time, paths);
     // const auto res = plan_task(CPlanner, sequence[i], rtpm,
     //                            best_makespan_so_far, home_poses,
     //                            prev_finishing_time, early_stopping, paths);
+
+    if (res != PlanStatus::success) {
+      spdlog::info("Failed planning");
+      return PlanResult(res);
+    }
 
     // TODO: compute better estimate for early stopping
     const uint current_makespan = get_makespan_from_plan(paths);
@@ -1575,11 +1604,6 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 
     if (early_stopping && estimated_makespan > best_makespan_so_far) {
       return PlanResult(PlanStatus::aborted);
-    }
-
-    if (res != PlanStatus::success) {
-      std::cout << "Failed planning" << std::endl;
-      return PlanResult(res);
     }
   }
 

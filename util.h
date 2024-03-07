@@ -90,7 +90,6 @@ void delete_unnecessary_frames(rai::Configuration &C){
   }
 }
 
-
 uintA get_cant_collide_pairs(const rai::Configuration &C) {
   uintA cantCollidePairs;
   for (uint i=0; i<C.frames.d0; ++i){
@@ -98,13 +97,18 @@ uintA get_cant_collide_pairs(const rai::Configuration &C) {
     for (uint j=i+1; j<C.frames.d0; ++j){
       const auto b = C.frames(j);
 
-      if (!a->getShape().canCollideWith(b)){
+      if (!a->getShape().canCollideWith(b)) {
         cantCollidePairs.append(TUP(a->ID, b->ID));
         // std::cout << a->name << " " << b->name << std::endl;
       }
 
-      if (b == a->parent || a == b->parent){
+      if (a->name.contains("obj")  || b->name.contains("obj")){
+        continue;
+      }
+
+      if (b == a->parent || a == b->parent) {
         cantCollidePairs.append(TUP(a->ID, b->ID));
+        // std::cout << a->name << " " << b->name << std::endl;
       }
     }
   }
