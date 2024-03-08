@@ -611,6 +611,8 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
   const double makespan = get_makespan_from_plan(plan);
   spdlog::info("Plan duration: {}", makespan);
 
+  arr framePath(makespan, C.frames.N, 7);
+
   for (uint t = 0; t < makespan; ++t) {
     // A.setToTime(C, t);
 
@@ -650,18 +652,28 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
         }
         
         if (done) {
+          framePath[t] = C.getFrameState();
           break;
         }
       }
     }
 
     // C.watch(false);
-    Vf.setConfiguration(C, ".", false);
-    rai::wait(0.01);
+    // Vf.setConfiguration(C, ".", false);
+    // rai::wait(0.01);
 
-    if (save) {
-      Vf.savePng();
-    }
+    // if (save) {
+    //   Vf.savePng();
+    // }
   }
-  rai::wait(0.01);
+
+  Vf.setPath(framePath);
+
+  Vf.drawFrameLines = false;
+  if (save) {
+    Vf.playVideo(true, makespan * 0.01, "./z.vid");
+  }
+  else{
+    Vf.playVideo(true, makespan * 0.01);
+  }
 }
