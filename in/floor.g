@@ -5,6 +5,6 @@ table_base (World) {
     shape:marker, size:[.03],
 }
 table (table_base){
-    shape:ssBox, Q:[0 0.05 -.05], size:[3 2.5 .05 .02], color:[.3 .3 .3]
+    shape:box, Q:[0 0.05 -.05], size:[3 2.5 .05 .02], color:[.3 .3 .3]
     contact:1, logical:{ }
 }

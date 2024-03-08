@@ -271,7 +271,7 @@ void random_objects(rai::Configuration &C, const uint N, const double width=.5){
     rndUniform(shape, 0.02, 0.04);
     shape(0) *= 2;
 
-    obj->setShape(rai::ST_ssBox, {shape(0), shape(1), 0.06, 0.01});
+    obj->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
 
@@ -291,7 +291,7 @@ void random_objects(rai::Configuration &C, const uint N, const double width=.5){
 
     auto *goal = C.addFrame(STRING("goal"<<i+1), "table");
 
-    goal->setShape(rai::ST_ssBox, {shape(0), shape(1), 0.06, 0.01});
+    goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
@@ -331,14 +331,14 @@ void line(rai::Configuration &C, const uint N, const double width = 2.) {
     rndUniform(shape, 0.02, 0.04);
     shape(0) *= 2;
 
-    obj->setShape(rai::ST_ssBox, {shape(0), shape(1), 0.06, 0.01});
+    obj->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
     obj->setPosition({width / (N - 1) * i - width / 2, 0.3, 0.66});
 
     auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
 
-    goal->setShape(rai::ST_ssBox, {shape(0), shape(1), 0.06, 0.01});
+    goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
@@ -356,7 +356,7 @@ void line(rai::Configuration &C, const uint N, const double width = 2.) {
 
 void shuffled_line(rai::Configuration &C, const uint N,
                    const double width = 2., const bool random_size=true) {
-  const double heigth_offset = 0.6 - 0.05 + 0.05 / 2;
+  const double heigth_offset = 0.6 - 0.05 + 0.05 / 2 + 0.001;
   const double height = 0.06;
 
   std::vector<uint> tmp;
@@ -379,7 +379,7 @@ void shuffled_line(rai::Configuration &C, const uint N,
       shape(1) = 0.2;
     }
 
-    obj->setShape(rai::ST_ssBox, {shape(0), shape(1), height, 0.01});
+    obj->setShape(rai::ST_box, {shape(0), shape(1), height, 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
     obj->setPosition(
@@ -392,7 +392,7 @@ void shuffled_line(rai::Configuration &C, const uint N,
 
     auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
 
-    goal->setShape(rai::ST_ssBox, {shape(0), shape(1), height, 0.01});
+    goal->setShape(rai::ST_box, {shape(0), shape(1), height, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
@@ -432,14 +432,14 @@ void big_objs(rai::Configuration &C, const uint N){
 
     std::cout << shape << std::endl;
 
-    obj->setShape(rai::ST_ssBox, {shape(0), shape(1), height, 0.01});
+    obj->setShape(rai::ST_box, {shape(0), shape(1), height, 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
     obj->setPosition({width / (N-1) * i - 1, 0.3, height / 2 + heigth_offset});
 
     auto *goal = C.addFrame(STRING("goal"<<i+1), "table");
 
-    goal->setShape(rai::ST_ssBox, {shape(0), shape(1), 0.06, 0.01});
+    goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
