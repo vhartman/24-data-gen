@@ -279,6 +279,12 @@ int main(int argc, char **argv) {
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
 
+  const bool display =
+      rai::getParameter<bool>("display", false);
+
+  const bool export_images =
+      rai::getParameter<bool>("export_images", false);
+
   const uint verbosity = rai::getParameter<double>(
       "verbosity", 0); // verbosity, does not do anything atm
 
@@ -312,28 +318,28 @@ int main(int argc, char **argv) {
       rai::getParameter<rai::String>("env", ""); // environment
 
   if (mode == "two_finger_keyframes_test") {
-    single_arm_two_finger_keyframe_test();
-    two_arms_two_finger_keyframe_test();
-    three_arms_two_finger_keyframe_test();
+    single_arm_two_finger_keyframe_test(display, export_images);
+    two_arms_two_finger_keyframe_test(display, export_images);
+    three_arms_two_finger_keyframe_test(display, export_images);
     return 0;
   }
 
   if (mode == "two_finger_handover_keyframes_test") {
-    two_arm_two_finger_handover_keyframe_test();
-    three_arm_two_finger_handover_keyframe_test();
+    two_arm_two_finger_handover_keyframe_test(display, export_images);
+    three_arm_two_finger_handover_keyframe_test(display, export_images);
     return 0;
   }
 
   if (mode == "two_finger_planning_test") {
-    single_arm_two_finger_planning_test();
-    two_arm_two_finger_planning_test();
-    three_arm_two_finger_planning_test();
+    single_arm_two_finger_planning_test(display, export_images);
+    two_arm_two_finger_planning_test(display, export_images);
+    three_arm_two_finger_planning_test(display, export_images);
     return 0;
   }
 
   if (mode == "two_finger_handover_planning_test") {
-    // two_arm_two_finger_handover_planning_test();
-    three_arm_two_finger_handover_planning_test();
+    two_arm_two_finger_handover_planning_test(display, export_images);
+    three_arm_two_finger_handover_planning_test(display, export_images);
     return 0;
   }
 

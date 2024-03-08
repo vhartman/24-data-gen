@@ -600,13 +600,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 }
 
-void visualize_plan(rai::Configuration C, const Plan &plan,
-                    const bool save = false) {
+void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_images = false, const bool display = true) {
   spdlog::info("Showing plan");
-
-  rai::ConfigurationViewer Vf;
-  // Vf.setConfiguration(C, "\"Real World\"", true);
-  Vf.setConfiguration(C, "\"Real World\"", false);
 
   const double makespan = get_makespan_from_plan(plan);
   spdlog::info("Plan duration: {}", makespan);
@@ -662,18 +657,27 @@ void visualize_plan(rai::Configuration C, const Plan &plan,
     // Vf.setConfiguration(C, ".", false);
     // rai::wait(0.01);
 
-    // if (save) {
+    // if (export_images) {
     //   Vf.savePng();
     // }
   }
 
+  rai::ConfigurationViewer Vf;
+  Vf.offscreen = !display;
+
+  Vf.setConfiguration(C, "\"Real World\"", false);
   Vf.setPath(framePath);
 
   Vf.drawFrameLines = false;
-  if (save) {
-    Vf.playVideo(true, makespan * 0.01, "./z.vid");
+  double duration = 0.01 * makespan;
+  if (!display){
+    duration = 0.01;
   }
-  else{
-    Vf.playVideo(true, makespan * 0.01);
+
+  if (export_images) {
+    Vf.playVideo(false, duration, "./z.vid/");
+  }
+  else {
+    Vf.playVideo(false, duration);
   }
 }
