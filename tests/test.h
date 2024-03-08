@@ -207,7 +207,7 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
   // C.watch(true);
 
   const auto rtpm = compute_handover_poses(C, robots);
-  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2 * 2);
+  spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2 * 3);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
