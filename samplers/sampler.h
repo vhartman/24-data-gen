@@ -320,6 +320,10 @@ compute_handover_poses(rai::Configuration C,
 
         komo.setSkeleton(S);
 
+        const double offset = 0.1;
+        komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
+                          {-offset});
+
         // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
         //                   OT_sos, {1e1});
 

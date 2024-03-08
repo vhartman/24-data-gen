@@ -102,7 +102,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   komo.setConfiguration(0, q0);
 
   // make pen tip go a way from the table
-  const double offset = 0.06;
+  // const double offset = 0.06;
   // komo.addObjective({0.1, 0.9}, FS_distance,
   //                   {"table", STRING(r.prefix << "pen_tip")}, OT_ineq, {1e1},
   //                   {-offset});
@@ -191,6 +191,7 @@ double get_max_speed(const arr &path) {
   double max_speed = 0;
   for (uint i = 0; i < path.d0 - 1; ++i) {
     max_speed = std::max({max_speed, absMax(path[i] - path[i + 1])});
+    // max_speed = std::max({max_speed, length(path[i] - path[i + 1])});
   }
 
   return max_speed;
@@ -246,6 +247,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     return TaskPart();
   }
 
+  // const uint dt_max_vel = uint(std::ceil(length(q0 - q1) / prefix.vmax));
   const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / prefix.vmax));
 
   // the goal should always be free at the end of the animation, as we always
@@ -413,6 +415,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   planner.goalSampleProbability = 0.9; // 0.9
 
   const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / prefix.vmax));
+  // const uint dt_max_vel = uint(std::ceil(length(q0 - q1) / prefix.vmax));
 
   // the goal should always be free at the end of the animation, as we always
   // plan an exit path but it can be the case that we are currently planning an
