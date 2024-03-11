@@ -11,9 +11,9 @@ gripper_fill (wrist_3_joint){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.17 .
 pen_tip (wrist_3_joint){ 
     shape:sphere,
     color:[.9, 0, 0 ,1], 
-    Q:<t(.0 0.0 0.095)>,
+    Q:<t(.0 0.0 0.115)>,
     size:[0.005],
-    contact:1
+    contact:0
 }
 
 #gripper (panda_joint7){

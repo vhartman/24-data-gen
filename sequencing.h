@@ -124,6 +124,7 @@ generate_alternating_random_sequence(const std::vector<Robot> &robots,
 
   auto available_tasks = straightPerm(num_tasks);
   OrderedTaskSequence seq;
+  uint cnt = 0;
   while (available_tasks.size() > 0) {
     for (uint j = 0; j < 10; ++j) {
       const uint task_index = available_tasks[rand() % available_tasks.size()];
@@ -143,6 +144,13 @@ generate_alternating_random_sequence(const std::vector<Robot> &robots,
       }
     }
     r = (r + 1) % robots.size();
+
+    if (cnt > 1000){
+      spdlog::error("No feasible assignment found.");
+      break;
+    }
+
+    ++cnt;
   }
 
   return seq;

@@ -464,6 +464,7 @@ int main(int argc, char **argv) {
     // bin picking
     spdlog::info("Computing pick and place poses");
     robot_task_pose_mapping = compute_pick_and_place_positions(C, robots);
+    spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
   }
 
   // initial test

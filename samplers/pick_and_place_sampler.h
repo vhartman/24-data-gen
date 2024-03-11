@@ -49,7 +49,7 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       // komo.world.stepSwift();
 
-      komo.add_collision(true, .1, 1e1);
+      komo.add_collision(true, 0.0, 1e1);
       komo.add_jointLimits(true, 0., 1e1);
 
       const auto pen_tip = STRING(r.prefix << "pen_tip");
