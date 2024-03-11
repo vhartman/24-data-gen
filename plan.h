@@ -608,10 +608,11 @@ void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_im
 
   arr framePath(makespan, C.frames.N, 7);
 
+  // we can not simly use the animations that are in the path
+  // since they do not contain all the frames.
+  // Thus, we hve to retrieve the correct part, find the right time, and then set the
+  // given configuration to this state.
   for (uint t = 0; t < makespan; ++t) {
-    // A.setToTime(C, t);
-
-    // std::cout << t << std::endl;
     for (const auto &tp : plan) {
       const auto r = tp.first;
       const auto parts = tp.second;
@@ -652,14 +653,6 @@ void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_im
         }
       }
     }
-
-    // C.watch(false);
-    // Vf.setConfiguration(C, ".", false);
-    // rai::wait(0.01);
-
-    // if (export_images) {
-    //   Vf.savePng();
-    // }
   }
 
   rai::ConfigurationViewer Vf;
@@ -669,6 +662,9 @@ void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_im
   Vf.setPath(framePath);
 
   Vf.drawFrameLines = false;
+
+  // if we do not set the duration to a short time for the case where we only
+  // want to export images, it takes too long.
   double duration = 0.01 * makespan;
   if (!display){
     duration = 0.01;

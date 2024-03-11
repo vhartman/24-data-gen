@@ -6,7 +6,7 @@
 #include "env_util.h"
 #include "types.h"
 
-void single_arm_two_finger_keyframe_test(const bool show = false) {
+void single_arm_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running single arm keyframe test");
 
   const double vmax = 0.05;
@@ -49,7 +49,7 @@ void single_arm_two_finger_keyframe_test(const bool show = false) {
   }
 }
 
-void two_arms_two_finger_keyframe_test(const bool show = false) {
+void two_arms_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running dual arm keyframe test");
 
   const double vmax = 0.05;
@@ -93,7 +93,7 @@ void two_arms_two_finger_keyframe_test(const bool show = false) {
   }
 }
 
-void three_arms_two_finger_keyframe_test(const bool show = false) {
+void three_arms_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running triple arm keyframe test");
 
   const double vmax = 0.05;
@@ -137,7 +137,7 @@ void three_arms_two_finger_keyframe_test(const bool show = false) {
   }
 }
 
-void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
+void two_arm_two_finger_handover_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running dual arm handover keyframe test");
 
   const double vmax = 0.05;
@@ -188,7 +188,7 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = true) {
   assert(rtpm.size() == 4);
 }
 
-void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
+void three_arm_two_finger_handover_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running triple arm handover keyframe test");
 
   const double vmax = 0.05;
@@ -236,13 +236,11 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = true) {
       C.setJointState(initial_pose);
     }
   }
-
-  //   assert(rtpm.size() == 4);
 }
 
 // TODO: test if the path is actually feasible
 
-void single_arm_two_finger_planning_test(const bool show = false) {
+void single_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running single arm planning test");
 
   const double vmax = 0.05;
@@ -285,10 +283,11 @@ void single_arm_two_finger_planning_test(const bool show = false) {
   const auto sequence = generate_random_sequence(robots, 2);
   const auto plan_result =
       plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
-  visualize_plan(C, plan_result.plan);
+
+  visualize_plan(C, plan_result.plan, export_images, show);
 }
 
-void two_arm_two_finger_planning_test(const bool show = false) {
+void two_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running dual arm planning test");
 
   const double vmax = 0.05;
@@ -336,11 +335,12 @@ void two_arm_two_finger_planning_test(const bool show = false) {
     const auto sequence = generate_random_sequence(robots, num_objects);
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
-    visualize_plan(C, plan_result.plan);
+
+    visualize_plan(C, plan_result.plan, export_images, show);
   }
 }
 
-void three_arm_two_finger_planning_test(const bool show = false) {
+void three_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running triple arm planning test");
 
   const double vmax = 0.05;
@@ -388,11 +388,12 @@ void three_arm_two_finger_planning_test(const bool show = false) {
     const auto sequence = generate_random_sequence(robots, num_objects);
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
-    visualize_plan(C, plan_result.plan);
+
+    visualize_plan(C, plan_result.plan, export_images, show);
   }
 }
 
-void two_arm_two_finger_handover_planning_test(const bool show = true) {
+void two_arm_two_finger_handover_planning_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running dual arm handover planning test");
 
   const double vmax = 0.05;
@@ -447,13 +448,11 @@ void two_arm_two_finger_handover_planning_test(const bool show = true) {
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
-    if (show) {
-      visualize_plan(C, plan_result.plan);
-    }
+    visualize_plan(C, plan_result.plan, export_images, show);
   }
 }
 
-void three_arm_two_finger_handover_planning_test(const bool show = true) {
+void three_arm_two_finger_handover_planning_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running triple arm handover planning test");
 
   const double vmax = 0.05;
@@ -509,9 +508,8 @@ void three_arm_two_finger_handover_planning_test(const bool show = true) {
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
-    if (show) {
-      visualize_plan(C, plan_result.plan);
-    }
+    visualize_plan(C, plan_result.plan, export_images, show);
+    
     // ensure that the path is valid
   }
 }
