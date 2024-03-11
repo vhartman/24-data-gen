@@ -307,7 +307,7 @@ int main(int argc, char **argv) {
   // - show scenario
   // - show saved path
   const rai::String mode =
-      rai::getParameter<rai::String>("mode", "test"); // scenario
+      rai::getParameter<rai::String>("mode", "two_finger_keyframes_test"); // scenario
   const rai::String stippling_scenario =
       rai::getParameter<rai::String>("stippling_pts", "random"); // scenario
 
