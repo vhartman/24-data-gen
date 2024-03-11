@@ -87,7 +87,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   KOMO komo;
 
   komo.setModel(C, true);
-  komo.world.fcl()->stopEarly = true;
+  komo.world.fcl()->stopEarly = false;
 
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.verbose = 0;
@@ -650,6 +650,11 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
                                                             start_time)
           .count();
 
+  // if (rrt_path.has_solution){
+  //   TP.query(rrt_path.path[-1], rrt_path.t(-1));
+  //   TP.C.watch(true);
+  // }
+
   /*if(rrt_path.has_solution){
     TimedConfigurationProblem TP(C, A);
     for (uint i = 0; i < rrt_path.t.N; ++i) {
@@ -786,7 +791,7 @@ class PrioritizedTaskPlanner {
 
       const auto pairs = get_cant_collide_pairs(TP.C);
       TP.C.fcl()->deactivatePairs(pairs);
-      TP.C.fcl()->stopEarly = true;
+      TP.C.fcl()->stopEarly = false;
       TP.activeOnly = true;
 
       rai::Configuration &CPlanner = TP.C;
@@ -1275,6 +1280,7 @@ class PrioritizedTaskPlanner {
         }
 
         for (uint j = 0; j < poses.size(); ++j) {
+          spdlog::info("Planning action {}", j);
           arr start_pose;
           uint start_time;
 

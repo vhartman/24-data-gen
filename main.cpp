@@ -463,7 +463,12 @@ int main(int argc, char **argv) {
   } else {
     // bin picking
     spdlog::info("Computing pick and place poses");
-    robot_task_pose_mapping = compute_pick_and_place_positions(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+
+    // merge both maps
+    robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
+    robot_task_pose_mapping.insert(handover_rtpm.begin(), handover_rtpm.end());    
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
   }
 
