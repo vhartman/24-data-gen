@@ -13,7 +13,7 @@ pen_tip (wrist_3_joint){
     color:[.9, 0, 0 ,1], 
     Q:<t(.0 0.0 0.095)>,
     size:[0.005],
-    contact:0
+    contact:1
 }
 
 #gripper (panda_joint7){

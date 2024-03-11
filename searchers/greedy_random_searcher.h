@@ -2,6 +2,7 @@
 
 #include "plan.h"
 #include "planners/prioritized_planner.h"
+
 #include "search_util.h"
 
 Plan plan_multiple_arms_greedy_random_search(
@@ -136,8 +137,7 @@ Plan plan_multiple_arms_greedy_random_search(
           plan = new_plan;
           prev_makespan = makespan;
 
-          // visualize_plan(C, plan);
-          std::cout << "A" << std::endl;
+          visualize_plan(C, plan);
         }
 
         if (makespan < best_makespan) {

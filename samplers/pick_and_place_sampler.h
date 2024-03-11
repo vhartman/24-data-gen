@@ -49,7 +49,7 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       // komo.world.stepSwift();
 
-      komo.add_collision(true, .00, 1e1);
+      komo.add_collision(true, .1, 1e1);
       komo.add_jointLimits(true, 0., 1e1);
 
       const auto pen_tip = STRING(r.prefix << "pen_tip");
@@ -71,7 +71,7 @@ compute_pick_and_place_positions(rai::Configuration C,
     //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
     //                     {1e1});
       komo.addObjective({1., 2.}, FS_positionDiff, {pen_tip, STRING(obj)},
-                        OT_sos, {1e1});
+                        OT_sos, {1e0});
 
       komo.addObjective({1., 2.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
                         {1e1});
@@ -124,6 +124,7 @@ compute_pick_and_place_positions(rai::Configuration C,
         if (res1->isFeasible && res2->isFeasible && ineq < 1. &&
             eq < 1.) {
           rtpm[rtp].push_back({q0, q1});
+
           // komo.pathConfig.watch(true);
 
           found_solution = true;

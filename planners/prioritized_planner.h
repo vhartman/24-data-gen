@@ -699,7 +699,7 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
       spdlog::info("Checking komo path for colisions");
       for (uint i = 0; i < komo_path.t.N; ++i) {
         const auto res = TP.query(komo_path.path[i], komo_path.t(i));
-        if (res->coll_y.N > 0){
+        if (!res->isFeasible){
           spdlog::error("komo path is colliding, penetrating {}", min(res->coll_y));
         }
         // if (!res->isFeasible && min(res->coll_y) < -0.01) {
@@ -1245,11 +1245,11 @@ class PrioritizedTaskPlanner {
         return PlanStatus::success;
       }
       else{
-        spdlog::info("Planning picking");
-        
         // plan for current goal
         const Robot robot = rtp.robots[0];
         const uint task = rtp.task.object;
+        
+        spdlog::info("Planning picking for robot {} and object {}", robot.prefix, task);
 
         // get or compute poses
         const auto poses = rtpm.at(rtp)[0];

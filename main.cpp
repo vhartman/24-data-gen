@@ -131,7 +131,7 @@ Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
     }
   }
 
-  const auto seq = generate_random_sequence(robots, num_tasks);
+  const auto seq = generate_alternating_random_sequence(robots, num_tasks, rtpm);
 
   // plan for it
   const auto plan_result =
@@ -289,16 +289,13 @@ int main(int argc, char **argv) {
       "verbosity", 0); // verbosity, does not do anything atm
 
   // TODO: map verbosity to logging level
-  spdlog::set_level(spdlog::level::info);
+  spdlog::set_level(spdlog::level::trace);
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
 
   const uint num_objects =
       rai::getParameter<double>("objects", 5); // number of objects
-
-  const double vmax =
-      rai::getParameter<double>("vmax", 0.1); // set vmax for each joint of each robot
 
   // possible modes:
   // - benchmark
@@ -349,13 +346,7 @@ int main(int argc, char **argv) {
 
   rai::Configuration C;
   auto robots = make_robot_environment_from_config(C, robot_env.p);
-  
-  // opposite_three_robot_configuration(C, gripper == "two_finger");
-  // std::vector<Robot> robots; // string-prefix for robots
-  // robots.push_back(Robot("a0_", RobotType::ur5, vmax));//  = {"a0_", "a1_", "a2_"};
-  // robots.push_back(Robot("a1_", RobotType::ur5, vmax));
-  // robots.push_back(Robot("a2_", RobotType::ur5, vmax));
-  
+
   if (env == "random"){
     random_objects(C, num_objects);
   }
@@ -367,6 +358,14 @@ int main(int argc, char **argv) {
   }
   else if (env == "big_objs"){
     big_objs(C, num_objects);
+  }
+  else{
+    add_objects_from_config(C, env.p);
+  }
+
+  if (mode == "show_env"){
+    C.watch(true);\
+    return 0;
   }
 
   // C.watch(true);
@@ -459,11 +458,11 @@ int main(int argc, char **argv) {
     }
 
     // maps [robot] to [index, pose]
-    std::cout << "Computing stippling poses" << std::endl;
+    spdlog::info("Computing stippling poses");
     robot_task_pose_mapping = compute_stippling_poses_for_arms(C, pts, robots);
   } else {
     // bin picking
-    std::cout << "Computing pick and place poses" << std::endl;
+    spdlog::info("Computing pick and place poses");
     robot_task_pose_mapping = compute_pick_and_place_positions(C, robots);
   }
 
@@ -476,8 +475,8 @@ int main(int argc, char **argv) {
     visualize_plan(C, plan);
 
     // rerun optimizer
-    const auto optimized_plan = reoptimize_plan(C, plan, home_poses);
-    visualize_plan(C, optimized_plan);
+    // const auto optimized_plan = reoptimize_plan(C, plan, home_poses);
+    // visualize_plan(C, optimized_plan);
 
     // export plan
     // export_plan(robots, home_poses, new_plan, new_seq, buffer.str(), iter,

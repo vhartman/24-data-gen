@@ -78,8 +78,8 @@ make_robot_environment_from_config(rai::Configuration &C,
     C[agentBase]->setQuaternion(base_quat);
 
     // check if home_pose is set, otherwise use default
+    setActive(C, std::string(prefix.p));
     if (item.value().contains("home_pose")) {
-      setActive(C, std::string(prefix.p));
       ss << item.value()["home_pose"];
       arr state;
       state.read(ss);
@@ -101,7 +101,9 @@ make_robot_environment_from_config(rai::Configuration &C,
     if (!feasible){
       spdlog::error("Seeting up configuration: Robot {} is in collision.", cnt);
     }
+
     robots.push_back(Robot(prefix.p, RobotType::ur5, vmax));
+    robots.back().home_pose = C.getJointState();
 
     ++cnt;
   }
@@ -109,6 +111,66 @@ make_robot_environment_from_config(rai::Configuration &C,
   return robots;
 }
 
+void add_objects_from_config(rai::Configuration &C,
+                             const std::string &config_file_path) {
+  std::ifstream ifs(config_file_path);
+  json jf = json::parse(ifs);
+
+  uint cnt = 0;
+  std::stringstream ss;
+
+  for (const auto &item : jf["objects"].items()) {
+    ss.clear();
+    ss << item.value()["shape"];
+    arr shape;
+    shape.read(ss);
+
+    ss.clear();
+    ss << item.value()["start_pos"];
+    arr base_pos;
+    base_pos.read(ss);
+
+    ss.clear();
+    ss << item.value()["start_quat"];
+    arr base_quat;
+    base_quat.read(ss);
+
+    ss.clear();
+    ss << item.value()["goal_pos"];
+    arr goal_pos;
+    goal_pos.read(ss);
+
+    ss.clear();
+    ss << item.value()["goal_quat"];
+    arr goal_quat;
+    goal_quat.read(ss);
+
+    auto *obj = C.addFrame(STRING("obj" << cnt + 1), "table");
+
+    obj->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
+    obj->setContact(1);
+    obj->setJoint(rai::JT_rigid);
+    obj->setRelativePosition(base_pos);
+    obj->setQuaternion(base_quat);
+
+    auto *marker = C.addFrame("goal_marker", obj->name);
+    marker->setShape(rai::ST_marker, {0.1});
+    marker->setContact(0.);
+
+    auto *goal = C.addFrame(STRING("goal" << cnt + 1), "table");
+
+    goal->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
+    goal->setContact(0);
+    goal->setColor({0, 0, 0, 0.5});
+    goal->setJoint(rai::JT_rigid);
+    goal->setRelativePosition(goal_pos);
+    goal->setQuaternion(goal_quat);
+
+    ++cnt;
+  }
+
+  C.stepFcl();
+}
 // TODO: fill this in
 bool check_configuration_feasibility(const rai::Configuration & C){
   return true;
