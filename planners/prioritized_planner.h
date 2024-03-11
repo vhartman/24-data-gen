@@ -791,7 +791,7 @@ class PrioritizedTaskPlanner {
 
       const auto pairs = get_cant_collide_pairs(TP.C);
       TP.C.fcl()->deactivatePairs(pairs);
-      TP.C.fcl()->stopEarly = false;
+      TP.C.fcl()->stopEarly = true;
       TP.activeOnly = true;
 
       rai::Configuration &CPlanner = TP.C;

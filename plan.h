@@ -658,7 +658,7 @@ void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_im
   Vf.offscreen = !display;
 
   Vf.setConfiguration(C, "\"Real World\"", false);
-  Vf.setPath(framePath);
+  Vf.setPath(framePath, NULL, false, false);
 
   Vf.drawFrameLines = false;
 

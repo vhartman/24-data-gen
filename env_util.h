@@ -166,6 +166,13 @@ void add_objects_from_config(rai::Configuration &C,
     goal->setRelativePosition(goal_pos);
     goal->setQuaternion(goal_quat);
 
+    // check if something is in collision
+    ConfigurationProblem cp(C);
+    const auto res = cp.query({}, false);
+    if (!res->isFeasible){
+      spdlog::error("Initial configuration not feasible. Obj {} is in collision.", cnt);
+    }
+
     ++cnt;
   }
 

@@ -102,7 +102,9 @@ uintA get_cant_collide_pairs(const rai::Configuration &C) {
         // std::cout << a->name << " " << b->name << std::endl;
       }
 
-      if (a->name.contains("obj")  || b->name.contains("obj")){
+      // Skip if one of the objects is an object we move.
+      // Otherwise some collision with the table will be ignored.
+      if (a->name.contains("obj") || b->name.contains("obj")){
         continue;
       }
 
