@@ -24,6 +24,7 @@ public:
   std::string prefix;
   RobotType type;
 
+  arr home_pose; // TODO: Not yet used
   double vmax = 0.05;
 };
 

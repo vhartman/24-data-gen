@@ -1,7 +1,12 @@
 #pragma once
 
+#include "json/json.h"
 #include <Kin/kin.h>
+
 #include "types.h"
+
+using json = nlohmann::json;
+
 
 void setActive(rai::Configuration &C,
                const std::vector<std::string> &prefixes) {
@@ -26,9 +31,90 @@ void setActive(rai::Configuration &C, const std::vector<Robot> &robots){
   setActive(C, robot_prefixes);
 }
 
-void setRobotJointState(){}
+void setRobotJointState() {}
 
-void labSetting(rai::Configuration &C) {
+std::vector<Robot>
+make_robot_environment_from_config(rai::Configuration &C,
+                                   const std::string &config_file_path) {
+  C.addFile("./in/floor.g");
+
+  std::ifstream ifs(config_file_path);
+  json jf = json::parse(ifs);
+
+  uint cnt = 0;
+  std::stringstream ss;
+
+  std::vector<Robot> robots;
+
+  for (const auto &item : jf["robots"].items()) {
+    ss.clear();
+    ss << item.value()["base_pos"];
+    arr base_pos;
+    base_pos.read(ss);
+
+    ss.clear();
+    arr base_quat;
+    ss << item.value()["base_quat"];
+    base_quat.read(ss);
+
+    std::string robot = item.value()["type"];
+    rai::Frame *a;
+    if (robot == "ur5_gripper") {
+      a = C.addFile("./in/ur5.g");
+    } else if (robot == "ur5_vacuum") {
+      a = C.addFile("./in/ur5_vacuum.g");
+    } else if (robot == "ur5_vacuum") {
+      a = C.addFile("./in/ur5_pen.g");
+    }
+
+    C.reconfigureRoot(a, true);
+    a->linkFrom(C["table"]);
+
+    const rai::String prefix = STRING('a' << cnt << '_');
+    a->prefixSubtree(prefix);
+
+    const rai::String agentBase = STRING(prefix << "base");
+    C[agentBase]->setRelativePosition(base_pos);
+    C[agentBase]->setQuaternion(base_quat);
+
+    // check if home_pose is set, otherwise use default
+    if (item.value().contains("home_pose")) {
+      setActive(C, std::string(prefix.p));
+      ss << item.value()["home_pose"];
+      arr state;
+      state.read(ss);
+
+      assert(state.d0 == C.getJointState().N);
+      C.setJointState(state);
+    }
+
+    // check if speed is set, otherwise use default
+    double vmax = 0.05;
+    if (item.value().contains("vmax")) {
+      vmax = item.value()["vmax"];
+    }
+
+    ConfigurationProblem cp(C);
+    cp.activeOnly = true;
+    const auto feasible = cp.query({}, false)->isFeasible;
+
+    if (!feasible){
+      spdlog::error("Seeting up configuration: Robot {} is in collision.", cnt);
+    }
+    robots.push_back(Robot(prefix.p, RobotType::ur5, vmax));
+
+    ++cnt;
+  }
+
+  return robots;
+}
+
+// TODO: fill this in
+bool check_configuration_feasibility(const rai::Configuration & C){
+  return true;
+}
+
+void tub_lab_setting(rai::Configuration &C) {
   auto *base = C.addFrame("world", "");
   base->setShape(rai::ST_marker, {0.001});
   base->setPosition({0., 0., .5});

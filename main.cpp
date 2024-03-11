@@ -250,7 +250,7 @@ arr plan_line(rai::Configuration C, const rai::String &robot_prefix, const std::
 
 void line_test() {
   rai::Configuration C;
-  labSetting(C);
+  tub_lab_setting(C);
 
   std::vector<arr> line;
   for (uint i = 0; i < 20; ++i) {
@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
       "verbosity", 0); // verbosity, does not do anything atm
 
   // TODO: map verbosity to logging level
-  spdlog::set_level(spdlog::level::debug);
+  spdlog::set_level(spdlog::level::info);
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
       rai::getParameter<double>("objects", 5); // number of objects
 
   const double vmax =
-      rai::getParameter<double>("vmax", 0.1); // does not do anything atm.
+      rai::getParameter<double>("vmax", 0.1); // set vmax for each joint of each robot
 
   // possible modes:
   // - benchmark
@@ -307,7 +307,8 @@ int main(int argc, char **argv) {
   // - show scenario
   // - show saved path
   const rai::String mode =
-      rai::getParameter<rai::String>("mode", "two_finger_keyframes_test"); // scenario
+      rai::getParameter<rai::String>("mode", "two_finger_keyframes_test"); // mode
+
   const rai::String stippling_scenario =
       rai::getParameter<rai::String>("stippling_pts", "random"); // scenario
 
@@ -315,7 +316,10 @@ int main(int argc, char **argv) {
       rai::getParameter<rai::String>("gripper", "two_finger"); // which gripper
 
   const rai::String env =
-      rai::getParameter<rai::String>("env", ""); // environment
+      rai::getParameter<rai::String>("env", "random"); // environment
+
+  const rai::String robot_env =
+      rai::getParameter<rai::String>("robot_env", "./in/envs/two_opposite.json"); // environment
 
   if (mode == "two_finger_keyframes_test") {
     single_arm_two_finger_keyframe_test(display, export_images);
@@ -343,14 +347,15 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  std::vector<Robot> robots; // string-prefix for robots
-  robots.push_back(Robot("a0_", RobotType::ur5, vmax));//  = {"a0_", "a1_", "a2_"};
-  robots.push_back(Robot("a1_", RobotType::ur5, vmax));
-  robots.push_back(Robot("a2_", RobotType::ur5, vmax));
-  
   rai::Configuration C;
-  opposite_three_robot_configuration(C, gripper == "two_finger");
-
+  auto robots = make_robot_environment_from_config(C, robot_env.p);
+  
+  // opposite_three_robot_configuration(C, gripper == "two_finger");
+  // std::vector<Robot> robots; // string-prefix for robots
+  // robots.push_back(Robot("a0_", RobotType::ur5, vmax));//  = {"a0_", "a1_", "a2_"};
+  // robots.push_back(Robot("a1_", RobotType::ur5, vmax));
+  // robots.push_back(Robot("a2_", RobotType::ur5, vmax));
+  
   if (env == "random"){
     random_objects(C, num_objects);
   }

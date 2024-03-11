@@ -19,7 +19,6 @@ using json = nlohmann::json;
 typedef std::vector<arr> TaskPoses;
 typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> RobotTaskPoseMap;
 
-// typedef std::pair<Robot, Task> robot_task_pair;
 typedef std::vector<RobotTaskPair> OrderedTaskSequence;
 typedef std::unordered_map<Robot, std::vector<Task>> UnorderedTaskSequence;
 
