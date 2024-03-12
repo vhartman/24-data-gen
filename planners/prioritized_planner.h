@@ -87,7 +87,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   KOMO komo;
 
   komo.setModel(C, true);
-  komo.world.fcl()->stopEarly = false;
+  komo.world.fcl()->stopEarly = true;
 
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.verbose = 0;

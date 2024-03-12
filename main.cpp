@@ -364,7 +364,7 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "show_env"){
-    C.watch(true);\
+    C.watch(true);
     return 0;
   }
 
@@ -396,6 +396,11 @@ int main(int argc, char **argv) {
 
   if (mode == "line_test") {
     line_test();
+    return 0;
+  }
+
+  if (mode == "repeated_pick"){
+    compute_pick_and_place_with_intermediate_pose(C, robots);
     return 0;
   }
 

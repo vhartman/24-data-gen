@@ -81,7 +81,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   }
 
   // TP.C.fcl()->stopEarly = false;
-  TP.C.fcl()->stopEarly = false;
+  TP.C.fcl()->stopEarly = true;
 
   arr smoothedPath = initialPath;
   /*for (uint i=0; i<smoothedPath.d0; i+=4){
@@ -222,7 +222,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   KOMO komo;
   komo.setModel(C, true);
   komo.setTiming(1., num_timesteps, 5, 2);
-  komo.world.fcl()->stopEarly = false;
+  komo.world.fcl()->stopEarly = true;
 
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;

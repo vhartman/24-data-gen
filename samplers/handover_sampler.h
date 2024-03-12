@@ -175,6 +175,8 @@ compute_handover_poses(rai::Configuration C,
           const double eq = komo.getReport(false).get<double>("eq");
 
           if (res1->isFeasible && res2->isFeasible && res3->isFeasible && ineq < 1. && eq < 1.) {
+            const auto home = C.getJointState();
+
             C.setJointState(q0);
             const arr pick_pose = C.getJointState(robot_frames[r1]);
 
@@ -185,6 +187,8 @@ compute_handover_poses(rai::Configuration C,
             // komo.pathConfig.watch(true);
 
             found_solution = true;
+
+            C.setJointState(home);
 
             break;
           } else {
