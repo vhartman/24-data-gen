@@ -3,10 +3,18 @@
 #include "plan.h"
 #include "planners/prioritized_planner.h"
 #include "search_util.h"
+#include "sequencing.h"
 
 Plan plan_multiple_arms_random_search(rai::Configuration &C,
                                       const RobotTaskPoseMap &rtpm,
                                       const std::unordered_map<Robot, arr> &home_poses) {
+  // make foldername for current run
+  std::time_t t = std::time(nullptr);
+  std::tm tm = *std::localtime(&t);
+
+  std::stringstream buffer;
+  buffer << "random_search_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
   // generate random sequence of robot/pt pairs
   std::vector<Robot> robots;
   for (const auto &element : home_poses) {
@@ -19,12 +27,22 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
     }
   }
 
+  auto start_time = std::chrono::high_resolution_clock::now();
+
+
   OrderedTaskSequence best_seq;
   Plan best_plan;
   double best_makespan = 1e6;
 
   for (uint i = 0; i < 100; ++i) {
-    const auto seq = generate_random_sequence(robots, num_tasks);
+    // const auto seq = generate_random_sequence(robots, num_tasks);
+
+    // if (sequence_is_feasible(seq, rtpm)) {
+    //   spdlog::info("Generated sequence not feasible.");
+    //   continue;
+    // }
+
+    const auto seq = generate_random_valid_sequence(robots, num_tasks, rtpm);
 
     const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
     std::cout << "LB for sequence " << lb << std::endl;
@@ -50,6 +68,14 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
         std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
       }
       std::cout << "\n\n\n" << std::endl;
+
+        const auto end_time = std::chrono::high_resolution_clock::now();
+        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  end_time - start_time)
+                                  .count();
+
+      export_plan(C, robots, home_poses, plan, seq, buffer.str(), i,
+                  duration);
 
       if (makespan < best_makespan) {
         best_makespan = makespan;

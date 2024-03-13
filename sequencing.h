@@ -117,6 +117,39 @@ generate_single_arm_sequence(const std::vector<Robot> &robots,
 }
 
 OrderedTaskSequence
+generate_random_valid_sequence(const std::vector<Robot> &robots,
+                               const uint num_tasks,
+                               const RobotTaskPoseMap &rtpm) {
+  auto available_tasks = straightPerm(num_tasks);
+  OrderedTaskSequence seq;
+  uint cnt = 0;
+  while (available_tasks.size() > 0) {
+    // sample task
+    const uint task_index = available_tasks[rand() % available_tasks.size()];
+
+    // collect all the available actions for this task
+    std::vector<RobotTaskPair> available_actions_for_object;
+    for (auto e: rtpm){
+      if (e.first.task.object == task_index) {
+        available_actions_for_object.push_back(e.first);
+      }
+    }
+
+    // sample thing to do from the available actions
+    std::random_shuffle(std::begin(available_actions_for_object),
+                 std::end(available_actions_for_object));
+
+    seq.push_back(available_actions_for_object[0]);
+
+    available_tasks.erase(
+        std::remove(available_tasks.begin(), available_tasks.end(), task_index),
+        available_tasks.end());
+  }
+
+  return seq;
+}
+
+OrderedTaskSequence
 generate_alternating_random_sequence(const std::vector<Robot> &robots,
                                      const uint num_tasks,
                                      const RobotTaskPoseMap &rtpm) {
