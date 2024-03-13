@@ -49,6 +49,10 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
+#include "config.h"
+
+manip::Parameters global_params;
+
 // TODO:
 // Code
 // - split main planning subroutine
@@ -289,21 +293,25 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
       continue;
     }
 
+    const uint ind = std::rand() % available_robots.size();
+    spdlog::info("Using the {} available robot for pickpick", ind);
+
     // choose a combo randomly
     for (auto &rtp : rtpm) {
       auto robots = rtp.first.robots;
       if (rtp.first.task.object == i &&
-          robots[0] == available_robots[0].first &&
-          robots[1] == available_robots[0].second &&
+          robots[0] == available_robots[ind].first &&
+          robots[1] == available_robots[ind].second &&
           rtp.first.task.type == TaskType::pick_pick_1) {
         seq.push_back(rtp.first);
       }
     }
+    
     for (auto &rtp : rtpm) {
       auto robots = rtp.first.robots;
       if (rtp.first.task.object == i &&
-          robots[0] == available_robots[0].first &&
-          robots[1] == available_robots[0].second &&
+          robots[0] == available_robots[ind].first &&
+          robots[1] == available_robots[ind].second &&
           rtp.first.task.type == TaskType::pick_pick_2) {
         seq.push_back(rtp.first);
       }
@@ -323,11 +331,13 @@ int main(int argc, char **argv) {
   rai::initCmdLine(argc, argv);
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
+  std::srand(seed);
 
   const bool display = rai::getParameter<bool>("display", false);
 
   const bool allow_early_stopping =
       rai::getParameter<bool>("early_stopping", false);
+  global_params.use_early_coll_check_stopping = allow_early_stopping;
 
   const bool export_images =
       rai::getParameter<bool>("export_images", false);

@@ -9,6 +9,7 @@
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
 #include "util.h"
+#include "config.h"
 
 arr constructShortcutPath(const rai::Configuration &C, const arr &path,
                           const uint i, const uint j,
@@ -81,7 +82,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   }
 
   // TP.C.fcl()->stopEarly = false;
-  TP.C.fcl()->stopEarly = false;
+  TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
   arr smoothedPath = initialPath;
   /*for (uint i=0; i<smoothedPath.d0; i+=4){
@@ -222,7 +223,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   KOMO komo;
   komo.setModel(C, true);
   komo.setTiming(1., num_timesteps, 5, 2);
-  komo.world.fcl()->stopEarly = true;
+  komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;

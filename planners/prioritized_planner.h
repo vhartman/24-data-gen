@@ -18,6 +18,8 @@
 #include "path_util.h"
 #include "env_util.h"
 
+#include "config.h"
+
 /*class PrioritizedSequencePlanner{
   public: 
     PrioritizedPlanner(const OrderedTaskSequence &seq){};
@@ -795,7 +797,7 @@ class PrioritizedTaskPlanner {
 
       const auto pairs = get_cant_collide_pairs(TP.C);
       TP.C.fcl()->deactivatePairs(pairs);
-      TP.C.fcl()->stopEarly = false;
+      TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
       TP.activeOnly = true;
 
       rai::Configuration &CPlanner = TP.C;
