@@ -56,10 +56,16 @@ compute_pick_and_place_positions(rai::Configuration C,
   // options.stopIters = 100;
   // options.damping = 1e-3;
 
+  options.allowOverstep = true;
+  options.maxStep = 5;
+
   for (const Robot &r : robots) {
     setActive(C, r);
+    setActive(cp.C, r.prefix);
     
     for (uint i = 0; i < num_objects; ++i) {
+      // C.watch(true);
+      spdlog::info("Attempting to compute keyframes for robot {} and object {}", r.prefix, i);
       RobotTaskPair rtp;
       rtp.robots = {r};
       rtp.task = Task{.object=i, .type=TaskType::pick};
@@ -70,6 +76,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       komo.world.fcl()->deactivatePairs(pairs);
 
       komo.setDiscreteOpt(2);
+      // komo.animateOptimization = 2;
 
       // komo.world.stepSwift();
 
@@ -94,14 +101,17 @@ compute_pick_and_place_positions(rai::Configuration C,
     //   komo.addObjective({1., 1.}, FS_distance,
     //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
     //                     {1e1});
-      komo.addObjective({1., 2.}, FS_positionDiff, {pen_tip, STRING(obj)},
-                        OT_sos, {1e0});
+      // komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
+      //                   OT_sos, {1e-1});
 
-      komo.addObjective({1., 2.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
+      komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
                         {1e1});
 
       komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
                         {1e1}, {1.});
+
+      komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
+                        {1e0}, {-1.});
 
       //   const double margin = 0.05;
       //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
@@ -119,14 +129,35 @@ compute_pick_and_place_positions(rai::Configuration C,
       // komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
       // {1e1}, {0., 0., -1.}); komo.addObjective({1.}, FS_vectorZDiff,
       // {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1}, {0., 0., -0.9});
-      setActive(cp.C, r.prefix);
+
+      if (true) {
+          for (const auto &base_name : {r.prefix}) {
+            uintA bodies;
+            rai::Joint *j;
+            for (rai::Frame *f : komo.world.frames) {
+              if ((j = f->joint) && j->qDim() > 0 &&
+                  (f->name.contains(base_name.c_str()))) {
+                bodies.append(f->ID);
+              }
+            }
+            komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
+                              OT_sos, {1e0}, NoArr); // world.q, prec);
+          }
+        }
+
+      komo.run_prepare(0.0, false);
+      const auto inital_state = komo.pathConfig.getJointState();
 
       bool found_solution = false;
       for (uint j = 0; j < 10; ++j) {
-        if (i == 0) {
+        // reset komo to initial state
+        komo.pathConfig.setJointState(inital_state);
+        komo.reset();
+
+        if (j == 0) {
           komo.run_prepare(0.0, false);
         } else {
-          komo.run_prepare(0.0000001, false);
+          komo.run_prepare(0.0001, false);
         }
         komo.run(options);
 

@@ -81,7 +81,6 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     return initialPath;
   }
 
-  // TP.C.fcl()->stopEarly = false;
   TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
   arr smoothedPath = initialPath;
@@ -219,7 +218,8 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
 
-  std::cout << "setting up komo for smoothing" << std::endl;
+  spdlog::info("setting up komo for smoothing");
+
   KOMO komo;
   komo.setModel(C, true);
   komo.setTiming(1., num_timesteps, 5, 2);
@@ -270,7 +270,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
     komo.setConfiguration(j, q);
   }
 
-  std::cout << "running komo" << std::endl;
+  spdlog::info("running komo");
   komo.run_prepare(0.0);
   komo.run(options);
   std::cout << "done komo" << std::endl;
@@ -278,7 +278,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   const double ineq = komo.getReport(false).get<double>("ineq");
   const double eq = komo.getReport(false).get<double>("eq");
 
-  std::cout << "smoothing komo ineq: " << ineq << " eq: " << eq << std::endl;
+  spdlog::info("smoothing komo ineq: {} eq: {}", ineq, eq);
 
   // if (eq > 2 || ineq > 2){
   // komo.getReport(true);

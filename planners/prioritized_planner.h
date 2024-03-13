@@ -93,7 +93,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   KOMO komo;
 
   komo.setModel(C, true);
-  komo.world.fcl()->stopEarly = false;
+  komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.verbose = 0;
@@ -246,9 +246,9 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     start_res->writeDetails(cout, TP.C);
     // std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
 
-    // TP.A.setToTime(TP.C, t0);
-    // TP.C.setJointState(q0);
-    // TP.C.watch(true);
+    TP.A.setToTime(TP.C, t0);
+    TP.C.setJointState(q0);
+    TP.C.watch(true);
 
     return TaskPart();
   }
@@ -278,7 +278,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
   const uint max_komo_run_attempts = 3;
   uint iters = 0;
   while (true) {
-    std::cout << "komo horizon: " << horizon << std::endl;
+    spdlog::info("running komo with horizon {}", horizon);
     arr ts(horizon);
     for (uint j = 0; j < horizon; ++j) {
       ts(j) = t0 + j;

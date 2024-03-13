@@ -302,9 +302,9 @@ void two_arm_two_finger_planning_test(const bool show = false, const bool export
     two_robot_configuration(C, true);
 
     const uint num_objects = i + 2;
-    shuffled_line(C, num_objects, 0.15 * num_objects, false);
+    shuffled_line(C, num_objects, 0.17 * num_objects, false);
 
-    // C.watch(true);
+    C.watch(true);
 
     const auto home_poses = get_robot_home_poses(C, robots);
     const auto rtpm = compute_pick_and_place_positions(C, robots);
@@ -355,7 +355,7 @@ void three_arm_two_finger_planning_test(const bool show = false, const bool expo
     opposite_three_robot_configuration(C, true);
 
     const uint num_objects = i + 2;
-    shuffled_line(C, num_objects, 0.15 * num_objects, false);
+    shuffled_line(C, num_objects, 0.16 * num_objects, false);
 
     // C.watch(true);
 

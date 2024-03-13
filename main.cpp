@@ -13,6 +13,7 @@
 
 #include <iomanip>
 #include <numeric>
+#include <deque>
 
 #include <algorithm>
 #include <chrono>
@@ -278,6 +279,8 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
 
   OrderedTaskSequence seq;
 
+  std::vector<std::deque<RobotTaskPair>> rtps;
+
   for (uint i = 0; i < num_objects; ++i) {
     // check which robot combinations are available for a given object
     std::vector<std::pair<Robot, Robot>> available_robots;
@@ -303,7 +306,9 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
           robots[0] == available_robots[ind].first &&
           robots[1] == available_robots[ind].second &&
           rtp.first.task.type == TaskType::pick_pick_1) {
-        seq.push_back(rtp.first);
+        rtps.push_back({});
+        rtps.back().push_back(rtp.first);
+        // seq.push_back(rtp.first);
       }
     }
     
@@ -313,9 +318,31 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
           robots[0] == available_robots[ind].first &&
           robots[1] == available_robots[ind].second &&
           rtp.first.task.type == TaskType::pick_pick_2) {
-        seq.push_back(rtp.first);
+        // seq.push_back(rtp.first);
+        rtps.back().push_back(rtp.first);
       }
     }
+  }
+
+  // more efficient: create vector with each obj-index twice, shuffle, done
+  while(true){
+    const uint obj = std::rand() % rtps.size();
+
+    if (rtps[obj].size() > 0){
+      seq.push_back(rtps[obj].front());
+      rtps[obj].pop_front();
+
+      std::cout << obj << std::endl;
+    }
+
+    bool done = true;
+    for (uint i=0; i<rtps.size(); ++i){
+      if (rtps[i].size() != 0){
+        done = false;
+      }
+    }
+
+    if (done){break;}
   }
 
   return seq;
@@ -365,6 +392,12 @@ int main(int argc, char **argv) {
 
   const rai::String robot_env =
       rai::getParameter<rai::String>("robot_env", "./in/envs/two_opposite.json"); // environment
+
+  const bool use_picks = 
+      rai::getParameter<bool>("use_simple_picks", true);
+
+  const bool use_handovers = 
+      rai::getParameter<bool>("use_handovers", true);
 
   // TODO: map verbosity to logging level
   spdlog::set_level(spdlog::level::trace);
@@ -528,12 +561,17 @@ int main(int argc, char **argv) {
   } else {
     // bin picking
     spdlog::info("Computing pick and place poses");
-    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
-    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
 
     // merge both maps
-    robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
-    robot_task_pose_mapping.insert(handover_rtpm.begin(), handover_rtpm.end());    
+    if (use_picks){
+      RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+      robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
+    }
+    if (use_handovers) {
+      RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+      robot_task_pose_mapping.insert(handover_rtpm.begin(),
+                                     handover_rtpm.end());
+    }
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
   }
 

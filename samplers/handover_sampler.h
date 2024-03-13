@@ -144,7 +144,7 @@ compute_handover_poses(rai::Configuration C,
 
         bool found_solution = false;
         for (uint j = 0; j < 3; ++j) {
-          if (i==0){
+          if (j==0){
             komo.run_prepare(0.0, false);
           }
           else{

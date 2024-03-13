@@ -97,10 +97,12 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
   }
 
   OptOptions options;
+  options.allowOverstep = true;
+  options.maxStep = 5;
+
   RobotTaskPoseMap rtpm;
 
   ConfigurationProblem cp(C);
-
   for (const auto &r1: robots){
     for (const auto &r2: robots){
       if (r1 == r2){continue;}
@@ -150,9 +152,9 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         const double offset = 0.1;
 
         komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e0},
-                          {-0.05});
+                          {-0.01});
         komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
-                          {0.1});
+                          {0.5});
  
         // komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
         //                   {-offset});
@@ -187,7 +189,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         komo.addObjective({3., 3.}, FS_scalarProductZZ, {obj, r2_pen_tip},
                           OT_sos, {1e0}, {-1.});
 
-        komo.addObjective({2., 3.}, FS_scalarProductZZ, {obj, "table"},
+        komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, "table"},
                           OT_eq, {1e0}, {1.});
 
         // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
@@ -196,14 +198,14 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         // komo.addObjective({2.}, FS_scalarProductYX, {obj, r2_pen_tip},
         //                   OT_sos, {1e0}, {1.});
 
-        // komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
-        //                   {1e0}, {1.});
+        komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
+                          {1e1}, {1.});
 
-        // komo.addObjective({2., 3.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
-        //                   {1e0}, {1.});
+        komo.addObjective({3., 4.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
+                          {1e1}, {1.});
 
         // homing
-        if (false) {
+        if (true) {
           for (const auto &base_name : {r1.prefix, r2.prefix}) {
             uintA bodies;
             rai::Joint *j;
@@ -220,7 +222,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
 
         bool found_solution = false;
         for (uint j = 0; j < 3; ++j) {
-          if (i==0){
+          if (j==0){
             komo.run_prepare(0.0, false);
           }
           else{
@@ -256,7 +258,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
           const double ineq = komo.getReport(false).get<double>("ineq");
           const double eq = komo.getReport(false).get<double>("eq");
 
-          if (res1->isFeasible && res2->isFeasible && res3->isFeasible && ineq < 1. && eq < 1.) {
+          if (res1->isFeasible && res2->isFeasible && res3->isFeasible && res4->isFeasible && ineq < 1. && eq < 1.) {
             const auto home = C.getJointState();
 
             C.setJointState(q0);
