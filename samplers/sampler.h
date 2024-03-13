@@ -11,27 +11,27 @@
 #include "pick_and_place_sampler.h"
 #include "handover_sampler.h"
 
-// class RobotTaskPoseSampler{
-//   public:
-//     // this implements caching of results
-//     TaskPoses sample(const RobotTaskPair &rtp){
-//       if (cache.count(rtp) > 0){
-//         return cache.at(rtp)[0];
-//       }
-//       else{
-//         const auto res = generate(rtp);
-//         cache[rtp].push_back(res);
+class RobotTaskPoseSampler{
+  public:
+    // this implements caching of results
+    TaskPoses sample(const rai::Configuration &C, const RobotTaskPair &rtp){
+      if (cache.count(rtp) > 0){
+        return cache.at(rtp)[0];
+      }
+      else{
+        const auto res = generate(C, rtp);
+        cache[rtp].push_back(res);
 
-//         return res;
-//       }
-//     };
+        return res;
+      }
+    };
 
-//   private:
-//     virtual TaskPoses generate(const RobotTaskPair &rtp) = 0;
+  private:
+    virtual TaskPoses generate(const rai::Configuration &C, const RobotTaskPair &rtp) = 0;
 
-//     // infeasible is represented as empty vector
-//     std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> cache;
-// };
+    // infeasible is represented as empty vector
+    std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> cache;
+};
 
 // class PickAndPlaceSampler: public RobotTaskPoseSampler{
 //   public:
@@ -113,10 +113,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
       for (uint i = 0; i < num_objects; ++i) {
         spdlog::info("computing pick and repick for {0}, {1}, obj {2}", r1.prefix,
                      r2.prefix, i + 1);
-                     
-        RobotTaskPair rtp;
-        rtp.robots = {r1, r2};
-        rtp.task = Task{.object=i, .type=TaskType::handover};
 
         KOMO komo;
         komo.verbose = 0;
@@ -139,7 +135,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
             {1., 2, SY_stable, {r1_pen_tip, obj}},
             // {2., 3., SY_stable, {r2_pen_tip, obj}},
 
-            {2., 3., SY_touch, {obj, "table"}},
+            // {2., 3., SY_touch, {obj, "table"}},
             {2., 3., SY_stable, {"table", obj}},
 
             {3., 4., SY_stable, {r2_pen_tip, obj}},
@@ -152,6 +148,12 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         komo.setSkeleton(S);
 
         const double offset = 0.1;
+
+        komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e0},
+                          {-0.05});
+        komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
+                          {0.1});
+ 
         // komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
         //                   {-offset});
 
@@ -268,8 +270,19 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
 
             C.setJointState(q3);
             const arr place_2_pose = C.getJointState(robot_frames[r2]);
+            
+            RobotTaskPair rtp_1;
+            rtp_1.robots = {r1, r2};
+            rtp_1.task = Task{.object = i, .type = TaskType::pick_pick_1};
+            rtpm[rtp_1].push_back(
+                {pick_pose, place_pose});
 
-            rtpm[rtp].push_back({pick_pose, place_pose, pick_2_pose, place_2_pose});
+            RobotTaskPair rtp_2;
+            rtp_2.robots = {r1, r2};
+            rtp_2.task = Task{.object = i, .type = TaskType::pick_pick_2};
+            rtpm[rtp_2].push_back(
+                {pick_2_pose, place_2_pose});
+
 
             found_solution = true;
 

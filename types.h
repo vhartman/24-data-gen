@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-enum class TaskType { pick, handover, go_to, joint_pick, pick_pick};
+enum class TaskType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
 struct Task {
   unsigned int object;
   TaskType type;

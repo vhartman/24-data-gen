@@ -268,6 +268,51 @@ void line_test() {
   }
 }
 
+OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
+                                      const uint num_objects,
+                                      const RobotTaskPoseMap &rtpm) {
+
+  OrderedTaskSequence seq;
+
+  for (uint i = 0; i < num_objects; ++i) {
+    // check which robot combinations are available for a given object
+    std::vector<std::pair<Robot, Robot>> available_robots;
+    for (auto rtp: rtpm){
+      auto robots = rtp.first.robots;
+      if (rtp.first.task.object == i){
+        available_robots.push_back(std::make_pair(robots[0], robots[1]));
+      }
+    }
+
+    if (available_robots.size() == 0){
+      spdlog::error("No robot available for manipulating object {}", i);
+      continue;
+    }
+
+    // choose a combo randomly
+    for (auto &rtp : rtpm) {
+      auto robots = rtp.first.robots;
+      if (rtp.first.task.object == i &&
+          robots[0] == available_robots[0].first &&
+          robots[1] == available_robots[0].second &&
+          rtp.first.task.type == TaskType::pick_pick_1) {
+        seq.push_back(rtp.first);
+      }
+    }
+    for (auto &rtp : rtpm) {
+      auto robots = rtp.first.robots;
+      if (rtp.first.task.object == i &&
+          robots[0] == available_robots[0].first &&
+          robots[1] == available_robots[0].second &&
+          rtp.first.task.type == TaskType::pick_pick_2) {
+        seq.push_back(rtp.first);
+      }
+    }
+  }
+
+  return seq;
+}
+
 // TODO:
 // - improve handover sampler
 // - constrained motion planning 
@@ -279,8 +324,10 @@ int main(int argc, char **argv) {
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
 
-  const bool display =
-      rai::getParameter<bool>("display", false);
+  const bool display = rai::getParameter<bool>("display", false);
+
+  const bool allow_early_stopping =
+      rai::getParameter<bool>("early_stopping", false);
 
   const bool export_images =
       rai::getParameter<bool>("export_images", false);
@@ -288,21 +335,9 @@ int main(int argc, char **argv) {
   const uint verbosity = rai::getParameter<double>(
       "verbosity", 0); // verbosity, does not do anything atm
 
-  // TODO: map verbosity to logging level
-  spdlog::set_level(spdlog::level::trace);
-
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
 
-  const uint num_objects =
-      rai::getParameter<double>("objects", 5); // number of objects
-
-  // possible modes:
-  // - benchmark
-  // - test
-  // - optimize
-  // - show scenario
-  // - show saved path
   const rai::String mode =
       rai::getParameter<rai::String>("mode", "two_finger_keyframes_test"); // mode
 
@@ -315,8 +350,14 @@ int main(int argc, char **argv) {
   const rai::String env =
       rai::getParameter<rai::String>("env", "random"); // environment
 
+  const uint num_objects =
+      rai::getParameter<double>("objects", 5); // number of objects
+
   const rai::String robot_env =
       rai::getParameter<rai::String>("robot_env", "./in/envs/two_opposite.json"); // environment
+
+  // TODO: map verbosity to logging level
+  spdlog::set_level(spdlog::level::trace);
 
   if (mode == "two_finger_keyframes_test") {
     single_arm_two_finger_keyframe_test(display, export_images);
@@ -401,6 +442,15 @@ int main(int argc, char **argv) {
 
   if (mode == "repeated_pick"){
     compute_pick_and_place_with_intermediate_pose(C, robots);
+    return 0;
+  }
+
+  if (mode == "repeated_pick_planning"){
+    const auto rtpm = compute_pick_and_place_with_intermediate_pose(C, robots);
+    const auto test_sequence_for_repeated_manip = make_pick_pick_seq(robots, num_objects, rtpm);
+
+    auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_repeated_manip, home_poses);
+    visualize_plan(C, plan.plan, true);
     return 0;
   }
 

@@ -81,7 +81,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   }
 
   // TP.C.fcl()->stopEarly = false;
-  TP.C.fcl()->stopEarly = true;
+  TP.C.fcl()->stopEarly = false;
 
   arr smoothedPath = initialPath;
   /*for (uint i=0; i<smoothedPath.d0; i+=4){

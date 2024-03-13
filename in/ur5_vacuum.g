@@ -11,7 +11,7 @@ gripper_fill (wrist_3_joint){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.17 .
 pen_tip (wrist_3_joint){ 
     shape:sphere,
     color:[.9, 0, 0 ,1], 
-    Q:<t(.0 0.0 0.115)>,
+    Q:<t(.0 0.0 0.135)>,
     size:[0.005],
     contact:0
 }

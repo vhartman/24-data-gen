@@ -599,11 +599,13 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 }
 
-void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_images = false, const bool display = true) {
+void visualize_plan(rai::Configuration &C, const Plan &plan, const bool export_images = false, const bool display = true) {
   spdlog::info("Showing plan");
 
   const double makespan = get_makespan_from_plan(plan);
   spdlog::info("Plan duration: {}", makespan);
+
+  const auto initial_frame_state = C.getFrameState();
 
   arr framePath(makespan, C.frames.N, 7);
 
@@ -675,4 +677,6 @@ void visualize_plan(rai::Configuration C, const Plan &plan, const bool export_im
   else {
     Vf.playVideo(false, duration);
   }
+
+  C.setFrameState(initial_frame_state);
 }

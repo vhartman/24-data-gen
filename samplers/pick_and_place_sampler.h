@@ -8,6 +8,30 @@
 #include "../planners/prioritized_planner.h"
 #include "../util.h"
 
+class PickAndPlaceSampler {
+public:
+  rai::Configuration C;
+  PickAndPlaceSampler(const rai::Configuration &_C) : C(_C) {
+    delete_unnecessary_frames(C);
+    const auto pairs = get_cant_collide_pairs(C);
+    C.fcl()->deactivatePairs(pairs);
+  }
+
+  TaskPoses sample_at_times(std::vector<Robot> robots, std::string obj, rai::Animation A){
+    // TODO: set things to state.
+    return sample(robots, obj);
+  }
+
+  TaskPoses sample(std::vector<Robot> robots, std::string obj){
+    KOMO komo;
+    komo.setModel(C, true);
+    komo.setDiscreteOpt(2);
+
+    std::vector<arr> infeasible;
+    return infeasible;
+  }
+};
+
 RobotTaskPoseMap
 compute_pick_and_place_positions(rai::Configuration C,
                                  const std::vector<Robot> &robots) {
@@ -28,6 +52,9 @@ compute_pick_and_place_positions(rai::Configuration C,
   // C.watch(true);
 
   ConfigurationProblem cp(C);
+  OptOptions options;
+  // options.stopIters = 100;
+  // options.damping = 1e-3;
 
   for (const Robot &r : robots) {
     setActive(C, r);
@@ -37,13 +64,10 @@ compute_pick_and_place_positions(rai::Configuration C,
       rtp.robots = {r};
       rtp.task = Task{.object=i, .type=TaskType::pick};
 
-      OptOptions options;
-      // options.stopIters = 100;
-      // options.damping = 1e-3;
-
       KOMO komo;
       komo.verbose = 0;
       komo.setModel(C, true);
+      komo.world.fcl()->deactivatePairs(pairs);
 
       komo.setDiscreteOpt(2);
 

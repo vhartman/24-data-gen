@@ -30,6 +30,10 @@
 
 */
 
+struct PlannerOptions{
+  bool early_stopping{false};
+};
+
 struct PathPlannerOptions {
   // optimizatoin based planning
   bool attempt_komo{false};
@@ -87,7 +91,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   KOMO komo;
 
   komo.setModel(C, true);
-  komo.world.fcl()->stopEarly = true;
+  komo.world.fcl()->stopEarly = false;
 
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.verbose = 0;
@@ -153,7 +157,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   eq = komo.getReport(false).get<double>("eq");
 
   // if (eq > 2 || ineq > 2){
-  komo.getReport(true);
+  // komo.getReport(true);
   // komo.pathConfig.watch(true);
   //}
 
@@ -791,7 +795,7 @@ class PrioritizedTaskPlanner {
 
       const auto pairs = get_cant_collide_pairs(TP.C);
       TP.C.fcl()->deactivatePairs(pairs);
-      TP.C.fcl()->stopEarly = true;
+      TP.C.fcl()->stopEarly = false;
       TP.activeOnly = true;
 
       rai::Configuration &CPlanner = TP.C;
@@ -1251,7 +1255,16 @@ class PrioritizedTaskPlanner {
       }
       else{
         // plan for current goal
-        const Robot robot = rtp.robots[0];
+        Robot robot = rtp.robots[0];
+
+        if (rtp.task.type == TaskType::pick_pick_1){
+          spdlog::info("PickPick");
+          robot = rtp.robots[0];
+        }
+        if (rtp.task.type == TaskType::pick_pick_2) {
+          spdlog::info("PickPick");
+          robot = rtp.robots[1];
+        }
         const uint task = rtp.task.object;
         
         spdlog::info("Planning picking for robot {} and object {}", robot.prefix, task);
@@ -1361,7 +1374,7 @@ class PrioritizedTaskPlanner {
             // make animation part
             auto tmp_frames = robot_frames.at(robot);
             // add obj. frame to the anim-part.
-            if (is_bin_picking) {
+            if (is_bin_picking && j == 1) {
               const auto obj = STRING("obj" << task + 1);
               auto to = CPlanner[obj];
               tmp_frames.append(to);

@@ -64,7 +64,10 @@ Plan plan_multiple_arms_greedy_random_search(
     for (uint j = 0; j < 30; ++j) {
       ++iter;
       OrderedTaskSequence new_seq = seq;
+
+      uint cnt = 0;
       while (true) {
+        ++cnt;
         if (j > 0) {
           new_seq = neighbour(seq, robots);
         }
@@ -73,6 +76,11 @@ Plan plan_multiple_arms_greedy_random_search(
         // assigned tasks
         if (sequence_is_feasible(new_seq, rtpm)) {
           break;
+        }
+
+        if (cnt > 10000){
+          spdlog::error("Unable to find valid sequence.");
+          return best_plan;
         }
       }
 
