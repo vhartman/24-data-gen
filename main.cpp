@@ -494,6 +494,15 @@ int main(int argc, char **argv) {
 
     auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_repeated_manip, home_poses);
     visualize_plan(C, plan.plan, true);
+
+    std::time_t t = std::time(nullptr);
+    std::tm tm = *std::localtime(&t);
+
+    std::stringstream buffer;
+    buffer << "repeated_pick_test_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+    export_plan(C, robots, home_poses, plan.plan, test_sequence_for_repeated_manip, buffer.str(), 0, 0);
+
     return 0;
   }
 

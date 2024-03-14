@@ -230,7 +230,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
           }
           komo.run(options);
 
-          komo.pathConfig.watch(true);
+          // komo.pathConfig.watch(true);
 
           const arr q0 = komo.getPath()[0]();
           const arr q1 = komo.getPath()[1]();
