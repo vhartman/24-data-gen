@@ -6,6 +6,31 @@
 #include "env_util.h"
 #include "types.h"
 
+bool check_plan_validity(rai::Configuration C, const std::vector<Robot> robots,
+                         const Plan &plan,
+                         const std::unordered_map<Robot, arr> &home_poses) {
+  const uint makespan = get_makespan_from_plan(plan);
+  spdlog::info("Makespan is {}", makespan);
+
+  for (uint t = 0; t < makespan; ++t) {
+    for (const auto &r : robots) {
+      setActive(C, r);
+      arr pose = get_robot_pose_at_time(t, r, home_poses, plan);
+      C.setJointState(pose);
+    }
+
+    ConfigurationProblem cp(C);
+    const auto res = cp.query({}, false);
+
+    if (!res->isFeasible) {
+      spdlog::error("Path is not feasible.");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void single_arm_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
   spdlog::info("Running single arm keyframe test");
 
@@ -284,6 +309,8 @@ void single_arm_two_finger_planning_test(const bool show = false, const bool exp
   const auto plan_result =
       plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
+  check_plan_validity(C, robots, plan_result.plan, home_poses);
+
   visualize_plan(C, plan_result.plan, export_images, show);
 }
 
@@ -335,7 +362,8 @@ void two_arm_two_finger_planning_test(const bool show = false, const bool export
     const auto sequence = generate_random_sequence(robots, num_objects);
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
-
+    
+    check_plan_validity(C, robots, plan_result.plan, home_poses);
     visualize_plan(C, plan_result.plan, export_images, show);
   }
 }
@@ -448,6 +476,7 @@ void two_arm_two_finger_handover_planning_test(const bool show = false, const bo
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
+    check_plan_validity(C, robots, plan_result.plan, home_poses);
     visualize_plan(C, plan_result.plan, export_images, show);
   }
 }
@@ -508,6 +537,7 @@ void three_arm_two_finger_handover_planning_test(const bool show = false, const 
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
+    check_plan_validity(C, robots, plan_result.plan, home_poses);
     visualize_plan(C, plan_result.plan, export_images, show);
     
     // ensure that the path is valid
