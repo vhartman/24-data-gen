@@ -87,7 +87,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   options.stopIters = 50;
   options.damping = 1e-3;
   options.stopLineSteps = 5;
-  options.stopTolerance = 0.1;
+  // options.stopTolerance = 0.1;
 
   spdlog::info("setting up komo");
   KOMO komo;
@@ -99,8 +99,10 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
-  komo.add_collision(true, .0, 1e2);
-  komo.add_qControlObjective({}, 2, 1e1);
+  komo.add_collision(true, .1, 1e2);
+  komo.add_jointLimits(true, 0., 1e1);
+
+  komo.add_qControlObjective({}, 2, 1e0);
   komo.add_qControlObjective({}, 1, 1e1);
 
   komo.setConfiguration(-2, q0);
@@ -108,10 +110,10 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   komo.setConfiguration(0, q0);
 
   // make pen tip go a way from the table
-  // const double offset = 0.06;
-  // komo.addObjective({0.1, 0.9}, FS_distance,
-  //                   {"table", STRING(r.prefix << "pen_tip")}, OT_ineq, {1e1},
-  //                   {-offset});
+  const double offset = 0.1;
+  komo.addObjective({0.3, 0.7}, FS_distance,
+                    {"table", STRING(r.prefix << "pen_tip")}, OT_ineq, {1e0},
+                    {-offset});
   // komo.addObjective({0.1, 0.8}, FS_distance,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
 
@@ -120,8 +122,8 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   komo.addObjective({1}, FS_qItself, {}, OT_eq, {1e2}, q1);
 
   // speed
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  1); // slow at beginning
+  komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
+                   2); // slow at beginning
   komo.addObjective({0.95, 1.0}, FS_qItself, {}, OT_eq, {1e1}, {},
                     1); // slow at end
 
@@ -583,9 +585,9 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
       const auto res = TP.query(smooth_path[i], t(i));
       // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.05) {
       if (!res->isFeasible) {
-        spdlog::error(
-            "smoothed path infeasible, penetration {} at time {} (timestep {})",
-            min(res->coll_y), t(i), i);
+        spdlog::warn(
+            "smoothed path infeasible, penetration {} at time {} (timestep {} / {})",
+            min(res->coll_y), t(i), i, smooth_path.d0);
         res->writeDetails(std::cout, TP.C);
         // TP.C.watch(true);
 
@@ -711,11 +713,11 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
       for (uint i = 0; i < komo_path.t.N; ++i) {
         const auto res = TP.query(komo_path.path[i], komo_path.t(i));
         if (!res->isFeasible){
-          spdlog::error("komo path is colliding, penetrating {}", min(res->coll_y));
+          spdlog::warn("komo path is colliding, penetrating {}", min(res->coll_y));
         }
         // if (!res->isFeasible && min(res->coll_y) < -0.01) {
         if (!res->isFeasible) {
-          spdlog::error("komo actually infeasible");
+          spdlog::warn("komo actually infeasible");
           komo_path.has_solution = false;
           break;
         }
@@ -979,7 +981,7 @@ class PrioritizedTaskPlanner {
           
             setActive(CPlanner, r1);
             CPlanner.setJointState(pose_r1);
-          
+
             setActive(CPlanner, r2);
             CPlanner.setJointState(pose_r2);
 

@@ -59,7 +59,7 @@ compute_handover_poses(rai::Configuration C,
 
         komo.setDiscreteOpt(3);
 
-        komo.add_collision(true, .00, 1e1);
+        komo.add_collision(true, .1, 1e1);
         komo.add_jointLimits(true, 0., 1e1);
 
         const auto r1_pen_tip = STRING(r1 << "pen_tip");

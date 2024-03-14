@@ -209,16 +209,16 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   const arr scaled_path = tp.resample(scaled_ts, C);
 
   OptOptions options;
-  options.stopIters = 10;
+  options.stopIters = 50;
   options.damping = 1e-3;
-  options.stopTolerance = 0.1;
+  // options.stopTolerance = 0.1;
   options.allowOverstep = false;
-  options.maxStep = 1;
+  // options.maxStep = 0.01;
 
   auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
 
-  spdlog::info("setting up komo for smoothing");
+  spdlog::debug("setting up komo for smoothing");
 
   KOMO komo;
   komo.setModel(C, true);
@@ -228,36 +228,39 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
-  komo.add_collision(true, .00, 1e0);
-  komo.add_qControlObjective({}, 2, 1e-1);
-  komo.add_qControlObjective({}, 1, 1e-2);
+  komo.add_collision(true, 0.1, 1e2);
+  komo.add_jointLimits(true, 0., 1e1);
+
+  komo.add_qControlObjective({}, 2, 1e0);
+  komo.add_qControlObjective({}, 1, 1e0);
 
   komo.setConfiguration(-2, path[0]);
   komo.setConfiguration(-1, path[0]);
   komo.setConfiguration(0, path[0]);
 
   // make pen tip go a way from the table
-  // const double offset = 0.06;
-  // komo.addObjective({0.1, 0.9}, FS_distance,
-  //                   {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e1},
-  //                   {-offset});
+  const double offset = 0.1;
+  komo.addObjective({0.2, 0.8}, FS_distance,
+                    {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e0},
+                    {-offset});
+
   // komo.addObjective({0.1, 0.8}, FS_distance,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
 
   // position
   // komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, path[0]);
-  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e1}, path[-1]);
+  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e2}, path[-1]);
 
   // speed
-  komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-                   1); // slow at beginning
+  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
+  //                  1); // slow at beginning
   komo.addObjective({.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
                     1); // slow at end
 
   // acceleration
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  2); // slow at beginning
-  komo.addObjective({1.0, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
+                   2); // slow at beginning
+  komo.addObjective({.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
                     2); // slow at end
 
   setKomoToAnimation(komo, C, A, scaled_ts);
@@ -270,10 +273,10 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
     komo.setConfiguration(j, q);
   }
 
-  spdlog::info("running komo");
+  spdlog::debug("running komo");
   komo.run_prepare(0.0);
   komo.run(options);
-  std::cout << "done komo" << std::endl;
+  spdlog::debug("done komo");
 
   const double ineq = komo.getReport(false).get<double>("ineq");
   const double eq = komo.getReport(false).get<double>("eq");

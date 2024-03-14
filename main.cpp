@@ -370,7 +370,7 @@ int main(int argc, char **argv) {
       rai::getParameter<bool>("export_images", false);
 
   const uint verbosity = rai::getParameter<double>(
-      "verbosity", 0); // verbosity, does not do anything atm
+      "verbosity", 4); // verbosity, does not do anything atm
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
@@ -387,7 +387,7 @@ int main(int argc, char **argv) {
   const rai::String env =
       rai::getParameter<rai::String>("env", "random"); // environment
 
-  const uint num_objects =
+  const uint num_objects_for_env =
       rai::getParameter<double>("objects", 5); // number of objects
 
   const rai::String robot_env =
@@ -399,8 +399,28 @@ int main(int argc, char **argv) {
   const bool use_handovers = 
       rai::getParameter<bool>("use_handovers", true);
 
-  // TODO: map verbosity to logging level
-  spdlog::set_level(spdlog::level::trace);
+  switch (verbosity) {
+  case 0:
+    spdlog::set_level(spdlog::level::off);
+    break;
+  case 1:
+    spdlog::set_level(spdlog::level::err);
+    break;
+  case 2:
+    spdlog::set_level(spdlog::level::warn);
+    break;
+  case 3:
+    spdlog::set_level(spdlog::level::info);
+    break;
+  case 4:
+    spdlog::set_level(spdlog::level::debug);
+    break;
+  case 5:
+    spdlog::set_level(spdlog::level::trace);
+    break;
+  default:
+    break;
+  }
 
   if (mode == "two_finger_keyframes_test") {
     single_arm_two_finger_keyframe_test(display, export_images);
@@ -432,48 +452,32 @@ int main(int argc, char **argv) {
   auto robots = make_robot_environment_from_config(C, robot_env.p);
 
   if (env == "random"){
-    random_objects(C, num_objects);
+    random_objects(C, num_objects_for_env);
   }
   else if (env == "line"){
-    line(C, num_objects);
+    line(C, num_objects_for_env);
   }
   else if (env == "shuffled_line"){
-    shuffled_line(C, num_objects, 1.5, false);
+    shuffled_line(C, num_objects_for_env, 1.5, false);
   }
   else if (env == "big_objs"){
-    big_objs(C, num_objects);
+    big_objs(C, num_objects_for_env);
   }
   else{
     add_objects_from_config(C, env.p);
+  }
+
+  int num_objects = 0;
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
+      num_objects += 1;
+    }
   }
 
   if (mode == "show_env"){
     C.watch(true);
     return 0;
   }
-
-  // C.watch(true);
-
-  // } else {
-  //   if (env == "lab") {
-  //     labSetting(C);
-  //     robots = {"a0_", "a1_"};
-  //   } else {
-  //     more_robots(C, 4);
-  //     robots = {"a0_", "a1_", "a2_", "a3_"};
-  //   }
-  // }
-
-  // {
-  //   rai::Configuration tmp;
-  //   random_objects(tmp, 10);
-  //   tmp.watch(true);
-  // }
-
-  // {
-  //   rai::Configuration tmp;
-  //   side_by_side_robot_configuration(tmp);
-  // }
 
   // maps [robot] to home_pose
   const std::unordered_map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
