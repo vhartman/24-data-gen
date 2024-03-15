@@ -233,17 +233,17 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
                             available_tasks.end());
 
       // make pair
-      std::cout << "adding " << robots[r] << " with index " << r << std::endl;
+      spdlog::info("adding {} with index {}", robots[r].prefix, r);
       seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=TaskType::pick}});
     }
     else{
-      std::cout << "not assigned task" << std::endl;
+      spdlog::info("not assigned task");
     }
 
     r = (r + 1) % robots.size();
 
     if (cnt > max_iter){
-      std::cout << "stopping sinc emax iter" << std::endl;
+      spdlog::error("stopping sinc emax iter");
       break;
     }
   }

@@ -118,7 +118,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
 
   // position
-  // komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, q0);
+  komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, q0);
   komo.addObjective({1}, FS_qItself, {}, OT_eq, {1e2}, q1);
 
   // speed
@@ -176,11 +176,15 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   if (length(path[0] - q0) > 1e-3) {
     spdlog::debug("Start pose difference to desired {:03.2f}",
                   length(path[0] - q0));
+
+    return {};
   }
 
   if (length(path[-1] - q1) > 1e-3) {
     spdlog::debug("Goal pose difference to desired {:03.2f}",
                   length(path[-1] - q1));
+    
+    return {};
   }
 
   path[0] = q0;
@@ -314,11 +318,14 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
       TP.C.watch(true);
     }
 
-    // set up komo problem
     double ineq = 0;
     double eq = 0;
     const arr path =
         plan_with_komo_given_horizon(TP.A, TP.C, q0, q1, ts, prefix, ineq, eq);
+
+    if (path.d0 == 0){
+      return TaskPart();
+    }
 
     if (false) {
       for (uint i = 0; i < ts.N; ++i) {
@@ -1512,14 +1519,13 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
       if (std::find(unplanned_tasks.begin(), unplanned_tasks.end(),
                     plan.task_index) == unplanned_tasks.end()) {
         paths[r].push_back(plan);
-        std::cout << "adding (" << r << " " << plan.task_index << ")"
-                  << std::endl;
+        spdlog::info("adding robot {}, plan for object {}", r.prefix, plan.task_index);
       }
     }
   }
 
   // figure out which robots need an exit path
-  std::vector<std::pair<Robot, uint>> robot_exit_paths;
+  std::vector<std::pair<std::string, uint>> robot_exit_paths;
   for (const auto &p : paths) {
     const auto robot = p.first;
     // do not plan an exit path if
@@ -1527,15 +1533,26 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     // -- there is no other path
     // -- we are planning for this robot next
     if (p.second.size() > 0 && !paths[robot].back().is_exit) {
-      robot_exit_paths.push_back({robot, paths[robot].back().t(-1)});
+      spdlog::info("Need to plan exit path for robot {} at time {}", robot.prefix, paths[robot].back().t(-1));
+      robot_exit_paths.push_back({robot.prefix, paths[robot].back().t(-1)});
     }
   }
 
+  spdlog::info("Needing to plan {} exit paths.", robot_exit_paths.size());
   std::sort(robot_exit_paths.begin(), robot_exit_paths.end(),
-            [](auto &left, auto &right) { return left.second < right.second; });
+            [](const auto &left, const auto &right) { std::cout << "A" << std::endl; return left.second < right.second; });
+
+  spdlog::info("tmp.");
 
   for (const auto &p : robot_exit_paths) {
-    const auto robot = p.first;
+    Robot robot = home_poses.begin()->first;
+    for (const auto r: home_poses){
+      if (r.first.prefix == p.first){
+        robot = r.first;
+        break;
+      }
+    }
+    // const auto robot = p.first;
     // do not plan an exit path if
     // -- there is already one
     // -- there is no other path
@@ -1556,6 +1573,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 
     const auto pairs = get_cant_collide_pairs(TP.C);
     TP.C.fcl()->deactivatePairs(pairs);
+    TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
     auto exit_path =
         plan_in_animation(TP, p.second, paths[robot].back().path[-1],

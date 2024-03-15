@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <Core/array.h>
 
 enum class TaskType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
 struct Task {
