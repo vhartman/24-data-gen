@@ -421,6 +421,8 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // planner.step_time = 5;
   planner.maxIter = 500;
   planner.goalSampleProbability = 0.9; // 0.9
+  const bool informed_sampling = rai::getParameter<bool>("informed_sampling", true);
+  planner.informed_sampling = informed_sampling;
 
   const uint dt_max_vel = uint(std::ceil(absMax(q0 - q1) / prefix.vmax));
   // const uint dt_max_vel = uint(std::ceil(length(q0 - q1) / prefix.vmax));
