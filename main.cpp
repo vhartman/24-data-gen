@@ -46,6 +46,7 @@
 
 #include "samplers/sampler.h"
 #include "tests/test.h"
+#include "tests/perf_test.h"
 
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
@@ -420,6 +421,11 @@ int main(int argc, char **argv) {
     break;
   default:
     break;
+  }
+
+  if (mode == "perf_test"){
+    vacuum_gripper_keyframe_perf_test();
+    return 0;
   }
 
   if (mode == "two_finger_keyframes_test") {

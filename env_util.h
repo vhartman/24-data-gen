@@ -4,6 +4,7 @@
 #include <Kin/kin.h>
 
 #include "types.h"
+#include <PlanningSubroutines/ConfigurationProblem.h>
 
 using json = nlohmann::json;
 
@@ -151,7 +152,7 @@ void add_objects_from_config(rai::Configuration &C,
     obj->setContact(1);
     obj->setJoint(rai::JT_rigid);
     obj->setRelativePosition(base_pos);
-    obj->setQuaternion(base_quat);
+    obj->setRelativeQuaternion(base_quat);
 
     auto *marker = C.addFrame("goal_marker", obj->name);
     marker->setShape(rai::ST_marker, {0.1});
@@ -164,7 +165,7 @@ void add_objects_from_config(rai::Configuration &C,
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
     goal->setRelativePosition(goal_pos);
-    goal->setQuaternion(goal_quat);
+    goal->setRelativeQuaternion(goal_quat);
 
     // check if something is in collision
     ConfigurationProblem cp(C);

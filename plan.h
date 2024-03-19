@@ -318,7 +318,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
                  const std::unordered_map<Robot, arr> &home_poses, const Plan &plan,
                  const OrderedTaskSequence &seq, const std::string base_folder,
                  const uint iteration, const uint computation_time) {
-  std::cout << "exporting plan" << std::endl;
+  spdlog::info("exporting plan");
   // make folder
   const std::string folder =
       "./out/" + base_folder + "/" + std::to_string(iteration) + "/";

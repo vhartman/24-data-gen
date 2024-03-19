@@ -1,4 +1,5 @@
 #pragma once
+
 #include <string>
 #include <vector>
 #include <Core/array.h>
@@ -39,9 +40,6 @@ template <> struct std::hash<Robot> {
     return hasher(r.prefix);
   }
 };
-
-// typedef std::string Robot; // prefix of the robot -> fully identifies the
-// robot
 
 struct RobotTaskPair {
   std::vector<Robot> robots;

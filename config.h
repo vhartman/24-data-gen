@@ -4,6 +4,9 @@ namespace manip{
   struct Parameters{
     bool use_early_coll_check_stopping = true;
     bool allow_display = true;
+
+    bool export_images = false;
+    bool compress_data = false; // does not do anything at the moment
   };
 };
 
