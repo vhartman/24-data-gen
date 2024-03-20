@@ -486,7 +486,7 @@ int main(int argc, char **argv) {
   }
 
   // maps [robot] to home_pose
-  const std::unordered_map<Robot, arr> home_poses = get_robot_home_poses(C, robots);
+  const std::unordered_map<Robot, arr> home_poses = get_robot_home_poses(robots);
 
   if (mode == "line_test") {
     line_test();

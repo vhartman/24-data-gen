@@ -184,7 +184,8 @@ bool check_configuration_feasibility(const rai::Configuration & C){
   return true;
 }
 
-void tub_lab_setting(rai::Configuration &C) {
+std::vector<Robot>
+tub_lab_setting(rai::Configuration &C) {
   auto *base = C.addFrame("world", "");
   base->setShape(rai::ST_marker, {0.001});
   base->setPosition({0., 0., .5});
@@ -193,6 +194,8 @@ void tub_lab_setting(rai::Configuration &C) {
   C.addFile("./in/table.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
+
+  std::vector<Robot> robots;
 
   for (uint i = 0; i < 2; i++) {
     auto *a = C.addFile("./in/franka.g");
@@ -204,10 +207,16 @@ void tub_lab_setting(rai::Configuration &C) {
 
     const rai::String agentBase = STRING(prefix << "base");
     C[agentBase]->setRelativePosition(basePos(i));
+
+    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.back().home_pose = C.getJointState();
   }
+
+  return robots;
 }
 
-void more_robots(rai::Configuration &C, const uint n = 2) {
+std::vector<Robot>
+more_robots(rai::Configuration &C, const uint n = 2) {
   auto *base = C.addFrame("world", "");
   base->setShape(rai::ST_marker, {0.001});
   base->setPosition({0., 0., .5});
@@ -224,6 +233,7 @@ void more_robots(rai::Configuration &C, const uint n = 2) {
       {-0.383, 0, 0, 0.924},
   };
 
+  std::vector<Robot> robots;
   for (uint i = 0; i < n; i++) {
     auto *a = C.addFile("./in/franka.g");
     C.reconfigureRoot(a, true);
@@ -243,10 +253,16 @@ void more_robots(rai::Configuration &C, const uint n = 2) {
     state(1) -= 0.25;
     state(3) += 0.25;
     C.setJointState(state);
+
+    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.back().home_pose = C.getJointState();
   }
+
+  return robots;
 }
 
-void opposite_robot_configuration(rai::Configuration &C){
+std::vector<Robot>
+opposite_robot_configuration(rai::Configuration &C){
   C.addFile("./in/floor.g");
 
   const arrA basePos = {{-.5, -.1, 0.00}, {.5, .1, 0.0}, {.0, .6, 0.15}};
@@ -258,6 +274,7 @@ void opposite_robot_configuration(rai::Configuration &C){
       {-0.383, 0, 0, 0.924},
   };
 
+  std::vector<Robot> robots;
   for (uint i = 0; i < 2; i++) {
     auto *a = C.addFile("./in/franka.g");
     C.reconfigureRoot(a, true);
@@ -275,16 +292,21 @@ void opposite_robot_configuration(rai::Configuration &C){
     state(1) -= 0.25;
     // state(3) += 0.25;
     C.setJointState(state);
+
+    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.back().home_pose = C.getJointState();
   }
 
-  C.watch(true);
+  return robots;
 }
 
-void side_by_side_robot_configuration(rai::Configuration &C){
+std::vector<Robot>
+side_by_side_robot_configuration(rai::Configuration &C){
   C.addFile("./in/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
 
+  std::vector<Robot> robots;
   for (uint i = 0; i < 2; i++) {
     auto *a = C.addFile("./in/franka.g");
     C.reconfigureRoot(a, true);
@@ -295,29 +317,27 @@ void side_by_side_robot_configuration(rai::Configuration &C){
 
     const rai::String agentBase = STRING(prefix << "base");
     C[agentBase]->setRelativePosition(basePos(i));
+
+    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.back().home_pose = C.getJointState();
   }
 
-  // C.watch(true);
+  return robots;
 }
 
-void single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/floor.g");
+std::vector<Robot> make_configuration_from_base_pose_and_quat(
+    rai::Configuration &C, const arrA base_pos, const arrA base_quat,
+    const bool two_finger_gripper) {
+  assert(base_pos.d0 == base_quat.d0);
+  const uint N = base_pos.d0;
 
-  const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
+  std::vector<Robot> robots;
 
-    const arrA baseQuat = {
-      {1, 0, 0, 1},
-      {1, 0, 0, 1},
-      {-1, 0, 0, 1},
-      {-0.383, 0, 0, 0.924},
-  };
-
-  for (uint i = 0; i < 1; i++) {
+  for (uint i = 0; i < N; ++i) {
     rai::Frame *a;
-    if (two_finger_gripper){
+    if (two_finger_gripper) {
       a = C.addFile("./in/ur5.g");
-    }
-    else{
+    } else {
       a = C.addFile("./in/ur5_vacuum.g");
     }
     // auto *a = C.addFile("./in/franka.g");
@@ -328,95 +348,63 @@ void single_robot_configuration(rai::Configuration &C, const bool two_finger_gri
     a->prefixSubtree(prefix);
 
     const rai::String agentBase = STRING(prefix << "base");
-    C[agentBase]->setRelativePosition(basePos(i));
-    C[agentBase]->setQuaternion(baseQuat(i));
+    C[agentBase]->setRelativePosition(base_pos(i));
+    C[agentBase]->setQuaternion(base_quat(i));
 
     setActive(C, std::string(prefix.p));
     arr state = C.getJointState();
     // state(1) -= .5;
     // state(3) += 0.25;
     C.setJointState(state);
+
+    robots.push_back(Robot(prefix.p, RobotType::ur5, 0.05));
+    robots.back().home_pose = C.getJointState();
   }
+
+  return robots;
 }
 
-void two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+std::vector<Robot>
+single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+  C.addFile("./in/floor.g");
+
+  const arrA basePos = {{-.4, -.3, 0.00}};
+
+    const arrA baseQuat = {
+      {1, 0, 0, 1}
+  };
+
+  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat, two_finger_gripper);
+}
+
+std::vector<Robot>
+two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+  C.addFile("./in/floor.g");
+
+  const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}};
+
+    const arrA baseQuat = {
+      {1, 0, 0, 1},
+      {1, 0, 0, 1}
+  };
+
+  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat, two_finger_gripper);
+}
+
+std::vector<Robot>
+opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
   C.addFile("./in/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
 
-    const arrA baseQuat = {
+  const arrA baseQuat = {
       {1, 0, 0, 1},
       {1, 0, 0, 1},
       {-1, 0, 0, 1},
-      {-0.383, 0, 0, 0.924},
   };
 
-  for (uint i = 0; i < 2; i++) {
-    rai::Frame *a;
-    if (two_finger_gripper){
-      a = C.addFile("./in/ur5.g");
-    }
-    else{
-      a = C.addFile("./in/ur5_vacuum.g");
-    }
-    // auto *a = C.addFile("./in/franka.g");
-    C.reconfigureRoot(a, true);
-    a->linkFrom(C["table"]);
-
-    const rai::String prefix = STRING('a' << i << '_');
-    a->prefixSubtree(prefix);
-
-    const rai::String agentBase = STRING(prefix << "base");
-    C[agentBase]->setRelativePosition(basePos(i));
-    C[agentBase]->setQuaternion(baseQuat(i));
-
-    setActive(C, std::string(prefix.p));
-    arr state = C.getJointState();
-    // state(1) -= .5;
-    // state(3) += 0.25;
-    C.setJointState(state);
-  }
-}
-
-void opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/floor.g");
-
-  const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
-
-    const arrA baseQuat = {
-      {1, 0, 0, 1},
-      {1, 0, 0, 1},
-      {-1, 0, 0, 1},
-      {-0.383, 0, 0, 0.924},
-  };
-
-  for (uint i = 0; i < 3; i++) {
-    rai::Frame *a;
-    if (two_finger_gripper){
-      a = C.addFile("./in/ur5.g");
-    }
-    else{
-      a = C.addFile("./in/ur5_vacuum.g");
-    }
-    // auto *a = C.addFile("./in/franka.g");
-    C.reconfigureRoot(a, true);
-    a->linkFrom(C["table"]);
-
-    const rai::String prefix = STRING('a' << i << '_');
-    a->prefixSubtree(prefix);
-
-    const rai::String agentBase = STRING(prefix << "base");
-    C[agentBase]->setRelativePosition(basePos(i));
-    C[agentBase]->setQuaternion(baseQuat(i));
-
-    setActive(C, std::string(prefix.p));
-    arr state = C.getJointState();
-    // state(1) -= .5;
-    // state(3) += 0.25;
-    C.setJointState(state);
-  }
-
-  // C.watch(true);
+  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat,
+                                                    two_finger_gripper);
 }
 
 void random_objects(rai::Configuration &C, const uint N, const double width=.5){  
@@ -650,12 +638,10 @@ void pick_and_place(rai::Configuration &C) {
   // C.watch(true);
 }
 
-std::unordered_map<Robot, arr> get_robot_home_poses(rai::Configuration &C,
-                                          const std::vector<Robot> &robots) {
+std::unordered_map<Robot, arr> get_robot_home_poses(const std::vector<Robot> &robots) {
   std::unordered_map<Robot, arr> poses;
-  for (auto r : robots) {
-    setActive(C, r);
-    poses[r] = C.getJointState();
+  for (const auto &r : robots) {
+    poses[r] = r.home_pose;
   }
 
   return poses;
