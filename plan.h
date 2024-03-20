@@ -678,5 +678,6 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool export_i
     Vf.playVideo(false, duration);
   }
 
+  // making sure that this does not alter the configuration.
   C.setFrameState(initial_frame_state);
 }

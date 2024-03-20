@@ -80,8 +80,21 @@ make_robot_environment_from_config(rai::Configuration &C,
 
     // check if home_pose is set, otherwise use default
     setActive(C, std::string(prefix.p));
+    arr home_pose = C.getJointState();
+
     if (item.value().contains("home_pose")) {
+      ss.clear();
       ss << item.value()["home_pose"];
+      arr state;
+      state.read(ss);
+
+      assert(state.d0 == C.getJointState().N);
+      home_pose = state;
+    }
+
+    if (item.value().contains("start_pose")) {
+      ss.clear();
+      ss << item.value()["start_pose"];
       arr state;
       state.read(ss);
 
@@ -104,7 +117,7 @@ make_robot_environment_from_config(rai::Configuration &C,
     }
 
     robots.push_back(Robot(prefix.p, RobotType::ur5, vmax));
-    robots.back().home_pose = C.getJointState();
+    robots.back().home_pose = home_pose;
 
     ++cnt;
   }

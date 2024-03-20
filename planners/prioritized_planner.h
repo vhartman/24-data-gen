@@ -814,10 +814,10 @@ class PrioritizedTaskPlanner {
       rai::Configuration &CPlanner = TP.C;
 
       // set robots to home pose
-      for (const auto &r : home_poses) {
-        setActive(CPlanner, r.first);
-        CPlanner.setJointState(r.second);
-      }
+      // for (const auto &r : home_poses) {
+      //   setActive(CPlanner, r.first);
+      //   CPlanner.setJointState(r.second);
+      // }
 
       std::unordered_map<Robot, FrameL> robot_frames;
       for (auto r : home_poses) {
@@ -870,7 +870,7 @@ class PrioritizedTaskPlanner {
 
           // TODO: manage start time properly
           uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
-          const arr pick_start_pose = (paths.count(r1) > 0) ? paths[r1].back().path[-1]: home_poses[r1];
+          const arr pick_start_pose = (paths.count(r1) > 0) ? paths[r1].back().path[-1]: CPlanner.getJointState();
           const arr pick_pose = rtpm[rtp][0][0];
 
           // ensure that the start time is not too far away from the earliest end time.
@@ -985,8 +985,10 @@ class PrioritizedTaskPlanner {
 
           arr handover_start_pose;
           {
+            setActive(CPlanner, r2);
+
             arr pose_r1 = paths[r1].back().path[-1];
-            arr pose_r2 = (paths.count(r2)>0 && paths[r2].size()>0) ? paths[r2].back().path[-1] : home_poses[r2];
+            arr pose_r2 = (paths.count(r2)>0 && paths[r2].size()>0) ? paths[r2].back().path[-1] : CPlanner.getJointState();
           
             setActive(CPlanner, r1);
             CPlanner.setJointState(pose_r1);
@@ -1314,7 +1316,8 @@ class PrioritizedTaskPlanner {
             start_pose = paths[robot].back().path[-1];
             start_time = paths[robot].back().t(-1);
           } else {
-            start_pose = home_poses.at(robot);
+            setActive(CPlanner, robot);
+            start_pose = CPlanner.getJointState();
             start_time = 0;
 
             if (prev_finishing_time > max_start_time_shift + 1) {
