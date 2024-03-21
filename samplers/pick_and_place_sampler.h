@@ -22,7 +22,7 @@ public:
     return sample(robots, obj);
   }
 
-  TaskPoses sample(std::vector<Robot> robots, std::string obj){
+  TaskPoses sample(std::vector<Robot> robots, const std::string obj){
     KOMO komo;
     komo.setModel(C, true);
     komo.setDiscreteOpt(2);
@@ -89,8 +89,8 @@ compute_pick_and_place_positions(rai::Configuration C,
 
       Skeleton S = {
         //   {1., 1., SY_touch, {pen_tip, obj}},
-          {1., -1, SY_stable, {pen_tip, obj}},
-          {2., -1, SY_poseEq, {obj, goal}},
+          {1., 2, SY_stable, {pen_tip, obj}},
+          {2., 2, SY_poseEq, {obj, goal}},
           // {2., -1, SY_positionEq, {obj, goal}},
       };
 
@@ -168,16 +168,26 @@ compute_pick_and_place_positions(rai::Configuration C,
         // ensure via sampling as well
         const auto initial_state = cp.C.getJointState();
 
-        const auto res1 = cp.query(q0);
-        const auto res2 = cp.query(q1);
+        ConfigurationProblem cp2(C);
+        const auto res1 = cp2.query(q0);
+        {
+          // link object to other robot
+          auto from = cp2.C[pen_tip];
+          auto to = cp2.C[obj];
+          to->unLink();
+          // create a new joint
+          to->linkFrom(from, true);
+        }
+        cp2.C.calc_indexedActiveJoints();
+
+        const auto res2 = cp2.query(q1);
 
         cp.C.setJointState(initial_state);
 
         const double ineq = komo.getReport(false).get<double>("ineq");
         const double eq = komo.getReport(false).get<double>("eq");
 
-        if (res1->isFeasible && res2->isFeasible && ineq < 1. &&
-            eq < 1.) {
+        if (res1->isFeasible && res2->isFeasible && ineq < 1. && eq < 1.) {
           rtpm[rtp].push_back({q0, q1});
 
           // komo.pathConfig.watch(true);

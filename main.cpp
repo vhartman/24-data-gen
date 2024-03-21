@@ -373,7 +373,7 @@ int main(int argc, char **argv) {
   global_params.use_early_coll_check_stopping = allow_early_stopping;
 
   const uint verbosity = rai::getParameter<double>(
-      "verbosity", 4); // verbosity, does not do anything atm
+      "verbosity", 2); // verbosity, does not do anything atm
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no

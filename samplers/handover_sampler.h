@@ -165,9 +165,38 @@ compute_handover_poses(rai::Configuration C,
 
           const auto initial_pose = cp.C.getJointState();
 
-          const auto res1 = cp.query(q0);
-          const auto res2 = cp.query(q1);
-          const auto res3 = cp.query(q2);
+          ConfigurationProblem cp2(C);
+
+          const auto res1 = cp2.query(q0);
+
+          {
+            // link object to other robot
+            auto from = cp2.C[r1_pen_tip];
+            auto to = cp2.C[obj];
+            to->unLink();
+            // create a new joint
+            to->linkFrom(from, true);
+          }
+
+          // cp.C.watch(true);
+          cp2.C.calc_indexedActiveJoints();
+
+          const auto res2 = cp2.query(q1);
+          // cp2.C.watch(true);
+
+          {
+            auto from = cp2.C[r2_pen_tip];
+            auto to = cp2.C[obj];
+
+            to->unLink();
+
+            // create a new joint
+            to->linkFrom(from, true);
+          }
+          cp2.C.calc_indexedActiveJoints();
+
+          const auto res3 = cp2.query(q2);
+          // cp2.C.watch(true);
 
           cp.C.setJointState(initial_pose);
 
