@@ -23,7 +23,7 @@ bool check_plan_validity(rai::Configuration C, const std::vector<Robot> robots,
     const auto res = cp.query({}, false);
 
     if (!res->isFeasible) {
-      spdlog::error("Path is not feasible.");
+      spdlog::error("Path is not feasible. Collision at time {}", t);
       return false;
     }
   }
@@ -232,9 +232,7 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = false, const 
   }
 }
 
-// TODO: test if the path is actually feasible
-
-void single_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
+void single_arm_two_finger_planning_test(const bool show = false) {
   spdlog::info("Running single arm planning test");
 
   rai::Configuration C;
@@ -275,10 +273,12 @@ void single_arm_two_finger_planning_test(const bool show = false, const bool exp
 
   check_plan_validity(C, robots, plan_result.plan, home_poses);
 
-  visualize_plan(C, plan_result.plan, export_images, show);
+  if (show){
+    visualize_plan(C, plan_result.plan);
+  }
 }
 
-void two_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
+void two_arm_two_finger_planning_test(const bool show = false) {
   spdlog::info("Running dual arm planning test");
 
   for (uint i = 0; i < 3; ++i) {
@@ -321,11 +321,14 @@ void two_arm_two_finger_planning_test(const bool show = false, const bool export
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
     
     check_plan_validity(C, robots, plan_result.plan, home_poses);
-    visualize_plan(C, plan_result.plan, export_images, show);
+
+    if (show){
+      visualize_plan(C, plan_result.plan);
+    }
   }
 }
 
-void three_arm_two_finger_planning_test(const bool show = false, const bool export_images = false) {
+void three_arm_two_finger_planning_test(const bool show = false) {
   spdlog::info("Running triple arm planning test");
 
   for (uint i = 0; i < 3; ++i) {
@@ -367,11 +370,13 @@ void three_arm_two_finger_planning_test(const bool show = false, const bool expo
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
-    visualize_plan(C, plan_result.plan, export_images, show);
+    if (show) {
+      visualize_plan(C, plan_result.plan);
+    }
   }
 }
 
-void two_arm_two_finger_handover_planning_test(const bool show = false, const bool export_images = false) {
+void two_arm_two_finger_handover_planning_test(const bool show = false) {
   spdlog::info("Running dual arm handover planning test");
 
   for (uint i = 0; i < 2; ++i) {
@@ -421,11 +426,14 @@ void two_arm_two_finger_handover_planning_test(const bool show = false, const bo
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
     check_plan_validity(C, robots, plan_result.plan, home_poses);
-    visualize_plan(C, plan_result.plan, export_images, show);
+
+    if (show){
+      visualize_plan(C, plan_result.plan);
+    }
   }
 }
 
-void three_arm_two_finger_handover_planning_test(const bool show = false, const bool export_images = false) {
+void three_arm_two_finger_handover_planning_test(const bool show = false) {
   spdlog::info("Running triple arm handover planning test");
 
   for (uint i = 0; i < 2; ++i) {
@@ -475,8 +483,9 @@ void three_arm_two_finger_handover_planning_test(const bool show = false, const 
         plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
     check_plan_validity(C, robots, plan_result.plan, home_poses);
-    visualize_plan(C, plan_result.plan, export_images, show);
-    
-    // ensure that the path is valid
+
+    if (show){
+      visualize_plan(C, plan_result.plan);
+    }
   }
 }

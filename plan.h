@@ -599,7 +599,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 }
 
-void visualize_plan(rai::Configuration &C, const Plan &plan, const bool export_images = false, const bool display = true) {
+void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display = true, const std::string image_path = "") {
   spdlog::info("Showing plan");
 
   const double makespan = get_makespan_from_plan(plan);
@@ -656,6 +656,8 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool export_i
     }
   }
 
+  spdlog::debug("Finished assembling framepath.");
+
   rai::ConfigurationViewer Vf;
   Vf.offscreen = !display;
 
@@ -668,11 +670,11 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool export_i
   // want to export images, it takes too long.
   double duration = 0.01 * makespan;
   if (!display){
-    duration = 0.01;
+    duration = 0.00001;
   }
 
-  if (export_images) {
-    Vf.playVideo(false, duration, "./z.vid/");
+  if (image_path != "") {
+    Vf.playVideo(false, duration, image_path.c_str());
   }
   else {
     Vf.playVideo(false, duration);

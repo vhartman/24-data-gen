@@ -362,13 +362,15 @@ int main(int argc, char **argv) {
   std::srand(seed);
 
   const bool display = rai::getParameter<bool>("display", false);
+  global_params.allow_display = display;
+  
+  const bool export_images =
+      rai::getParameter<bool>("export_images", false);
+  global_params.export_images = export_images;
 
   const bool allow_early_stopping =
       rai::getParameter<bool>("early_stopping", false);
   global_params.use_early_coll_check_stopping = allow_early_stopping;
-
-  const bool export_images =
-      rai::getParameter<bool>("export_images", false);
 
   const uint verbosity = rai::getParameter<double>(
       "verbosity", 4); // verbosity, does not do anything atm
@@ -429,28 +431,32 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "two_finger_keyframes_test") {
-    single_arm_two_finger_keyframe_test(display, export_images);
-    two_arms_two_finger_keyframe_test(display, export_images);
-    three_arms_two_finger_keyframe_test(display, export_images);
+    single_arm_two_finger_keyframe_test(display);
+    two_arms_two_finger_keyframe_test(display);
+    three_arms_two_finger_keyframe_test(display);
+
     return 0;
   }
 
   if (mode == "two_finger_handover_keyframes_test") {
-    two_arm_two_finger_handover_keyframe_test(display, export_images);
-    three_arm_two_finger_handover_keyframe_test(display, export_images);
+    two_arm_two_finger_handover_keyframe_test(display);
+    three_arm_two_finger_handover_keyframe_test(display);
+
     return 0;
   }
 
   if (mode == "two_finger_planning_test") {
-    single_arm_two_finger_planning_test(display, export_images);
-    two_arm_two_finger_planning_test(display, export_images);
-    three_arm_two_finger_planning_test(display, export_images);
+    single_arm_two_finger_planning_test(display);
+    two_arm_two_finger_planning_test(display);
+    three_arm_two_finger_planning_test(display);
+
     return 0;
   }
 
   if (mode == "two_finger_handover_planning_test") {
-    two_arm_two_finger_handover_planning_test(display, export_images);
-    three_arm_two_finger_handover_planning_test(display, export_images);
+    two_arm_two_finger_handover_planning_test(display);
+    three_arm_two_finger_handover_planning_test(display);
+
     return 0;
   }
 

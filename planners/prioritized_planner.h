@@ -928,6 +928,11 @@ class PrioritizedTaskPlanner {
             }
 
             paths[r1].push_back(path);
+
+            // debugging: ensure that the goal pose is what we want it to be
+            if (path.path[-1] != pick_pose){
+              std::cout << path.path[-1] << " " << pick_pose << std::endl;
+            }
           }
           else{
             return PlanStatus::failed;

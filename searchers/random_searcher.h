@@ -83,7 +83,13 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
         best_makespan = makespan;
         best_plan = plan;
 
-        visualize_plan(C, best_plan);
+        if (global_params.export_images){
+          const std::string image_path = "./out/" + buffer.str() + "/" + std::to_string(i) + "/img/";
+          visualize_plan(C, best_plan, global_params.allow_display, image_path);
+        }
+        else{
+          visualize_plan(C, best_plan, global_params.allow_display);
+        }
       }
     }
   }
