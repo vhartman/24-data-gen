@@ -1,0 +1,9 @@
+{
+    "tasks":[
+        {
+            "robots": ["a0_"],
+            "primitive": "pick",
+            "object": "0"
+        }
+    ]
+}

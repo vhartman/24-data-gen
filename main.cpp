@@ -1,3 +1,14 @@
+#include <deque>
+#include <fstream>
+#include <iomanip>
+#include <numeric>
+
+#include <algorithm>
+#include <chrono>
+#include <random>
+
+#include <math.h>
+
 #include <KOMO/komo.h>
 #include <Kin/F_operators.h>
 #include <Kin/F_pose.h>
@@ -10,16 +21,6 @@
 
 #include <Manip/rrt-time.h>
 #include <PlanningSubroutines/ConfigurationProblem.h>
-
-#include <iomanip>
-#include <numeric>
-#include <deque>
-
-#include <algorithm>
-#include <chrono>
-#include <random>
-
-#include <math.h>
 
 #include <GL/gl.h>
 #include <Gui/opengl.h>
@@ -45,11 +46,11 @@
 #include "planners/prioritized_planner.h"
 
 #include "samplers/sampler.h"
-#include "tests/test.h"
 #include "tests/perf_test.h"
+#include "tests/test.h"
 
-#include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 
 #include "config.h"
 
@@ -199,13 +200,89 @@ Plan plan_multiple_arms_squeaky_wheel(rai::Configuration &C,
   return {};
 }
 
-OrderedTaskSequence load_sequence(const std::string &path) {
+OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector<Robot> robots) {
+  std::ifstream ifs(path);
+  json jf = json::parse(ifs);
+
   OrderedTaskSequence seq;
+  for (const auto &item : jf["tasks"].items()) {
+    const std::string primitive = item.value()["primitive"];
+    const std::string object = item.value()["object"];
+    const std::vector<std::string> robot_prefixes = item.value()["robots"];
+
+    RobotTaskPair rtp;
+    for (const auto &prefix: robot_prefixes){
+      for (const auto &robot: robots){
+        if (robot.prefix == prefix){
+          rtp.robots.push_back(robot);
+          break;
+        }
+      }
+    }
+    rtp.task.object = std::stoi(object);
+    if (primitive == "handover") {
+      rtp.task.type = TaskType::handover;
+    } else if (primitive == "pick") {
+      rtp.task.type = TaskType::pick;
+    } else {
+      spdlog::error("No task specified.");
+    }
+
+    seq.push_back(rtp);
+  }
+
   return seq;
 }
 
-bool check_sequence_validity(const OrderedTaskSequence &seq){
-  return false;
+// OrderedTaskSequence load_sequence(const std::string &path) {
+//   std::ifstream file(path); // Open the file
+
+//   std::string line;
+//   while (std::getline(file, line)) {
+//     std::cout << line << std::endl;
+//   }
+
+//   std::regex regex("\\((.*?)\\)"); // Regular expression to match parentheses
+//                                    // and their contents
+//   std::smatch match;
+
+//   while (std::regex_search(line, match, regex)) {
+//     std::cout << "Group: " << match[1] << std::endl;
+
+//     std::istringstream iss(match[1]);
+//     std::string token;
+//     std::vector<std::string> tokens;
+
+//     while (std::getline(iss, token, ';')) {
+//         tokens.push_back(token);
+//     }
+
+//     // Print the tokens
+//     for (const auto& t : tokens) {
+//         std::cout << t << std::endl;
+//     }
+
+
+//     line = match.suffix();
+//   }
+
+//   file.close();
+
+//   OrderedTaskSequence seq;
+//   return seq;
+// }
+
+bool check_sequence_validity(const OrderedTaskSequence &seq, const RobotTaskPoseMap &rtpm){
+  uint cnt = 0;
+  for (const auto &rtp: seq){
+    if (rtpm.count(rtp) == 0){
+      spdlog::warn("No task pose found for action {}", cnt);
+      return false;
+    }
+
+    ++cnt;
+  }
+  return true;
 }
 
 arr plan_line(rai::Configuration C, const rai::String &robot_prefix, const std::vector<arr> &pts){
@@ -396,6 +473,9 @@ int main(int argc, char **argv) {
   const rai::String robot_env =
       rai::getParameter<rai::String>("robot_env", "./in/envs/two_opposite.json"); // environment
 
+  const rai::String sequence_path =
+      rai::getParameter<rai::String>("sequence_path", "./in/sequences/test.json"); // environment
+
   const bool use_picks = 
       rai::getParameter<bool>("use_simple_picks", true);
 
@@ -558,15 +638,31 @@ int main(int argc, char **argv) {
     rtpm.insert(pick_rtpm.begin(), pick_rtpm.end());
     rtpm.insert(handover_rtpm.begin(), handover_rtpm.end());
 
-    const std::string path;
-    const auto seq = load_sequence(path);
-    if (!check_sequence_validity(seq)){
-      std::cout << "sequence invalid." << std::endl;
+    const std::string path = sequence_path.p;
+    const auto seq = load_sequence_from_json(path, robots);
+
+    if (!check_sequence_validity(seq, rtpm)){
+      spdlog::error("sequence invalid.");
       return 0;
     }
-    auto plan = plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
+    const PlanResult plan = plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
   
-    // export_plan(C, robots, home_poses, plan.plan, seq, );
+    if (plan.status == PlanStatus::success){
+      std::time_t t = std::time(nullptr);
+      std::tm tm = *std::localtime(&t);
+
+      std::stringstream buffer;
+      buffer << "sequence_plan_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+      export_plan(C, robots, home_poses, plan.plan, seq, buffer.str(), 0, 0);
+
+      if (display){
+        visualize_plan(C, plan.plan);
+      }
+    }
+    else{
+      spdlog::warn("No solution found for given sequence.");
+    }
 
     return 0;
   }
