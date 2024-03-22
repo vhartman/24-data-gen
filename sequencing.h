@@ -139,11 +139,16 @@ generate_random_valid_sequence(const std::vector<Robot> &robots,
     std::random_shuffle(std::begin(available_actions_for_object),
                  std::end(available_actions_for_object));
 
-    seq.push_back(available_actions_for_object[0]);
+    if (available_actions_for_object.size() > 0){
+      seq.push_back(available_actions_for_object[0]);
 
-    available_tasks.erase(
-        std::remove(available_tasks.begin(), available_tasks.end(), task_index),
-        available_tasks.end());
+      available_tasks.erase(
+          std::remove(available_tasks.begin(), available_tasks.end(), task_index),
+          available_tasks.end());
+    }
+    else{
+      spdlog::error("No action available for object {}", task_index);
+    }
   }
 
   return seq;
