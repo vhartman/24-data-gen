@@ -7,7 +7,12 @@
 
 Plan plan_multiple_arms_greedy_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,
-    const std::unordered_map<Robot, arr> &home_poses) {
+    const std::unordered_map<Robot, arr> &home_poses,
+    const uint max_attempts = 1000) {
+
+  const uint max_restarts = max_attempts / 50;
+  const uint max_inner_iterations = 50;
+
   // make foldername for current run
   std::time_t t = std::time(nullptr);
   std::tm tm = *std::localtime(&t);
@@ -37,7 +42,7 @@ Plan plan_multiple_arms_greedy_random_search(
   std::vector<std::pair<OrderedTaskSequence, Plan>> cache;
 
   uint iter = 0;
-  for (uint i = 0; i < 20000; ++i) {
+  for (uint i = 0; i < max_restarts; ++i) {
     std::cout << "Generating completely new seq. " << i << std::endl;
     OrderedTaskSequence seq;
     // seq = generate_alternating_random_sequence(robots, num_tasks, rtpm);
@@ -61,7 +66,7 @@ Plan plan_multiple_arms_greedy_random_search(
 
     Plan plan;
     double prev_makespan = 1e6;
-    for (uint j = 0; j < 30; ++j) {
+    for (uint j = 0; j < max_inner_iterations; ++j) {
       ++iter;
       OrderedTaskSequence new_seq = seq;
 

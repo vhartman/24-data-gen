@@ -373,7 +373,7 @@ int main(int argc, char **argv) {
   global_params.use_early_coll_check_stopping = allow_early_stopping;
 
   const uint verbosity = rai::getParameter<double>(
-      "verbosity", 2); // verbosity, does not do anything atm
+      "verbosity", 2);
 
   const bool plan_pick_and_place =
       rai::getParameter<bool>("pnp", false); // pick and place yes/no
@@ -401,6 +401,9 @@ int main(int argc, char **argv) {
 
   const bool use_handovers = 
       rai::getParameter<bool>("use_handovers", true);
+
+  const uint max_attempts = rai::getParameter<double>(
+      "max_attempts", 1000);
 
   switch (verbosity) {
   case 0:
@@ -620,11 +623,11 @@ int main(int argc, char **argv) {
   } else if (mode == "random_search") {
     // random search
     const auto plan = plan_multiple_arms_random_search(
-        C, robot_task_pose_mapping, home_poses);
+        C, robot_task_pose_mapping, home_poses, max_attempts);
   } else if (mode == "greedy_random_search") {
     // greedy random search
     const auto plan = plan_multiple_arms_greedy_random_search(
-        C, robot_task_pose_mapping, home_poses);
+        C, robot_task_pose_mapping, home_poses, max_attempts);
   } else if (mode == "simulated_annealing") {
     plan_multiple_arms_simulated_annealing(C, robot_task_pose_mapping,
                                            home_poses);

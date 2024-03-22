@@ -7,9 +7,10 @@
 
 #include "config.h"
 
-Plan plan_multiple_arms_random_search(rai::Configuration &C,
-                                      const RobotTaskPoseMap &rtpm,
-                                      const std::unordered_map<Robot, arr> &home_poses) {
+Plan plan_multiple_arms_random_search(
+    rai::Configuration &C, const RobotTaskPoseMap &rtpm,
+    const std::unordered_map<Robot, arr> &home_poses,
+    const uint max_attempts = 1000) {
   // make foldername for current run
   std::time_t t = std::time(nullptr);
   std::tm tm = *std::localtime(&t);
@@ -36,7 +37,7 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
   Plan best_plan;
   double best_makespan = 1e6;
 
-  for (uint i = 0; i < 100; ++i) {
+  for (uint i = 0; i < max_attempts; ++i) {
     // const auto seq = generate_random_sequence(robots, num_tasks);
 
     // if (sequence_is_feasible(seq, rtpm)) {
@@ -94,4 +95,4 @@ Plan plan_multiple_arms_random_search(rai::Configuration &C,
     }
   }
   return best_plan;
-} 
+}
