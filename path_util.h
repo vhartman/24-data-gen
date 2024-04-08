@@ -222,6 +222,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
 
   KOMO komo;
   komo.setModel(C, true);
+  // komo.setTiming(1., num_timesteps, 5, 2);
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
@@ -231,8 +232,10 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.add_collision(true, 0.1, 1e2);
   komo.add_jointLimits(true, 0., 1e1);
 
-  komo.add_qControlObjective({}, 2, 1e0);
+  komo.add_qControlObjective({}, 2, 2e0);
   komo.add_qControlObjective({}, 1, 1e0);
+
+  // komo.add_qControlObjective({}, 3, 1e-1);
 
   komo.setConfiguration(-2, path[0]);
   komo.setConfiguration(-1, path[0]);

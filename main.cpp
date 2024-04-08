@@ -513,30 +513,36 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (mode == "two_finger_keyframes_test") {
+  if (mode == "two_finger_keyframes_test" || mode == "run_all_tests") {
     single_arm_two_finger_keyframe_test(display);
     two_arms_two_finger_keyframe_test(display);
     three_arms_two_finger_keyframe_test(display);
 
-    return 0;
+    if (mode != "run_all_tests") {
+      return 0;
+    }
   }
 
-  if (mode == "two_finger_handover_keyframes_test") {
+  if (mode == "two_finger_handover_keyframes_test" || mode == "run_all_tests") {
     two_arm_two_finger_handover_keyframe_test(display);
     three_arm_two_finger_handover_keyframe_test(display);
 
-    return 0;
+    if (mode != "run_all_tests") {
+      return 0;
+    }
   }
 
-  if (mode == "two_finger_planning_test") {
+  if (mode == "two_finger_planning_test" || mode == "run_all_tests") {
     single_arm_two_finger_planning_test(display);
     two_arm_two_finger_planning_test(display);
     three_arm_two_finger_planning_test(display);
 
-    return 0;
+    if (mode != "run_all_tests") {
+      return 0;
+    }
   }
 
-  if (mode == "two_finger_handover_planning_test") {
+  if (mode == "two_finger_handover_planning_test" || mode == "run_all_tests") {
     two_arm_two_finger_handover_planning_test(display);
     three_arm_two_finger_handover_planning_test(display);
 
@@ -667,8 +673,23 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  // stippling
   RobotTaskPoseMap robot_task_pose_mapping;
+  if (mode == "compute_keyframes"){
+    if (use_picks){
+      RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+      robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
+    }
+    if (use_handovers) {
+      RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+      robot_task_pose_mapping.insert(handover_rtpm.begin(),
+                                     handover_rtpm.end());
+    }
+    spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
+
+    return 0;
+  }
+
+  // stippling
   if (!plan_pick_and_place) {
     const arr pts = get_stippling_scenario(stippling_scenario);
     if (pts.N == 0) {

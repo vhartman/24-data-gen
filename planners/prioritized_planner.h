@@ -254,7 +254,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
 
     TP.A.setToTime(TP.C, t0);
     TP.C.setJointState(q0);
-    TP.C.watch(true);
+    // TP.C.watch(true);
 
     return TaskPart();
   }
