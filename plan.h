@@ -407,7 +407,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     json data;
     // goals
     for (const auto frame: C.frames){
-      if (frame->name.contains("goal")){
+      if (frame->name.contains("goal") && !frame->name.contains("marker")){
         data[frame->name.p] = frame->getPose().vec();
       }
     }
@@ -520,7 +520,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         json task_description;
         task_description["name"] = task.name;
         task_description["algorithm"]= task.algorithm;
-        task_description["index"] = task.task_index;
+        task_description["object_index"] = task.task_index;
         task_description["start"] = task.t(0);
         task_description["end"] = task.t(-1);
 
