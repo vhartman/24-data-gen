@@ -161,11 +161,16 @@ void add_objects_from_config(rai::Configuration &C,
 
     auto *obj = C.addFrame(STRING("obj" << cnt + 1), "table");
 
+    // randomize color
+    arr col(3);
+    rndUniform(col, 0, 1);
+
     obj->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
     obj->setContact(1);
     obj->setJoint(rai::JT_rigid);
     obj->setRelativePosition(base_pos);
     obj->setRelativeQuaternion(base_quat);
+    obj->setColor({col(0), col(1), col(2)});
 
     auto *marker = C.addFrame("goal_marker", obj->name);
     marker->setShape(rai::ST_marker, {0.1});
@@ -175,10 +180,11 @@ void add_objects_from_config(rai::Configuration &C,
 
     goal->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
     goal->setContact(0);
-    goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
     goal->setRelativePosition(goal_pos);
     goal->setRelativeQuaternion(goal_quat);
+    // goal->setColor({0, 0, 0, 0.5});
+    goal->setColor({col(0), col(1), col(2), 0.5});
 
     // check if something is in collision
     ConfigurationProblem cp(C);
