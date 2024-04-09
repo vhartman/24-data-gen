@@ -408,7 +408,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     // goals
     for (const auto frame: C.frames){
       if (frame->name.contains("goal") && !frame->name.contains("marker")){
-        data[frame->name.p] = frame->getPose().vec();
+        json pose;
+        pose["Position"] = frame->getRelativePosition().vec();
+        pose["Quaternion"] = frame->getRelativeQuaternion().vec();
+        data[frame->name.p] = pose;
       }
     }
 
