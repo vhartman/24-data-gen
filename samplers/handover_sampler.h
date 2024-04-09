@@ -4,6 +4,8 @@
 
 #include <Kin/featureSymbols.h>
 
+#include <Kin/F_collisions.h>
+
 #include "../plan.h"
 #include "../planners/prioritized_planner.h"
 #include "../util.h"
@@ -30,6 +32,8 @@ compute_handover_poses(rai::Configuration C,
   // C.watch(true);
   OptOptions options;
   options.allowOverstep = true;
+  options.nonStrictSteps = 500;
+  options.damping = 10;
 
   RobotTaskPoseMap rtpm;
 
@@ -47,26 +51,48 @@ compute_handover_poses(rai::Configuration C,
       for (uint i = 0; i < num_objects; ++i) {
         spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
                      r2.prefix, i + 1);
-                     
+                    
+
         RobotTaskPair rtp;
         rtp.robots = {r1, r2};
         rtp.task = Task{.object=i, .type=TaskType::handover};
 
         KOMO komo;
+        // komo.verbose = 5;
         komo.verbose = 0;
         komo.setModel(C, true);
         // komo.animateOptimization = 5;
 
+        // komo.world.fcl()->deactivatePairs(pairs);
+        // komo.pathConfig.fcl()->stopEarly = true;
+
         komo.setDiscreteOpt(3);
 
+        // komo.add_collision(true, .05, 1e1);
         komo.add_collision(true, .1, 1e1);
+
         komo.add_jointLimits(true, 0., 1e1);
+        komo.addSquaredQuaternionNorms();
 
         const auto r1_pen_tip = STRING(r1 << "pen_tip");
         const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
+
+        const arr obj_pos = C[obj]->getPosition();
+        const arr goal_pos = C[goal]->getPosition();
+
+        const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
+        const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
+
+        const double r1_z_rot = C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
+        const double r2_z_rot = C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
+
+        const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0));
+        const double r1_r2_angle = std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0));
+        const double r2_r1_angle = std::atan2(r1_pos(1) - r2_pos(1), r1_pos(0) - r2_pos(0)) - r2_z_rot;
+        const double r2_goal_angle = std::atan2(goal_pos(1) -r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
 
         Skeleton S = {
             // {1., 2., SY_touch, {r1_pen_tip, obj}},
@@ -75,7 +101,7 @@ compute_handover_poses(rai::Configuration C,
             {2., 3., SY_stable, {r2_pen_tip, obj}},
             {3., -1, SY_poseEq, {obj, goal}},
             // {3., -1, SY_positionEq, {obj, goal}}
-            
+            // {3., -1, SY_stable, {obj, goal}},
         };
 
         komo.setSkeleton(S);
@@ -84,16 +110,18 @@ compute_handover_poses(rai::Configuration C,
         komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
                           {-offset});
 
-        // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
-        //                   OT_sos, {1e1});
+        // komo.addObjective({1., 1.}, FS_aboveBox, {obj, r1_pen_tip}, OT_ineq, {1e2}, {0.0, 0.0, 0.0, 0.0});
+        // komo.addObjective({2., 2.}, FS_aboveBox, {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-        // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
-        //                   OT_sos, {1e1});
+        komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
+                          OT_sos, {1e0});
+        komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
+                          OT_sos, {1e0});
 
-        komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, STRING(obj)},
-                          OT_ineq, {1e1});
-        komo.addObjective({2., 3.}, FS_insideBox, {r2_pen_tip, STRING(obj)},
-                          OT_ineq, {1e1});
+        komo.addObjective({1., 1.}, FS_insideBox, {r1_pen_tip, STRING(obj)},
+                          OT_ineq, {5e1});
+        komo.addObjective({2., 2.}, FS_insideBox, {r2_pen_tip, STRING(obj)},
+                          OT_ineq, {5e1});
 
         // const double margin = 0.1;
         // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
@@ -109,10 +137,10 @@ compute_handover_poses(rai::Configuration C,
         //                   OT_ineq, {1e1}, {margin, margin, margin});
 
         komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, r1_pen_tip},
-                          OT_sos, {1e0}, {-1.});
+                          OT_sos, {1e1}, {-1.});
 
         komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, r2_pen_tip},
-                          OT_sos, {1e0}, {-1.});
+                          OT_sos, {1e1}, {-1.});
 
         // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
         //                   OT_sos, {1e0}, {1.});
@@ -120,11 +148,23 @@ compute_handover_poses(rai::Configuration C,
         // komo.addObjective({2.}, FS_scalarProductYX, {obj, r2_pen_tip},
         //                   OT_sos, {1e0}, {1.});
 
-        komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
-                          {1e0}, {1.});
+        // identify long axis
+        if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
+          // x longer than y
+          spdlog::info("Trying to grab along x-axis");
+          komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, r1_pen_tip},
+                            OT_eq, {1e1}, {1.});
 
-        komo.addObjective({2., 3.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
-                          {1e0}, {1.});
+          komo.addObjective({2., 2.}, FS_scalarProductXX, {obj, r2_pen_tip},
+                            OT_eq, {1e1}, {1.});
+        } else {
+          spdlog::info("Trying to grab along y-axis");
+          komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, r1_pen_tip},
+                            OT_eq, {1e1}, {1.});
+
+          komo.addObjective({2., 2.}, FS_scalarProductXY, {obj, r2_pen_tip},
+                            OT_eq, {1e1}, {1.});
+        }
 
         // homing
         if (true) {
@@ -142,14 +182,67 @@ compute_handover_poses(rai::Configuration C,
           }
         }
 
+        komo.run_prepare(0.0, false);
+        const auto inital_state = komo.pathConfig.getJointState();
+
+        const uint max_attempts = 5;
         bool found_solution = false;
-        for (uint j = 0; j < 3; ++j) {
+        for (uint j = 0; j < max_attempts; ++j) {
+          // reset komo to initial state
+          komo.pathConfig.setJointState(inital_state);
+          komo.x = inital_state;
+
           if (j==0){
             komo.run_prepare(0.0, false);
           }
           else{
-            komo.run_prepare(0.00001, false);
+            komo.run_prepare(0.0001, false);
+
+            uint r1_cnt = 0;
+            uint r2_cnt = 0;
+            for (const auto aj : komo.pathConfig.activeJoints) {
+              const uint ind = aj->qIndex;
+              if (aj->frame->name.contains("shoulder_pan_joint") &&
+                  aj->frame->name.contains(r1.prefix.c_str())) {
+                // komo.x(ind) = cnt + j;
+                if (r1_cnt == 0){
+                  // compute orientation for robot to face towards box
+                komo.x(ind) = r1_obj_angle + rnd.uni(-1, 1) * j/10.;
+                }
+                if (r1_cnt == 1){
+                  // compute orientation for robot to face towards other robot
+                  komo.x(ind) = r1_r2_angle + rnd.uni(-1, 1) * j/10.;
+                }
+                ++r1_cnt;
+              }
+
+              if (aj->frame->name.contains("shoulder_pan_joint") &&
+                  aj->frame->name.contains(r2.prefix.c_str())) {
+                // komo.x(ind) = cnt + j;
+                if (r2_cnt == 1){
+                  // compute orientation for robot to face towards box
+                komo.x(ind) = r2_r1_angle + rnd.uni(-1, 1) * j/10.;
+                }
+                if (r2_cnt == 2){
+                  // compute orientation for robot to face towards other robot
+                  komo.x(ind) = r2_goal_angle + rnd.uni(-1, 1) * j/10.;
+                }
+                ++r2_cnt;
+              }
+            }
+
+            komo.pathConfig.setJointState(komo.x);
+            komo.run_prepare(0.0, false);
+
+            // for (const auto f: komo.pathConfig.frames){
+            //   if (f->name == obj){
+            //     f->setPose(C[obj]->getPose());
+            //   }
+            // }
+
+            // komo.pathConfig.watch(true);
           }
+
           komo.run(options);
 
           const arr q0 = komo.getPath()[0]();
@@ -204,6 +297,7 @@ compute_handover_poses(rai::Configuration C,
           const double eq = komo.getReport(false).get<double>("eq");
 
           if (res1->isFeasible && res2->isFeasible && res3->isFeasible && ineq < 1. && eq < 1.) {
+            // komo.pathConfig.watch(true);
             const auto home = C.getJointState();
 
             C.setJointState(q0);
@@ -213,12 +307,10 @@ compute_handover_poses(rai::Configuration C,
             const arr place_pose = C.getJointState(robot_frames[r2]);
 
             rtpm[rtp].push_back({pick_pose, q1, place_pose});
-            // komo.pathConfig.watch(true);
 
             found_solution = true;
 
             C.setJointState(home);
-
             break;
           } else {
             spdlog::debug(

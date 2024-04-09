@@ -53,11 +53,12 @@ compute_pick_and_place_positions(rai::Configuration C,
 
   ConfigurationProblem cp(C);
   OptOptions options;
+  options.allowOverstep = true;
+  options.nonStrictSteps = 500;
+  options.damping = 10;
+
   // options.stopIters = 100;
   // options.damping = 1e-3;
-
-  options.allowOverstep = true;
-  options.maxStep = 5;
 
   for (const Robot &r : robots) {
     setActive(C, r);
@@ -73,7 +74,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       KOMO komo;
       komo.verbose = 0;
       komo.setModel(C, true);
-      komo.world.fcl()->deactivatePairs(pairs);
+      // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
       komo.setDiscreteOpt(2);
       // komo.animateOptimization = 2;
@@ -107,11 +108,19 @@ compute_pick_and_place_positions(rai::Configuration C,
       komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
                         {1e1});
 
-      komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
-                        {1e1}, {1.});
-
       komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
-                        {1e0}, {-1.});
+                        {1e1}, {-1.});
+
+      if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
+        // x longer than y
+        spdlog::info("Trying to grab along x-axis");
+        komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip},
+                          OT_eq, {1e1}, {1.});
+      } else {
+        spdlog::info("Trying to grab along y-axis");
+        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip},
+                          OT_eq, {1e1}, {1.});
+      }
 
       //   const double margin = 0.05;
       //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
@@ -158,6 +167,21 @@ compute_pick_and_place_positions(rai::Configuration C,
           komo.run_prepare(0.0, false);
         } else {
           komo.run_prepare(0.0001, false);
+
+          // TODO: set orientation to the direction of the object and the goal
+          // respectively
+
+          uint cnt = 0;
+          for (const auto aj: komo.pathConfig.activeJoints){
+            const uint ind = aj->qIndex;
+            if(aj->frame->name.contains("shoulder_pan_joint")){
+              komo.x(ind) = cnt + j;
+              ++cnt;
+            }
+          }
+
+          // komo.pathConfig.setJointState(komo.x);
+          // komo.pathConfig.watch(true);
         }
         komo.run(options);
 
