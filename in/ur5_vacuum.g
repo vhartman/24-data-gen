@@ -16,6 +16,11 @@ pen_tip (wrist_3_joint){
     contact:0
 }
 
+pen_tip_marker (pen_tip){
+    shape: marker,
+    size:[0.05]
+}
+
 #gripper (panda_joint7){
 #    shape:sphere, size:[.02]
 #    Q:<t(.24 0.0 .0)>
