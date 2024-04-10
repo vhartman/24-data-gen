@@ -269,10 +269,11 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
 
   OptOptions options;
   options.stopIters = 50;
-  // options.damping = 10;
+  options.damping = 10;
   // options.stopTolerance = 0.1;
   options.allowOverstep = false;
-  // options.nonStrictSteps = 100;
+  options.nonStrictSteps = 5;
+  options.wolfe = 0.001;
   // options.maxStep = 0.01;
 
   auto pairs = get_cant_collide_pairs(C);
@@ -284,12 +285,12 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.setModel(C, true);
   // komo.setTiming(1., num_timesteps, 5, 2);
   komo.setTiming(1., num_timesteps, 5, 2);
-  komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
+  // komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
   // komo.animateOptimization = 3;
 
-  auto komo_pairs = get_cant_collide_pairs(komo.world);
-  komo.world.fcl()->deactivatePairs(komo_pairs);
+  // auto komo_pairs = get_cant_collide_pairs(komo.world);
+  // komo.world.fcl()->deactivatePairs(komo_pairs);
 
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
@@ -297,7 +298,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.add_collision(true, 0.1, 1e2);
   komo.add_jointLimits(true, 0., 1e1);
 
-  komo.add_qControlObjective({}, 2, 2e0);
+  komo.add_qControlObjective({}, 2, 1e0);
   komo.add_qControlObjective({}, 1, 1e0);
 
   // komo.add_qControlObjective({}, 3, 1e-1);
@@ -323,15 +324,15 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.addObjective({0., 0.}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[0]);
 
   // speed
-  // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                  1); // slow at beginning
-  // komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
-  //                   1); // slow at end
+  komo.addObjective({0.0, 0.01}, FS_qItself, {}, OT_eq, {1e0}, {},
+                   1); // slow at beginning
+  komo.addObjective({0.99, 1.}, FS_qItself, {}, OT_eq, {1e0}, {},
+                    1); // slow at end
 
   // // acceleration
-  komo.addObjective({0.0, 0.03}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.0, 0.01}, FS_qItself, {}, OT_eq, {1e0}, {},
                    2); // slow at beginning
-  komo.addObjective({0.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.99, 1.}, FS_qItself, {}, OT_eq, {1e0}, {},
                     2); // slow at end
 
   for (uint j = 0; j < num_timesteps; ++j) {
@@ -373,10 +374,11 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
 
   spdlog::info("smoothing komo ineq: {} eq: {}", ineq, eq);
 
-  // if (eq > 2 || ineq > 2){
-  // komo.getReport(true);
-  // komo.pathConfig.watch(true);
-  //}
+  if (eq > 2 || ineq > 2){
+    // komo.getReport(true);
+    // komo.pathConfig.watch(true);
+    return {};
+  }
 
   // komo.pathConfig.watch(true);
 
