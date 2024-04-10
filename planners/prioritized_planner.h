@@ -590,18 +590,24 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     spdlog::info("Running smoother");
     smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix);
     
-    for (uint i = 0; i < smooth_path.d0; ++i) {
-      const auto res = TP.query(smooth_path[i], t(i));
-      // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.05) {
-      if (!res->isFeasible) {
-        spdlog::warn(
-            "smoothed path infeasible, penetration {} at time {} (timestep {} / {})",
-            min(res->coll_y), t(i), i, smooth_path.d0);
-        res->writeDetails(std::cout, TP.C);
-        // TP.C.watch(true);
+    if (smooth_path.N == 0){
+      smooth_path = new_path;
+    }
+    else{
+      for (uint i = 0; i < smooth_path.d0; ++i) {
+        const auto res = TP.query(smooth_path[i], t(i));
+        // if (!res->isFeasible && res->coll_y.N > 0 && min(res->coll_y) < -0.05) {
+        if (!res->isFeasible) {
+          // std::cout << i << std::endl;
+          // TP.C.watch(true);
+          spdlog::warn(
+              "smoothed path infeasible, penetration {} at time {} (timestep {} / {})",
+              min(res->coll_y), t(i), i, smooth_path.d0);
+          res->writeDetails(std::cout, TP.C);
 
-        smooth_path = new_path;
-        break;
+          smooth_path = new_path;
+          break;
+        }
       }
     }
 
@@ -931,7 +937,8 @@ class PrioritizedTaskPlanner {
 
             // debugging: ensure that the goal pose is what we want it to be
             if (path.path[-1] != pick_pose){
-              std::cout << path.path[-1] << " " << pick_pose << std::endl;
+              spdlog::info("Pick keyframe is not the same as the one in plan, diff {}.", length(path.path[-1] - pick_pose));
+              // std::cout << path.path[-1] << " " << pick_pose << std::endl;
             }
           }
           else{
