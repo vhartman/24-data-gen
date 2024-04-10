@@ -57,6 +57,10 @@ compute_pick_and_place_positions(rai::Configuration C,
   options.nonStrictSteps = 500;
   options.damping = 10;
 
+  options.stopIters = 200;
+  options.wolfe = 0.001;
+  options.maxStep = 0.5;
+
   // options.stopIters = 100;
   // options.damping = 1e-3;
 
