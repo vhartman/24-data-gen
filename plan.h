@@ -22,6 +22,40 @@ typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> RobotTaskPoseM
 typedef std::vector<RobotTaskPair> OrderedTaskSequence;
 typedef std::unordered_map<Robot, std::vector<Task>> UnorderedTaskSequence;
 
+OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector<Robot> robots) {
+  std::ifstream ifs(path);
+  json jf = json::parse(ifs);
+
+  OrderedTaskSequence seq;
+  for (const auto &item : jf["tasks"].items()) {
+    const std::string primitive = item.value()["primitive"];
+    const std::string object = item.value()["object"];
+    const std::vector<std::string> robot_prefixes = item.value()["robots"];
+
+    RobotTaskPair rtp;
+    for (const auto &prefix: robot_prefixes){
+      for (const auto &robot: robots){
+        if (robot.prefix == prefix){
+          rtp.robots.push_back(robot);
+          break;
+        }
+      }
+    }
+    rtp.task.object = std::stoi(object);
+    if (primitive == "handover") {
+      rtp.task.type = TaskType::handover;
+    } else if (primitive == "pick") {
+      rtp.task.type = TaskType::pick;
+    } else {
+      spdlog::error("No task specified.");
+    }
+
+    seq.push_back(rtp);
+  }
+
+  return seq;
+}
+
 struct ComputeStatistics {
   double total_compute_time;
 

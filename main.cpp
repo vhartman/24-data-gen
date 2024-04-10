@@ -200,78 +200,6 @@ Plan plan_multiple_arms_squeaky_wheel(rai::Configuration &C,
   return {};
 }
 
-OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector<Robot> robots) {
-  std::ifstream ifs(path);
-  json jf = json::parse(ifs);
-
-  OrderedTaskSequence seq;
-  for (const auto &item : jf["tasks"].items()) {
-    const std::string primitive = item.value()["primitive"];
-    const std::string object = item.value()["object"];
-    const std::vector<std::string> robot_prefixes = item.value()["robots"];
-
-    RobotTaskPair rtp;
-    for (const auto &prefix: robot_prefixes){
-      for (const auto &robot: robots){
-        if (robot.prefix == prefix){
-          rtp.robots.push_back(robot);
-          break;
-        }
-      }
-    }
-    rtp.task.object = std::stoi(object);
-    if (primitive == "handover") {
-      rtp.task.type = TaskType::handover;
-    } else if (primitive == "pick") {
-      rtp.task.type = TaskType::pick;
-    } else {
-      spdlog::error("No task specified.");
-    }
-
-    seq.push_back(rtp);
-  }
-
-  return seq;
-}
-
-// OrderedTaskSequence load_sequence(const std::string &path) {
-//   std::ifstream file(path); // Open the file
-
-//   std::string line;
-//   while (std::getline(file, line)) {
-//     std::cout << line << std::endl;
-//   }
-
-//   std::regex regex("\\((.*?)\\)"); // Regular expression to match parentheses
-//                                    // and their contents
-//   std::smatch match;
-
-//   while (std::regex_search(line, match, regex)) {
-//     std::cout << "Group: " << match[1] << std::endl;
-
-//     std::istringstream iss(match[1]);
-//     std::string token;
-//     std::vector<std::string> tokens;
-
-//     while (std::getline(iss, token, ';')) {
-//         tokens.push_back(token);
-//     }
-
-//     // Print the tokens
-//     for (const auto& t : tokens) {
-//         std::cout << t << std::endl;
-//     }
-
-
-//     line = match.suffix();
-//   }
-
-//   file.close();
-
-//   OrderedTaskSequence seq;
-//   return seq;
-// }
-
 bool check_sequence_validity(const OrderedTaskSequence &seq, const RobotTaskPoseMap &rtpm){
   uint cnt = 0;
   for (const auto &rtp: seq){
@@ -510,6 +438,11 @@ int main(int argc, char **argv) {
 
   if (mode == "perf_test"){
     vacuum_gripper_keyframe_perf_test();
+    return 0;
+  }
+
+  if (mode == "run_test_folder"){
+    run_all_test_problems_from_folder("./in/test_problems/");
     return 0;
   }
 

@@ -230,7 +230,7 @@ compute_pick_and_place_positions(rai::Configuration C,
           }
           if (!res2->isFeasible) {
             std::stringstream ss;
-            res2->writeDetails(std::cout, cp.C);
+            res2->writeDetails(ss, cp.C);
             spdlog::debug(ss.str());
           }
           // komo.pathConfig.watch(true);

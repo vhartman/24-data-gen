@@ -4,10 +4,10 @@
 #include <Kin/kin.h>
 
 #include "types.h"
+#include "plan.h"
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
 using json = nlohmann::json;
-
 
 void setActive(rai::Configuration &C,
                const std::vector<std::string> &prefixes) {
