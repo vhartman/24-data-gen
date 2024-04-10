@@ -1,17 +1,17 @@
-Include: '../../rai-robotModels/ur5/ur5e.g'
+Include: '../../../rai-robotModels/ur5/ur5e.g'
 
 # add robotiq
-#Include: '../../rai-robotModels/robotiq/robotiq.g'
-#Edit robotiq_base (wrist_3_joint) { Q:[0 0 .05] }
+Include: '../../../rai-robotModels/robotiq/robotiq.g'
+Edit robotiq_base (wrist_3_joint) { Q:[0 0 .05] }
 
 # filling the hole
-gripper_fill (wrist_3_joint){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.17 .021], contact:-1}
+#gripper_fill (wrist_3_joint){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.1 .031]}
 
 # pen
-pen_tip (wrist_3_joint){ 
+pen_tip (robotiq_base){ 
     shape:sphere,
     color:[.9, 0, 0 ,1], 
-    Q:<t(.0 0.0 0.135)>,
+    Q:<t(.0 0.0 .15)>,
     size:[0.005],
     contact:0
 }

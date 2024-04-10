@@ -37,7 +37,7 @@ void setRobotJointState() {}
 std::vector<Robot>
 make_robot_environment_from_config(rai::Configuration &C,
                                    const std::string &config_file_path) {
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   std::ifstream ifs(config_file_path);
   json jf = json::parse(ifs);
@@ -61,11 +61,11 @@ make_robot_environment_from_config(rai::Configuration &C,
     std::string robot = item.value()["type"];
     rai::Frame *a;
     if (robot == "ur5_gripper") {
-      a = C.addFile("./in/ur5.g");
+      a = C.addFile("./in/robots/ur5.g");
     } else if (robot == "ur5_vacuum") {
-      a = C.addFile("./in/ur5_vacuum.g");
+      a = C.addFile("./in/robots/ur5_vacuum.g");
     } else if (robot == "ur5_vacuum") {
-      a = C.addFile("./in/ur5_pen.g");
+      a = C.addFile("./in/robots/ur5_pen.g");
     }
 
     C.reconfigureRoot(a, true);
@@ -210,14 +210,14 @@ tub_lab_setting(rai::Configuration &C) {
   base->setPosition({0., 0., .5});
   base->setContact(0.);
 
-  C.addFile("./in/table.g");
+  C.addFile("./in/robots/table.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
 
   std::vector<Robot> robots;
 
   for (uint i = 0; i < 2; i++) {
-    auto *a = C.addFile("./in/franka.g");
+    auto *a = C.addFile("./in/robots/franka.g");
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
 
@@ -241,7 +241,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
   base->setPosition({0., 0., .5});
   base->setContact(0.);
 
-  C.addFile("./in/table.g");
+  C.addFile("./in/robots/table.g");
 
   arrA basePos = {
       {-.5, -.35, 0.00}, {.5, -.35, 0.0}, {-.5, .55, 0.}, {.5, .55, 0.0}};
@@ -254,7 +254,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
 
   std::vector<Robot> robots;
   for (uint i = 0; i < n; i++) {
-    auto *a = C.addFile("./in/franka.g");
+    auto *a = C.addFile("./in/robots/franka.g");
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
 
@@ -282,7 +282,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
 
 std::vector<Robot>
 opposite_robot_configuration(rai::Configuration &C){
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   const arrA basePos = {{-.5, -.1, 0.00}, {.5, .1, 0.0}, {.0, .6, 0.15}};
 
@@ -295,7 +295,7 @@ opposite_robot_configuration(rai::Configuration &C){
 
   std::vector<Robot> robots;
   for (uint i = 0; i < 2; i++) {
-    auto *a = C.addFile("./in/franka.g");
+    auto *a = C.addFile("./in/robots/franka.g");
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
 
@@ -321,13 +321,13 @@ opposite_robot_configuration(rai::Configuration &C){
 
 std::vector<Robot>
 side_by_side_robot_configuration(rai::Configuration &C){
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
 
   std::vector<Robot> robots;
   for (uint i = 0; i < 2; i++) {
-    auto *a = C.addFile("./in/franka.g");
+    auto *a = C.addFile("./in/robots/franka.g");
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
 
@@ -355,9 +355,9 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
   for (uint i = 0; i < N; ++i) {
     rai::Frame *a;
     if (two_finger_gripper) {
-      a = C.addFile("./in/ur5.g");
+      a = C.addFile("./in/robots/ur5.g");
     } else {
-      a = C.addFile("./in/ur5_vacuum.g");
+      a = C.addFile("./in/robots/ur5_vacuum.g");
     }
     // auto *a = C.addFile("./in/franka.g");
     C.reconfigureRoot(a, true);
@@ -385,7 +385,7 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 
 std::vector<Robot>
 single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}};
 
@@ -398,7 +398,7 @@ single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=
 
 std::vector<Robot>
 two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}};
 
@@ -412,7 +412,7 @@ two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=tru
 
 std::vector<Robot>
 opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/floor.g");
+  C.addFile("./in/robots/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
 
@@ -624,7 +624,7 @@ void pick_and_place(rai::Configuration &C) {
   base->setPosition({0., 0., .5});
   base->setContact(0.);
 
-  C.addFile("./in/table_pick_place.g");
+  C.addFile("./in/robots/table_pick_place.g");
 
   const arrA basePos = {{-.5, -.1, 0.00}, {.5, .1, 0.0}, {.0, .6, 0.15}};
 
@@ -636,7 +636,7 @@ void pick_and_place(rai::Configuration &C) {
   };
 
   for (uint i = 0; i < 2; i++) {
-    auto *a = C.addFile("./in/franka.g");
+    auto *a = C.addFile("./in/robots/franka.g");
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
 

@@ -1,11 +1,45 @@
-Include: '../../rai-robotModels/ur5/ur5e.g'
+Include: '../../../rai-robotModels/panda/panda_spherized.g'
+
+## zero position
+
+Edit panda_joint2 { q= -.5 }
+Edit panda_joint4 { q= -2 }
+# delete original gripper   
+ 
+Delete panda_link8>panda_hand_joint
+Delete panda_hand_joint
+Delete panda_hand_1
+Delete panda_hand_0
+Delete panda_hand>panda_finger_joint1
+Delete panda_hand>panda_finger_joint2
+Delete panda_finger_joint1
+Delete panda_finger_joint2
+Delete panda_leftfinger_1   
+Delete panda_leftfinger_0
+Delete panda_rightfinger_1  
+Delete panda_rightfinger_0
+Delete panda_coll_hand
+Delete panda_coll_finger1
+Delete panda_coll_finger2   
+
+Delete gripper
+Delete palm
+Delete finger1
+Delete finger2
+
+#gripper (panda_joint7){
+#    shape:sphere, size:[.03]
+#    Q:<t(.11 0.0 .0)>
+#    contact:0 
+#    color:[1.0,0.5,0.5,1.0]
+#}
 
 # add robotiq
-Include: '../../rai-robotModels/robotiq/robotiq.g'
-Edit robotiq_base (wrist_3_joint) { Q:[0 0 .05] }
+Include: '../../../rai-robotModels/robotiq/robotiq.g'
+Edit robotiq_base (panda_joint8) { Q:[0 0 .05] }
 
 # filling the hole
-#gripper_fill (wrist_3_joint){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.1 .031]}
+gripper_fill (panda_joint8){ shape:cylinder, color:[.1, .1, .1 ,1], size:[.1 .031]}
 
 # pen
 pen (robotiq_base){ 
@@ -21,12 +55,7 @@ pen_tip (pen){
     color:[.9, 0, 0 ,1], 
     Q:<t(.0 0.0 .05)>,
     size:[0.005],
-    contact:0
-}
-
-pen_tip_marker (pen_tip){
-    shape: marker,
-    size:[0.05]
+    contact:1
 }
 
 #gripper (panda_joint7){
