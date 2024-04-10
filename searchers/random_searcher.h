@@ -84,7 +84,7 @@ Plan plan_multiple_arms_random_search(
         best_plan = plan;
 
         if (global_params.export_images){
-          const std::string image_path = "./out/" + buffer.str() + "/" + std::to_string(i) + "/img/";
+          const std::string image_path = global_params.output_path + buffer.str() + "/" + std::to_string(i) + "/img/";
           visualize_plan(C, best_plan, global_params.allow_display, image_path);
         }
         else{
