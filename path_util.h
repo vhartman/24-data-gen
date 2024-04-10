@@ -64,10 +64,35 @@ double corput(int n, const int base = 2) {
   return q;
 }
 
-const double pathLength(const arr &path) {
+// compute path length while considering periodic dimensions
+const double path_length(const rai::Configuration &C, const arr &path, const bool inf_norm=true) {
   double cost = 0.;
+  auto periodicDimensions = std::vector<bool>(C.getJointState().N, false);
+
+  for (auto *j : C.activeJoints) {
+    if (j->type == rai::JT_hingeX || j->type == rai::JT_hingeY ||
+        j->type == rai::JT_hingeZ) {
+      periodicDimensions[j->qIndex] = true;
+    }
+  }
+
   for (uint i = 0; i < path.d0 - 1; ++i) {
-    cost += length(path[i] - path[i + 1]);
+    arr delta = path[i] - path[i+1];
+
+    for (uint l = 0; l < delta.N; ++l) {
+      if (periodicDimensions[l]) {
+        // this is an angular joint -> we need to check the other direction
+        const double start = path[i](l);
+        const double end = path[i+1](l);
+        delta(l) = std::fmod(start - end + 3. * RAI_PI, 2 * RAI_PI) - RAI_PI;
+      }
+    }
+
+    if (!inf_norm) {
+      cost += length(delta);
+    } else {
+      cost += absMax(delta);
+    }
   }
 
   return cost;
@@ -90,7 +115,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   }*/
 
   std::vector<double> costs;
-  costs.push_back(pathLength(initialPath));
+  costs.push_back(path_length(TP.C, initialPath));
 
   const uint max_iter = 100;
   // const uint resolution = 2;
@@ -122,10 +147,10 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     auto p = constructShortcutPath(TP.C, smoothedPath, i, j, {});
     auto ps = constructShortcutPath(TP.C, smoothedPath, i, j, ind);
 
-    const double len = pathLength(ps);
+    const double len = path_length(TP.C, ps);
 
     // if the path length of the shortcut path is not shorter than the original one, don't consider it
-    if (pathLength(p) <= len){
+    if (path_length(TP.C, p) <= len){
       continue;
     }
 
@@ -178,7 +203,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
       }
     }
 
-    const auto c = pathLength(smoothedPath);
+    const auto c = path_length(TP.C, smoothedPath);
     costs.push_back(c);
 
     // proxy measure for convergence
@@ -206,13 +231,48 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   }
 
   TimedPath tp(path, ts);
-  const arr scaled_path = tp.resample(scaled_ts, C);
+  arr scaled_path = tp.resample(scaled_ts, C);
+  // const arr scaled_path = tmp;
+
+   // correct path for periodic stuff - komo does not deal well with transition from -pi to pi
+  auto periodicDimensions = std::vector<bool>(C.getJointState().N, false);
+
+  for (auto *j: C.activeJoints){
+    if (j->type == rai::JT_hingeX || j->type == rai::JT_hingeY|| j->type == rai::JT_hingeZ){
+      periodicDimensions[j->qIndex] = true;
+    }
+  }
+
+  arr tmp(scaled_path.d0, scaled_path.d1);
+  tmp = 0;
+  tmp[0] = scaled_path[0]();
+
+  for (uint i=0; i<scaled_path.d0-1; ++i){
+    const arr p1 = scaled_path[i]();
+    const arr p2 = scaled_path[i+1]();
+    arr delta = p2 - p1;
+    for (uint j=0; j<delta.N; ++j){
+      if (periodicDimensions[j]){
+        // this is an angular joint -> we need to check the other direction
+        const double start = p2(j);
+        const double end = p1(j);
+        delta(j) = std::fmod(start - end + 3.*RAI_PI, 2*RAI_PI) - RAI_PI;
+      }
+    }
+    
+    tmp[i+1] = tmp[i] + delta;
+    // std::cout << path[i] << std::endl;
+    // std::cout << tmp[i] << std::endl;
+  }
+
+  scaled_path = tmp;
 
   OptOptions options;
   options.stopIters = 50;
-  options.damping = 1e-3;
+  // options.damping = 10;
   // options.stopTolerance = 0.1;
   options.allowOverstep = false;
+  // options.nonStrictSteps = 100;
   // options.maxStep = 0.01;
 
   auto pairs = get_cant_collide_pairs(C);
@@ -226,6 +286,11 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.setTiming(1., num_timesteps, 5, 2);
   komo.world.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
+  // komo.animateOptimization = 3;
+
+  auto komo_pairs = get_cant_collide_pairs(komo.world);
+  komo.world.fcl()->deactivatePairs(komo_pairs);
+
   komo.verbose = 0;
   komo.solver = rai::KS_sparse;
 
@@ -237,9 +302,11 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
 
   // komo.add_qControlObjective({}, 3, 1e-1);
 
-  komo.setConfiguration(-2, path[0]);
-  komo.setConfiguration(-1, path[0]);
-  komo.setConfiguration(0, path[0]);
+  setKomoToAnimation(komo, C, A, scaled_ts);
+
+  komo.setConfiguration(-2, scaled_path[0]);
+  komo.setConfiguration(-1, scaled_path[0]);
+  komo.setConfiguration(0, scaled_path[0]);
 
   // make pen tip go a way from the table
   const double offset = 0.1;
@@ -252,21 +319,20 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
 
   // position
   // komo.addObjective({0}, FS_qItself, {}, OT_eq, {1e1}, path[0]);
-  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e2}, path[-1]);
+  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[-1]);
+  komo.addObjective({0., 0.}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[0]);
 
   // speed
   // komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
   //                  1); // slow at beginning
-  komo.addObjective({.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
-                    1); // slow at end
+  // komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
+  //                   1); // slow at end
 
-  // acceleration
-  komo.addObjective({0.0, 0.05}, FS_qItself, {}, OT_eq, {1e1}, {},
+  // // acceleration
+  komo.addObjective({0.0, 0.03}, FS_qItself, {}, OT_eq, {1e1}, {},
                    2); // slow at beginning
-  komo.addObjective({.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
+  komo.addObjective({0.97, 1.}, FS_qItself, {}, OT_eq, {1e1}, {},
                     2); // slow at end
-
-  setKomoToAnimation(komo, C, A, scaled_ts);
 
   for (uint j = 0; j < num_timesteps; ++j) {
     // interpolate q
@@ -274,10 +340,31 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
     //const arr q = path[j*skip];
     const arr q = scaled_path[j];
     komo.setConfiguration(j, q);
+
+    // komo.addObjective({1. * j/num_timesteps}, FS_qItself, {}, OT_sos, {1e1}, q);
   }
+
+  // komo.addObjective({0.5}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[int(num_timesteps / 2)]);
 
   spdlog::debug("running komo");
   komo.run_prepare(0.0);
+
+  // std::cout << "A" <<std::endl;
+  // std::cout << komo.getPath_q(-1) << std::endl;
+  // std::cout << komo.getPath_q(-2) << std::endl;
+  // std::cout << komo.getPath_q(0) << std::endl;
+
+  // std::cout << "B" <<std::endl;
+  // std::cout << komo.pathConfig.getJointStateSlice(2) << std::endl;
+  // std::cout << scaled_path[0] << std::endl;
+
+  // std::cout << "A" <<std::endl;
+
+  // std::cout << komo.pathConfig.getJointStateSlice(num_timesteps) << std::endl;
+  // std::cout << scaled_path[-1] << std::endl;
+
+  // komo.pathConfig.watch(true);
+
   komo.run(options);
   spdlog::debug("done komo");
 
@@ -300,8 +387,8 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   }
   
   // force boundary conditions to be true
-  smooth[0] = path[0];
-  smooth[-1] = path[-1];
+  smooth[0] = scaled_path[0];
+  smooth[-1] = scaled_path[-1];
 
   TimedPath tp_smooth(smooth, scaled_ts);
   arr unscaled_path = tp_smooth.resample(ts, C);
