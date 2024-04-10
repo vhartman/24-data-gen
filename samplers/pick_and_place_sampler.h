@@ -77,7 +77,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
       komo.setDiscreteOpt(2);
-      // komo.animateOptimization = 2;
+      // komo.animateOptimization = 1;
 
       // komo.world.stepSwift();
 
@@ -87,6 +87,15 @@ compute_pick_and_place_positions(rai::Configuration C,
       const auto pen_tip = STRING(r.prefix << "pen_tip");
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
+
+      const arr obj_pos = C[obj]->getPosition();
+      const arr goal_pos = C[goal]->getPosition();
+      const arr r1_pos = C[STRING(r << "base")]->getPosition();
+
+      const double r1_z_rot = C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
+
+      const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
+      const double r1_goal_angle = std::atan2(goal_pos(1) -r1_pos(1), goal_pos(0) - r1_pos(0)) - r1_z_rot;
 
       Skeleton S = {
         //   {1., 1., SY_touch, {pen_tip, obj}},
@@ -106,7 +115,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       //                   OT_sos, {1e-1});
 
       komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
-                        {1e1});
+                        {5e1});
 
       komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
                         {1e1}, {-1.});
@@ -168,15 +177,24 @@ compute_pick_and_place_positions(rai::Configuration C,
         } else {
           komo.run_prepare(0.0001, false);
 
-          // TODO: set orientation to the direction of the object and the goal
+          // set orientation to the direction of the object and the goal
           // respectively
 
-          uint cnt = 0;
-          for (const auto aj: komo.pathConfig.activeJoints){
+          uint r1_cnt = 0;
+          for (const auto aj : komo.pathConfig.activeJoints) {
             const uint ind = aj->qIndex;
-            if(aj->frame->name.contains("shoulder_pan_joint")){
-              komo.x(ind) = cnt + j;
-              ++cnt;
+            if (aj->frame->name.contains("shoulder_pan_joint") &&
+                aj->frame->name.contains(r.prefix.c_str())) {
+              // komo.x(ind) = cnt + j;
+              if (r1_cnt == 0) {
+                // compute orientation for robot to face towards box
+                komo.x(ind) = r1_obj_angle + rnd.uni(-1, 1) * j / 10.;
+              }
+              if (r1_cnt == 1) {
+                // compute orientation for robot to face towards other robot
+                komo.x(ind) = r1_goal_angle + rnd.uni(-1, 1) * j / 10.;
+              }
+              ++r1_cnt;
             }
           }
 
@@ -213,6 +231,9 @@ compute_pick_and_place_positions(rai::Configuration C,
 
         if (res1->isFeasible && res2->isFeasible && ineq < 1. && eq < 1.) {
           rtpm[rtp].push_back({q0, q1});
+
+          // std::cout << q0 << std::endl;
+          // std::cout << q1 << std::endl;
 
           // komo.pathConfig.watch(true);
 

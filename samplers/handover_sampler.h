@@ -310,6 +310,10 @@ compute_handover_poses(rai::Configuration C,
 
             found_solution = true;
 
+            // std::cout << pick_pose << std::endl;
+            // std::cout << q1 << std::endl;
+            // std::cout << place_pose << std::endl;
+
             C.setJointState(home);
             break;
           } else {
