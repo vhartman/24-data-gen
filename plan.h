@@ -14,6 +14,8 @@
 
 #include "types.h"
 
+#include "config.h"
+
 using json = nlohmann::json;
 
 typedef std::vector<arr> TaskPoses;
@@ -355,7 +357,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   spdlog::info("exporting plan");
   // make folder
   const std::string folder =
-      "./out/" + base_folder + "/" + std::to_string(iteration) + "/";
+      global_params.output_path + base_folder + "/" + std::to_string(iteration) + "/";
   const int res = system(STRING("mkdir -p " << folder).p);
   (void)res;
 

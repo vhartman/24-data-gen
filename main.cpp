@@ -404,6 +404,10 @@ int main(int argc, char **argv) {
   const rai::String sequence_path =
       rai::getParameter<rai::String>("sequence_path", "./in/sequences/test.json"); // environment
 
+  const rai::String output_path =
+      rai::getParameter<rai::String>("output_path", "./out/");
+  global_params.output_path = std::string(output_path.p);
+
   const bool use_picks = 
       rai::getParameter<bool>("use_simple_picks", true);
 

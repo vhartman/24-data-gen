@@ -111,7 +111,7 @@ Plan plan_multiple_arms_simulated_annealing(
           best_plan = new_plan;
 
           const std::string image_path =
-              "./out/" + buffer.str() + "/" + std::to_string(i) + "/img/";
+              global_params.output_path + buffer.str() + "/" + std::to_string(i) + "/img/";
           visualize_plan(C, best_plan, true, image_path);
         }
       }

@@ -151,7 +151,7 @@ Plan plan_multiple_arms_greedy_random_search(
           prev_makespan = makespan;
 
           if (global_params.export_images){
-            const std::string image_path = "./out/" + buffer.str() + "/" + std::to_string(i) + "/img/";
+            const std::string image_path = global_params.output_path + buffer.str() + "/" + std::to_string(i) + "/img/";
             visualize_plan(C, best_plan, global_params.allow_display, image_path);
           }
           else{
@@ -168,7 +168,7 @@ Plan plan_multiple_arms_greedy_random_search(
         }
       } else {
         const std::string folder =
-            "./out/" + buffer.str() + "/" + std::to_string(iter) + "/";
+            global_params.output_path + buffer.str() + "/" + std::to_string(iter) + "/";
         const int res = system(STRING("mkdir -p " << folder).p);
         (void)res;
 

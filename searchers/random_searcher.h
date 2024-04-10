@@ -32,7 +32,6 @@ Plan plan_multiple_arms_random_search(
 
   auto start_time = std::chrono::high_resolution_clock::now();
 
-
   OrderedTaskSequence best_seq;
   Plan best_plan;
   double best_makespan = 1e6;
