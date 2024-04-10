@@ -627,35 +627,35 @@ int main(int argc, char **argv) {
   }
 
   // stippling
-  if (!plan_pick_and_place) {
-    const arr pts = get_stippling_scenario(stippling_scenario);
-    if (pts.N == 0) {
-      return 0;
-    }
+  // if (!plan_pick_and_place) {
+  //   const arr pts = get_stippling_scenario(stippling_scenario);
+  //   if (pts.N == 0) {
+  //     return 0;
+  //   }
 
-    if (verbosity > 0) {
-      drawPts(C, pts);
-    }
+  //   if (verbosity > 0) {
+  //     drawPts(C, pts);
+  //   }
 
-    // maps [robot] to [index, pose]
-    spdlog::info("Computing stippling poses");
-    robot_task_pose_mapping = compute_stippling_poses_for_arms(C, pts, robots);
-  } else {
-    // bin picking
-    spdlog::info("Computing pick and place poses");
+  //   // maps [robot] to [index, pose]
+  //   spdlog::info("Computing stippling poses");
+  //   robot_task_pose_mapping = compute_stippling_poses_for_arms(C, pts, robots);
+  // } else {
+  // bin picking
+  spdlog::info("Computing pick and place poses");
 
-    // merge both maps
-    if (use_picks){
-      RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
-      robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
-    }
-    if (use_handovers) {
-      RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
-      robot_task_pose_mapping.insert(handover_rtpm.begin(),
-                                     handover_rtpm.end());
-    }
-    spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
+  // merge both maps
+  if (use_picks){
+    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+    robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
   }
+  if (use_handovers) {
+    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+    robot_task_pose_mapping.insert(handover_rtpm.begin(),
+                                    handover_rtpm.end());
+  }
+  spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
+  // }
 
   // initial test
   if (mode == "test") {
