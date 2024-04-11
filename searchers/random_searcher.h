@@ -46,6 +46,10 @@ Plan plan_multiple_arms_random_search(
 
     const auto seq = generate_random_valid_sequence(robots, num_tasks, rtpm);
 
+    if (seq.size() == 0){
+      return Plan();
+    }
+
     const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
     std::cout << "LB for sequence " << lb << std::endl;
     for (auto s : seq) {

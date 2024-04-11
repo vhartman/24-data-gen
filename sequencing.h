@@ -148,7 +148,10 @@ generate_random_valid_sequence(const std::vector<Robot> &robots,
     }
     else{
       spdlog::error("No action available for object {}", task_index);
+      return {};
     }
+
+    ++cnt;
   }
 
   return seq;

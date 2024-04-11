@@ -67,6 +67,10 @@ bool run_test_problem_from_files(const std::string &env_path,
                                          robot_task_pose_mapping);
   }
 
+  if (seq.size() == 0){
+    return false;
+  }
+
   const std::unordered_map<Robot, arr> home_poses =
       get_robot_home_poses(robots);
   // run_planning_problem();
@@ -183,8 +187,8 @@ void two_arms_two_finger_keyframe_test(const bool show = false, const bool expor
 
   const auto rtpm = compute_pick_and_place_positions(C, robots);
 
-  assert(rtpm.size() == num_objects * 2);
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2);
+  assert(rtpm.size() == num_objects * 2);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
@@ -220,8 +224,8 @@ void three_arms_two_finger_keyframe_test(const bool show = false, const bool exp
 
   const auto rtpm = compute_pick_and_place_positions(C, robots);
 
-  assert(rtpm.size() == num_objects * 3);
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 3);
+  assert(rtpm.size() == num_objects * 3);
 
   for (const auto &r : rtpm) {
     // we should get feasible poses for all the robots in this setting
