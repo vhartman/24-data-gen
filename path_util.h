@@ -102,9 +102,9 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
                      const uint t0) {
   spdlog::info("Starting shortcutting");
   // We do not currently support preplaned frames here
-  if (TP.A.prePlannedFrames.N != 0) {
-    return initialPath;
-  }
+  // if (TP.A.prePlannedFrames.N != 0) {
+  //   return initialPath;
+  // }
 
   TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
@@ -113,6 +113,9 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     TP.query(smoothedPath[i], t0 + i);
     TP.C.watch(true);
   }*/
+
+  // hack, since I didnt wanna move my projection method
+  PathFinder_RRT_Time planner(TP);
 
   std::vector<double> costs;
   costs.push_back(path_length(TP.C, initialPath));
@@ -125,10 +128,17 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   for (uint k = 0; k < max_iter; ++k) {
     // choose random indices
     int i, j;
-    do {
+    while (true) {
       i = rand() % initialPath.d0;
       j = rand() % initialPath.d0;
-    } while (abs(j - i) <= 1);
+      if (abs(j - i) > 1 &&
+          (TP.A.prePlannedFrames.N == 0 ||
+           (TP.A.prePlannedFrames.N > 0 &&
+            ((i >= TP.A.tPrePlanned - t0 && j >= TP.A.tPrePlanned - t0) ||
+             (i <= TP.A.tPrePlanned - t0 && j <= TP.A.tPrePlanned - t0))))) {
+        break;
+      }
+    }
 
     if (i > j) {
       std::swap(i, j);
@@ -146,6 +156,23 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     // construct the new path
     auto p = constructShortcutPath(TP.C, smoothedPath, i, j, {});
     auto ps = constructShortcutPath(TP.C, smoothedPath, i, j, ind);
+    
+    if (TP.A.prePlannedFrames.N > 0){
+      // std::cout << t0 << " " << i << " " << j << std::endl;
+      // std::cout << TP.A.tPrePlanned << std::endl;
+      // for (const auto f: TP.A.prePlannedFrames) std::cout << f->name << std::endl;
+      for (uint n=0; n<ps.d0; ++n){
+        // project path
+        if (t0 + i + n <= TP.A.tPrePlanned){
+          const arr pProjected = planner.projectToManifold(ps[n], t0 + i + n);
+          ps[n] = pProjected*1.;
+        }
+
+        // planner.TP.C.setJointState(ps[n]);
+        // TP.query(ps[n], t0 + i + n);
+        // if (TP.A.prePlannedFrames.N != 0) planner.TP.C.watch(true);
+      }
+    }
 
     const double len = path_length(TP.C, ps);
 
@@ -222,6 +249,10 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
 // mostly due to the necessary collision checks that are done
 arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
               const arr &path, const std::string prefix) {
+  if (A.prePlannedFrames.N != 0) {
+    return path;
+  }
+
   const double skip = 1;
   const uint num_timesteps = ts.N / skip;
 
@@ -298,8 +329,8 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.add_collision(true, 0.1, 1e2);
   komo.add_jointLimits(true, 0., 1e1);
 
-  komo.add_qControlObjective({}, 2, 1e0);
-  komo.add_qControlObjective({}, 1, 1e0);
+  komo.add_qControlObjective({}, 2, 1e1);
+  komo.add_qControlObjective({}, 1, 1e1);
 
   // komo.add_qControlObjective({}, 3, 1e-1);
 
@@ -324,12 +355,12 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.addObjective({0., 0.}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[0]);
 
   // speed
-  komo.addObjective({0.0, 0.01}, FS_qItself, {}, OT_eq, {1e0}, {},
+  komo.addObjective({0.0, 0.00}, FS_qItself, {}, OT_eq, {1e0}, {},
                    1); // slow at beginning
-  komo.addObjective({0.99, 1.}, FS_qItself, {}, OT_eq, {1e0}, {},
+  komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e0}, {},
                     1); // slow at end
 
-  // // acceleration
+  // acceleration
   komo.addObjective({0.0, 0.01}, FS_qItself, {}, OT_eq, {1e0}, {},
                    2); // slow at beginning
   komo.addObjective({0.99, 1.}, FS_qItself, {}, OT_eq, {1e0}, {},

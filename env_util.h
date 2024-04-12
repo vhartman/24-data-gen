@@ -60,12 +60,16 @@ make_robot_environment_from_config(rai::Configuration &C,
 
     std::string robot = item.value()["type"];
     rai::Frame *a;
+    EndEffectorType ee;
     if (robot == "ur5_gripper") {
       a = C.addFile("./in/robots/ur5.g");
+      ee = EndEffectorType::two_finger;
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_vacuum.g");
+      ee = EndEffectorType::vacuum;
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_pen.g");
+      ee = EndEffectorType::vacuum;
     }
 
     C.reconfigureRoot(a, true);
@@ -118,6 +122,7 @@ make_robot_environment_from_config(rai::Configuration &C,
 
     robots.push_back(Robot(prefix.p, RobotType::ur5, vmax));
     robots.back().home_pose = home_pose;
+    robots.back().ee_type = ee;
 
     ++cnt;
   }
@@ -229,6 +234,8 @@ tub_lab_setting(rai::Configuration &C) {
 
     robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().ee_type = EndEffectorType::two_finger;
+
   }
 
   return robots;
@@ -275,6 +282,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
 
     robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().ee_type = EndEffectorType::two_finger;
   }
 
   return robots;
@@ -313,7 +321,8 @@ opposite_robot_configuration(rai::Configuration &C){
     C.setJointState(state);
 
     robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
-    robots.back().home_pose = C.getJointState();
+    robots.back().home_pose = C.getJointState();    
+    robots.back().ee_type = EndEffectorType::two_finger;
   }
 
   return robots;
@@ -339,6 +348,7 @@ side_by_side_robot_configuration(rai::Configuration &C){
 
     robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().ee_type = EndEffectorType::two_finger;
   }
 
   return robots;
@@ -354,10 +364,13 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 
   for (uint i = 0; i < N; ++i) {
     rai::Frame *a;
+    EndEffectorType ee;
     if (two_finger_gripper) {
       a = C.addFile("./in/robots/ur5.g");
+      ee = EndEffectorType::two_finger;
     } else {
       a = C.addFile("./in/robots/ur5_vacuum.g");
+      ee = EndEffectorType::vacuum;
     }
     // auto *a = C.addFile("./in/franka.g");
     C.reconfigureRoot(a, true);
@@ -378,6 +391,7 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 
     robots.push_back(Robot(prefix.p, RobotType::ur5, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().ee_type = ee;
   }
 
   return robots;

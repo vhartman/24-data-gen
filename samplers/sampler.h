@@ -98,7 +98,12 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
 
   OptOptions options;
   options.allowOverstep = true;
-  options.maxStep = 5;
+  options.nonStrictSteps = 500;
+  options.damping = 10;
+
+  options.stopIters = 200;
+  options.wolfe = 0.001;
+  options.maxStep = 0.5;
 
   RobotTaskPoseMap rtpm;
 
@@ -110,6 +115,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
       setActive(C, std::vector<Robot>{r1, r2});
       setActive(cp.C, std::vector<Robot>{r1, r2});
 
+      // needs to be done to update the limits after changin the active joints
       cp.limits = cp.C.getLimits();
 
       for (uint i = 0; i < num_objects; ++i) {
@@ -165,10 +171,10 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
         //                   OT_sos, {1e1});
 
-        komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, STRING(obj)},
-                          OT_ineq, {1e1});
-        komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, STRING(obj)},
-                          OT_ineq, {1e1});
+        komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj},
+                          OT_ineq, {5e1});
+        komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, obj},
+                          OT_ineq, {5e1});
 
         // const double margin = 0.1;
         // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
@@ -184,10 +190,10 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         //                   OT_ineq, {1e1}, {margin, margin, margin});
 
         komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, r1_pen_tip},
-                          OT_sos, {1e0}, {-1.});
+                          OT_sos, {1e1}, {-1.});
 
         komo.addObjective({3., 3.}, FS_scalarProductZZ, {obj, r2_pen_tip},
-                          OT_sos, {1e0}, {-1.});
+                          OT_sos, {1e1}, {-1.});
 
         komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, "table"},
                           OT_eq, {1e0}, {1.});
@@ -198,11 +204,31 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         // komo.addObjective({2.}, FS_scalarProductYX, {obj, r2_pen_tip},
         //                   OT_sos, {1e0}, {1.});
 
-        komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip}, OT_eq,
-                          {1e1}, {1.});
+        if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
+          // x longer than y
+          spdlog::info("Trying to grab along x-axis");
+          if (r1.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({1., 2.}, FS_scalarProductXY, {obj, r1_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
 
-        komo.addObjective({3., 4.}, FS_scalarProductXY, {obj, r2_pen_tip}, OT_eq,
-                          {1e1}, {1.});
+
+          if (r2.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({3., 4.}, FS_scalarProductXY, {obj, r2_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
+        } else {
+          spdlog::info("Trying to grab along y-axis");
+          if (r1.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({1., 2.}, FS_scalarProductXX, {obj, r1_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
+
+          if (r2.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({3., 4.}, FS_scalarProductXX, {obj, r2_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
+        }
 
         // homing
         if (true) {
@@ -275,13 +301,13 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
             
             RobotTaskPair rtp_1;
             rtp_1.robots = {r1, r2};
-            rtp_1.task = Task{.object = i, .type = TaskType::pick_pick_1};
+            rtp_1.task = Task{.object = i, .type = PrimitiveType::pick_pick_1};
             rtpm[rtp_1].push_back(
                 {pick_pose, place_pose});
 
             RobotTaskPair rtp_2;
             rtp_2.robots = {r1, r2};
-            rtp_2.task = Task{.object = i, .type = TaskType::pick_pick_2};
+            rtp_2.task = Task{.object = i, .type = PrimitiveType::pick_pick_2};
             rtpm[rtp_2].push_back(
                 {pick_2_pose, place_2_pose});
 

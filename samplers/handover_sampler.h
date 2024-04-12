@@ -61,7 +61,7 @@ compute_handover_poses(rai::Configuration C,
 
         RobotTaskPair rtp;
         rtp.robots = {r1, r2};
-        rtp.task = Task{.object=i, .type=TaskType::handover};
+        rtp.task = Task{.object=i, .type=PrimitiveType::handover};
 
         KOMO komo;
         // komo.verbose = 5;
@@ -119,14 +119,14 @@ compute_handover_poses(rai::Configuration C,
         // komo.addObjective({1., 1.}, FS_aboveBox, {obj, r1_pen_tip}, OT_ineq, {1e2}, {0.0, 0.0, 0.0, 0.0});
         // komo.addObjective({2., 2.}, FS_aboveBox, {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-        komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
+        komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, obj},
                           OT_sos, {1e0});
-        komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
+        komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, obj},
                           OT_sos, {1e0});
 
-        komo.addObjective({1., 1.}, FS_insideBox, {r1_pen_tip, STRING(obj)},
+        komo.addObjective({1., 1.}, FS_insideBox, {r1_pen_tip, obj},
                           OT_ineq, {5e1});
-        komo.addObjective({2., 2.}, FS_insideBox, {r2_pen_tip, STRING(obj)},
+        komo.addObjective({2., 2.}, FS_insideBox, {r2_pen_tip, obj},
                           OT_ineq, {5e1});
 
         // const double margin = 0.1;
@@ -158,18 +158,26 @@ compute_handover_poses(rai::Configuration C,
         if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
           // x longer than y
           spdlog::info("Trying to grab along x-axis");
-          komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, r1_pen_tip},
-                            OT_eq, {1e1}, {1.});
+          if (r1.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, r1_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
 
-          komo.addObjective({2., 2.}, FS_scalarProductXX, {obj, r2_pen_tip},
-                            OT_eq, {1e1}, {1.});
+          if (r2.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({2., 2.}, FS_scalarProductXY, {obj, r2_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
         } else {
           spdlog::info("Trying to grab along y-axis");
-          komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, r1_pen_tip},
-                            OT_eq, {1e1}, {1.});
+          if (r1.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, r1_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
 
-          komo.addObjective({2., 2.}, FS_scalarProductXY, {obj, r2_pen_tip},
-                            OT_eq, {1e1}, {1.});
+          if (r2.ee_type == EndEffectorType::two_finger){
+            komo.addObjective({2., 2.}, FS_scalarProductXX, {obj, r2_pen_tip},
+                              OT_eq, {1e1}, {0.});
+          }
         }
 
         // homing

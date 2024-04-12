@@ -311,7 +311,7 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
       if (rtp.first.task.object == i &&
           robots[0] == available_robots[ind].first &&
           robots[1] == available_robots[ind].second &&
-          rtp.first.task.type == TaskType::pick_pick_1) {
+          rtp.first.task.type == PrimitiveType::pick_pick_1) {
         rtps.push_back({});
         rtps.back().push_back(rtp.first);
         // seq.push_back(rtp.first);
@@ -323,7 +323,7 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
       if (rtp.first.task.object == i &&
           robots[0] == available_robots[ind].first &&
           robots[1] == available_robots[ind].second &&
-          rtp.first.task.type == TaskType::pick_pick_2) {
+          rtp.first.task.type == PrimitiveType::pick_pick_2) {
         // seq.push_back(rtp.first);
         rtps.back().push_back(rtp.first);
       }
@@ -355,7 +355,6 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
 }
 
 // TODO:
-// - improve handover sampler
 // - constrained motion planning 
 
 int main(int argc, char **argv) {
@@ -535,7 +534,6 @@ int main(int argc, char **argv) {
     const auto test_sequence_for_repeated_manip = make_pick_pick_seq(robots, num_objects, rtpm);
 
     auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_repeated_manip, home_poses);
-    visualize_plan(C, plan.plan, true);
 
     std::time_t t = std::time(nullptr);
     std::tm tm = *std::localtime(&t);
@@ -544,6 +542,14 @@ int main(int argc, char **argv) {
     buffer << "repeated_pick_test_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
     export_plan(C, robots, home_poses, plan.plan, test_sequence_for_repeated_manip, buffer.str(), 0, 0);
+    
+    if (global_params.export_images){
+      const std::string image_path = global_params.output_path + buffer.str() + "/" + std::to_string(0) + "/img/";
+      visualize_plan(C, plan.plan, global_params.allow_display, image_path);
+    }
+    else{
+      visualize_plan(C, plan.plan, global_params.allow_display);
+    }
 
     return 0;
   }

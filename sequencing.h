@@ -171,7 +171,7 @@ generate_alternating_random_sequence(const std::vector<Robot> &robots,
       const uint task_index = available_tasks[rand() % available_tasks.size()];
       RobotTaskPair rtp;
       rtp.robots = {robots[r]};
-      rtp.task = Task{.object=task_index, .type=TaskType::pick};
+      rtp.task = Task{.object=task_index, .type=PrimitiveType::pick};
 
       // check if the task is feasible with the chosen robot
       if (rtpm.count(rtp) != 0) {
@@ -220,7 +220,7 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
     for (auto t : available_tasks) {
       RobotTaskPair rtp;
       rtp.robots = {robots[r]};
-      rtp.task = Task{.object=t, .type=TaskType::pick};
+      rtp.task = Task{.object=t, .type=PrimitiveType::pick};
 
       // check if a valid pose exists for the object/action pair
       if (rtpm.count(rtp) != 0) {
@@ -242,7 +242,7 @@ OrderedTaskSequence generate_alternating_greedy_sequence(
 
       // make pair
       spdlog::info("adding {} with index {}", robots[r].prefix, r);
-      seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=TaskType::pick}});
+      seq.push_back(RobotTaskPair{.robots={robots[r]}, .task=Task{.object=task_index, .type=PrimitiveType::pick}});
     }
     else{
       spdlog::info("not assigned task");
@@ -278,10 +278,10 @@ OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
 
       if (a == 0) {
         rtp.robots = {robots[r1]};
-        rtp.task = Task{.object = i, .type = TaskType::pick};
+        rtp.task = Task{.object = i, .type = PrimitiveType::pick};
       } else {
         rtp.robots = {robots[r1], robots[r2]};
-        rtp.task = Task{.object = i, .type = TaskType::handover};
+        rtp.task = Task{.object = i, .type = PrimitiveType::handover};
       }
 
       // check if the task is feasible with the chosen robot(s)

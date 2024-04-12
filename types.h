@@ -4,13 +4,14 @@
 #include <vector>
 #include <Core/array.h>
 
-enum class TaskType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
+enum class PrimitiveType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
 struct Task {
   unsigned int object;
-  TaskType type;
+  PrimitiveType type;
 };
 
 enum class RobotType { ur5, kuka, pandas };
+enum class EndEffectorType { two_finger, vacuum, pen };
 class Robot {
 public:
   Robot(){};
@@ -25,6 +26,7 @@ public:
 
   std::string prefix;
   RobotType type;
+  EndEffectorType ee_type;
 
   arr home_pose;
   double vmax = 0.05;

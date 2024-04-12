@@ -73,7 +73,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       spdlog::info("Attempting to compute keyframes for robot {} and object {}", r.prefix, i);
       RobotTaskPair rtp;
       rtp.robots = {r};
-      rtp.task = Task{.object=i, .type=TaskType::pick};
+      rtp.task = Task{.object=i, .type=PrimitiveType::pick};
 
       KOMO komo;
       komo.verbose = 0;
@@ -118,21 +118,27 @@ compute_pick_and_place_positions(rai::Configuration C,
       // komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
       //                   OT_sos, {1e-1});
 
-      komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, STRING(obj)}, OT_ineq,
+      komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, obj},
+                          OT_sos, {1e0});
+
+      komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, obj}, OT_ineq,
                         {5e1});
 
       komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
                         {1e1}, {-1.});
 
-      if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
-        // x longer than y
-        spdlog::info("Trying to grab along x-axis");
-        komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip},
-                          OT_eq, {1e1}, {1.});
-      } else {
-        spdlog::info("Trying to grab along y-axis");
-        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip},
-                          OT_eq, {1e1}, {1.});
+      // only add the 'alignment' constaint if the end effector is a two-finger-gripper
+      if (r.ee_type == EndEffectorType::two_finger){
+        if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
+          // x longer than y
+          spdlog::info("Trying to grab along x-axis");
+          komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip},
+                            OT_eq, {1e1}, {0.});
+        } else {
+          spdlog::info("Trying to grab along y-axis");
+          komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip},
+                            OT_eq, {1e1}, {0.});
+        }
       }
 
       //   const double margin = 0.05;

@@ -8,6 +8,15 @@
 
 #include <experimental/filesystem>
 
+void report_test_result(const std::string& text, const bool success){
+  if (success){
+     std::cout << "\033[1;32m" << text << "\033[0m" << std::endl;
+  }
+  else{
+     std::cout << "\033[1;31m" << text << "\033[0m" << std::endl;
+  }
+}
+
 bool check_plan_validity(rai::Configuration C, const std::vector<Robot> robots,
                          const Plan &plan,
                          const std::unordered_map<Robot, arr> &home_poses) {
@@ -126,11 +135,11 @@ void run_all_test_problems_from_folder(const std::string &path) {
     const bool success =
         run_test_problem_from_files(env_file, obj_file, seq_file);
     if (!success) {
-      spdlog::error("Was not able to find a plan for the problem in {}"),
-          folder;
+      spdlog::error("Was not able to find a plan for the problem in {}", folder);
+      report_test_result("Failure", false);
     }
     else{
-      std::cout << "Success" << std::endl;
+      report_test_result("Success", true);
     }
   }
 }
@@ -172,6 +181,8 @@ void single_arm_two_finger_keyframe_test(const bool show = false,
       C.setJointState(initial_pose);
     }
   }
+
+  report_test_result("Success", true);
 }
 
 void two_arms_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
@@ -210,6 +221,8 @@ void two_arms_two_finger_keyframe_test(const bool show = false, const bool expor
       C.setJointState(initial_pose);
     }
   }
+
+  report_test_result("Success", true);
 }
 
 void three_arms_two_finger_keyframe_test(const bool show = false, const bool export_images = false) {
@@ -247,6 +260,7 @@ void three_arms_two_finger_keyframe_test(const bool show = false, const bool exp
       C.setJointState(initial_pose);
     }
   }
+  report_test_result("Success", true);
 }
 
 void two_arm_two_finger_handover_keyframe_test(const bool show = false, const bool export_images = false) {
@@ -292,6 +306,7 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = false, const bo
   }
 
   assert(rtpm.size() == 4);
+  report_test_result("Success", true);
 }
 
 void three_arm_two_finger_handover_keyframe_test(const bool show = false, const bool export_images = false) {

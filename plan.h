@@ -45,9 +45,9 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
     }
     rtp.task.object = std::stoi(object);
     if (primitive == "handover") {
-      rtp.task.type = TaskType::handover;
+      rtp.task.type = PrimitiveType::handover;
     } else if (primitive == "pick") {
-      rtp.task.type = TaskType::pick;
+      rtp.task.type = PrimitiveType::pick;
     } else {
       spdlog::error("No task specified.");
     }
