@@ -57,7 +57,26 @@ compute_handover_poses(rai::Configuration C,
       for (uint i = 0; i < num_objects; ++i) {
         spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
                      r2.prefix, i + 1);
-                    
+
+        const auto obj = STRING("obj" << i + 1);
+        const auto goal = STRING("goal" << i + 1);
+
+        const arr obj_pos = C[obj]->getPosition();
+        const arr goal_pos = C[goal]->getPosition();
+
+        const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
+        const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
+
+        // TODO: solve subproblems to check for feasibility.
+        // For now: hardcode the radius of the ur5
+        if (euclideanDistance(obj_pos, r1_pos) > 1. ||
+            euclideanDistance(goal_pos, r2_pos) > 1. ||
+            euclideanDistance(r1_pos, r2_pos) > 1. * 2){
+          spdlog::info("Skipping handover keyframe copmutation for obj {} and "
+                       "robots {}, {}",
+                       i + 1, r1.prefix, r2.prefix);
+          continue;
+        }
 
         RobotTaskPair rtp;
         rtp.robots = {r1, r2};
@@ -82,15 +101,6 @@ compute_handover_poses(rai::Configuration C,
 
         const auto r1_pen_tip = STRING(r1 << "pen_tip");
         const auto r2_pen_tip = STRING(r2 << "pen_tip");
-
-        const auto obj = STRING("obj" << i + 1);
-        const auto goal = STRING("goal" << i + 1);
-
-        const arr obj_pos = C[obj]->getPosition();
-        const arr goal_pos = C[goal]->getPosition();
-
-        const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
-        const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
 
         const double r1_z_rot = C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
         const double r2_z_rot = C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);

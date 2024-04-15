@@ -71,6 +71,25 @@ compute_pick_and_place_positions(rai::Configuration C,
     for (uint i = 0; i < num_objects; ++i) {
       // C.watch(true);
       spdlog::info("Attempting to compute keyframes for robot {} and object {}", r.prefix, i);
+
+      const auto obj = STRING("obj" << i + 1);
+      const auto goal = STRING("goal" << i + 1);
+
+      const arr obj_pos = C[obj]->getPosition();
+      const arr goal_pos = C[goal]->getPosition();
+
+      const arr r1_pos = C[STRING(r << "base")]->getPosition();
+
+      // TODO: solve subproblems to check for feasibility.
+      // For now: hardcode the radius of the ur5
+      if (euclideanDistance(obj_pos, r1_pos) > 1. ||
+          euclideanDistance(goal_pos, r1_pos) > 1.) {
+        spdlog::info("Skipping pick keyframe copmutation for obj {} and "
+                     "robot {}",
+                     i + 1, r.prefix);
+        continue;
+      }
+
       RobotTaskPair rtp;
       rtp.robots = {r};
       rtp.task = Task{.object=i, .type=PrimitiveType::pick};
@@ -89,12 +108,6 @@ compute_pick_and_place_positions(rai::Configuration C,
       komo.add_jointLimits(true, 0., 1e1);
 
       const auto pen_tip = STRING(r.prefix << "pen_tip");
-      const auto obj = STRING("obj" << i + 1);
-      const auto goal = STRING("goal" << i + 1);
-
-      const arr obj_pos = C[obj]->getPosition();
-      const arr goal_pos = C[goal]->getPosition();
-      const arr r1_pos = C[STRING(r << "base")]->getPosition();
 
       const double r1_z_rot = C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
 

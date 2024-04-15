@@ -119,8 +119,28 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
       cp.limits = cp.C.getLimits();
 
       for (uint i = 0; i < num_objects; ++i) {
-        spdlog::info("computing pick and repick for {0}, {1}, obj {2}", r1.prefix,
-                     r2.prefix, i + 1);
+        spdlog::info("computing pick and repick for {0}, {1}, obj {2}",
+                     r1.prefix, r2.prefix, i + 1);
+
+        const auto obj = STRING("obj" << i + 1);
+        const auto goal = STRING("goal" << i + 1);
+
+        const arr obj_pos = C[obj]->getPosition();
+        const arr goal_pos = C[goal]->getPosition();
+
+        const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
+        const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
+
+        // TODO: solve subproblems to check for feasibility.
+        // For now: hardcode the radius of the ur5
+        if (euclideanDistance(obj_pos, r1_pos) > 1. ||
+            euclideanDistance(goal_pos, r2_pos) > 1. ||
+            euclideanDistance(r1_pos, r2_pos) > 1. * 2) {
+          spdlog::info("Skipping pickpick keyframe copmutation for obj {} and "
+                       "robots {}, {}",
+                       i + 1, r1.prefix, r2.prefix);
+          continue;
+        }
 
         KOMO komo;
         komo.verbose = 0;
@@ -134,9 +154,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
 
         const auto r1_pen_tip = STRING(r1 << "pen_tip");
         const auto r2_pen_tip = STRING(r2 << "pen_tip");
-
-        const auto obj = STRING("obj" << i + 1);
-        const auto goal = STRING("goal" << i + 1);
 
         Skeleton S = {
             {1., 2., SY_touch, {r1_pen_tip, obj}},
