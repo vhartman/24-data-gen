@@ -1,0 +1,15 @@
+name: C/C++ CI
+
+on:
+  push:    
+  pull_request:    
+
+jobs:
+  build:
+
+    runs-on: miguelzamoram/v_tamp
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: make
+      run: make
