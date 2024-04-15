@@ -2,6 +2,7 @@
 
 #include <random>
 #include <vector>
+#include <deque>
 
 #include "plan.h"
 #include "util.h"
@@ -116,42 +117,58 @@ generate_single_arm_sequence(const std::vector<Robot> &robots,
   return seq;
 }
 
+// Approach to generate a sequence from the primitives:
+// For all objects, collect available primitives, and choose one
+// Then shuffle the primitives, and add them to the sequence one by one
 OrderedTaskSequence
 generate_random_valid_sequence(const std::vector<Robot> &robots,
                                const uint num_tasks,
                                const RobotTaskPoseMap &rtpm) {
-  auto available_tasks = straightPerm(num_tasks);
-  OrderedTaskSequence seq;
-  uint cnt = 0;
-  while (available_tasks.size() > 0) {
-    // sample task
-    const uint task_index = available_tasks[rand() % available_tasks.size()];
-
-    // collect all the available actions for this task
-    std::vector<RobotTaskPair> available_actions_for_object;
-    for (auto e: rtpm){
-      if (e.first.task.object == task_index) {
-        available_actions_for_object.push_back(e.first);
+  std::vector<std::deque<RobotTaskPair>> sequence_of_primitives;
+  for (uint i=0; i<num_tasks; ++i){
+    // extract available primitives and choose one
+    std::vector<RobotTaskPair> available_primitives_for_object;
+    for (const auto &e: rtpm){
+      // we filter out pick_pick_2, because it is the second action of a 
+      // primitive
+      if (e.first.task.object == i &&
+          e.first.task.type != PrimitiveType::pick_pick_2) {
+        available_primitives_for_object.push_back(e.first);
       }
     }
 
-    // sample thing to do from the available actions
-    std::random_shuffle(std::begin(available_actions_for_object),
-                 std::end(available_actions_for_object));
+    const uint primitive_index = std::rand() % available_primitives_for_object.size();
+    const RobotTaskPair& primitive = available_primitives_for_object[primitive_index];
 
-    if (available_actions_for_object.size() > 0){
-      seq.push_back(available_actions_for_object[0]);
-
-      available_tasks.erase(
-          std::remove(available_tasks.begin(), available_tasks.end(), task_index),
-          available_tasks.end());
+    if (primitive.task.type != PrimitiveType::pick_pick_1){
+      sequence_of_primitives.push_back({primitive});
+      // sequence_of_primitives.back().push_back(primitive);
     }
     else{
-      spdlog::error("No action available for object {}", task_index);
-      return {};
+      sequence_of_primitives.push_back({primitive});
+      // search for pick_pick_2 and add it
+      for (const auto &rtp : rtpm) {
+        auto robots = rtp.first.robots;
+        if (rtp.first.task.object == i &&
+            robots[0] == primitive.robots[0] &&
+            robots[1] == primitive.robots[1] &&
+            rtp.first.task.type == PrimitiveType::pick_pick_2) {
+          sequence_of_primitives.back().push_back(rtp.first);
+        }
+      }
     }
+  }
 
-    ++cnt;
+  OrderedTaskSequence seq;
+  while(sequence_of_primitives.size() > 0){
+    const uint ind = std::rand() % sequence_of_primitives.size();
+    seq.push_back(sequence_of_primitives[ind].front());
+    sequence_of_primitives[ind].pop_front();
+
+    if (sequence_of_primitives[ind].size() == 0){
+      // delete element from vector
+      sequence_of_primitives.erase(sequence_of_primitives.begin() + ind);
+    }
   }
 
   return seq;

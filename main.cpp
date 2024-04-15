@@ -413,6 +413,9 @@ int main(int argc, char **argv) {
   const bool use_handovers = 
       rai::getParameter<bool>("use_handovers", true);
 
+  const bool use_repeated_picks = 
+      rai::getParameter<bool>("use_repeated_picks", true);
+
   const uint max_attempts = rai::getParameter<double>(
       "max_attempts", 1000);
 
@@ -659,6 +662,11 @@ int main(int argc, char **argv) {
     RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
     robot_task_pose_mapping.insert(handover_rtpm.begin(),
                                     handover_rtpm.end());
+  }
+  if (use_repeated_picks) {
+    RobotTaskPoseMap pick_pick_rtpm = compute_pick_and_place_with_intermediate_pose(C, robots);
+    robot_task_pose_mapping.insert(pick_pick_rtpm.begin(),
+                                    pick_pick_rtpm.end());
   }
   spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
   // }
