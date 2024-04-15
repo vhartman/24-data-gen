@@ -1,0 +1,31 @@
+name: C/C++ CI
+
+on:
+  push:    
+  pull_request:    
+
+jobs:
+    compile:
+        name: Compile Repo with dependencies
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repo
+            uses: actions/checkout@v3
+          - name: Run the build process with Docker
+            uses: addnab/docker-run-action@v3
+            with:
+                image: miguelzamoram/v_tamp
+                options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
+                run: |
+                    export FCL_PATH=/home/fcl/build
+                    cd /home/tamp/
+                    git clone https://github.com/vhartman/rai-manip.git 
+                    git clone https://github.com/vhartman/rai-robotModels.git
+                    git clone https://github.com/vhartman/rai.git rai-fork 
+                    cd /home/tamp/rai-fork 
+                    git checkout changes
+                    echo "Building rai"
+                    make
+                    echo "Building 24-data-gen"
+                    cd /home/tamp/24-data-gen/
+                    make                    
