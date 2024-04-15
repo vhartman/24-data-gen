@@ -24,6 +24,8 @@ jobs:
                     git clone https://github.com/vhartman/rai.git rai-fork 
                     cd /home/tamp/rai-fork 
                     git checkout changes
+                    echo "Building rai"
                     make
+                    echo "Building 24-data-gen"
                     cd /home/tamp/24-data-gen/
                     make                    
