@@ -17,13 +17,13 @@ jobs:
                 image: miguelzamoram/v_tamp
                 options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
                 run: |
-                    echo $PWD
                     export FCL_PATH=/home/fcl/build
-                    ls -la /home/fcl
                     cd /home/tamp/
-                    echo $PWD
-                    ls -la
                     git clone https://github.com/vhartman/rai-manip.git 
                     git clone https://github.com/vhartman/rai-robotModels.git
-                    git clone https://github.com/vhartman/rai.git rai-fork &&  cd rai-fork && git checkout changes
+                    git clone https://github.com/vhartman/rai.git rai-fork 
+                    cd /home/tamp/rai-fork 
+                    git checkout changes
+                    make
+                    cd /home/tamp/24-data-gen/
                     make                    
