@@ -375,7 +375,7 @@ compute_stippling_poses_for_arms(rai::Configuration &C, const arr &pts,
     }
     RobotTaskPair rtp;
     rtp.robots = {r};
-    rtp.task = Task{.object=0, .type=TaskType::go_to};
+    rtp.task = Task{.object=0, .type=PrimitiveType::go_to};
     rtpm[rtp] = tp;
   }
 
