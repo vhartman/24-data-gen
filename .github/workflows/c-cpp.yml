@@ -6,7 +6,7 @@ on:
 
 jobs:
     compile:
-        name: Compile site assets
+        name: Compile Repo with dependencies
         runs-on: ubuntu-latest
         steps:
           - name: Check out the repo
@@ -15,9 +15,13 @@ jobs:
             uses: addnab/docker-run-action@v3
             with:
                 image: miguelzamoram/v_tamp
-                options: -v ${{ github.workspace }}:/home/tamp
+                options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
                 run: |
                     echo $PWD
                     cd /home/tamp/
                     echo $PWD
                     ls -la
+                    git clone https://github.com/vhartman/rai-manip.git 
+                    git clone https://github.com/vhartman/rai-robotModels.git
+                    git clone https://github.com/vhartman/rai.git rai-fork &&  cd rai-fork && git checkout changes && cd .. 
+                    
