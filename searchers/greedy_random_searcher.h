@@ -4,6 +4,7 @@
 #include "planners/prioritized_planner.h"
 
 #include "search_util.h"
+#include "sequencing.h"
 
 Plan plan_multiple_arms_greedy_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,

@@ -13,7 +13,7 @@
 RobotTaskPoseMap
 compute_handover_poses(rai::Configuration C,
                        const std::vector<Robot> &robots) {
-  int num_objects = 0;
+  uint num_objects = 0;
   for (auto f : C.frames) {
     if (f->name.contains("obj")) {
       num_objects += 1;
@@ -95,8 +95,8 @@ compute_handover_poses(rai::Configuration C,
         const double r1_z_rot = C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
         const double r2_z_rot = C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
 
-        const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0));
-        const double r1_r2_angle = std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0));
+        const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
+        const double r1_r2_angle = std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0)) - r1_z_rot;
         const double r2_r1_angle = std::atan2(r1_pos(1) - r2_pos(1), r1_pos(0) - r2_pos(0)) - r2_z_rot;
         const double r2_goal_angle = std::atan2(goal_pos(1) -r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
 

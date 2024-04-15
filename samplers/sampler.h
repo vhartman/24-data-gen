@@ -80,7 +80,7 @@ class RobotTaskPoseSampler{
 
 RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
     rai::Configuration C, const std::vector<Robot> &robots) {
-  int num_objects = 0;
+  uint num_objects = 0;
   for (auto f : C.frames) {
     if (f->name.contains("obj")) {
       num_objects += 1;
@@ -155,26 +155,23 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
 
         komo.setSkeleton(S);
 
-        const double offset = 0.1;
-
+        // constraints for placing the object
         komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e0},
                           {-0.01});
         komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
                           {0.5});
- 
-        // komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
-        //                   {-offset});
+
+        // constraints for picking the object
+        komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj},
+                          OT_ineq, {5e1});
+        komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, obj},
+                          OT_ineq, {5e1});
 
         // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
         //                   OT_sos, {1e1});
 
         // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
         //                   OT_sos, {1e1});
-
-        komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj},
-                          OT_ineq, {5e1});
-        komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, obj},
-                          OT_ineq, {5e1});
 
         // const double margin = 0.1;
         // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
@@ -246,7 +243,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
           }
         }
 
-        bool found_solution = false;
         for (uint j = 0; j < 3; ++j) {
           if (j==0){
             komo.run_prepare(0.0, false);
@@ -310,9 +306,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
             rtp_2.task = Task{.object = i, .type = PrimitiveType::pick_pick_2};
             rtpm[rtp_2].push_back(
                 {pick_2_pose, place_2_pose});
-
-
-            found_solution = true;
 
             C.setJointState(home);
 

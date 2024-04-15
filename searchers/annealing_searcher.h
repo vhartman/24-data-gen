@@ -3,6 +3,7 @@
 #include "plan.h"
 #include "planners/prioritized_planner.h"
 #include "search_util.h"
+#include "sequencing.h"
 
 Plan plan_multiple_arms_simulated_annealing(
     rai::Configuration C, const RobotTaskPoseMap &rtpm,

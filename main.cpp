@@ -31,15 +31,14 @@
 #include "plan.h"
 
 #include "env_util.h"
-#include "path_util.h"
-#include "stippling.h"
+#include "planners/path_util.h"
+// #include "stippling.h"
 #include "util.h"
-
-#include "sequencing.h"
 
 #include "searchers/annealing_searcher.h"
 #include "searchers/greedy_random_searcher.h"
 #include "searchers/random_searcher.h"
+#include "searchers/sequencing.h"
 
 #include "planners/optimal_planner.h"
 #include "planners/planner.h"
@@ -115,12 +114,12 @@ void drawPts(rai::Configuration C, std::map<uint, arr> tmp,
   C.watch(true);
 }
 
-PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseMap &rtpm,
-    const OrderedTaskSequence &sequence, const std::unordered_map<Robot, arr> &home_poses){
-  CompoundTreePlanner ctp(C, sequence);
-  auto plan = ctp.plan();
-  return PlanResult(PlanStatus::failed);
-}
+// PlanResult plan_multiple_arms_jointly(rai::Configuration C, const RobotTaskPoseMap &rtpm,
+//     const OrderedTaskSequence &sequence, const std::unordered_map<Robot, arr> &home_poses){
+//   CompoundTreePlanner ctp(C, sequence);
+//   auto plan = ctp.plan();
+//   return PlanResult(PlanStatus::failed);
+// }
 
 Plan plan_multiple_arms_unsynchronized(rai::Configuration &C,
                                        const RobotTaskPoseMap &rtpm,
@@ -379,9 +378,6 @@ int main(int argc, char **argv) {
   const uint verbosity = rai::getParameter<double>(
       "verbosity", 2);
 
-  const bool plan_pick_and_place =
-      rai::getParameter<bool>("pnp", false); // pick and place yes/no
-
   const rai::String mode =
       rai::getParameter<rai::String>("mode", "two_finger_keyframes_test"); // mode
 
@@ -635,22 +631,6 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  // stippling
-  // if (!plan_pick_and_place) {
-  //   const arr pts = get_stippling_scenario(stippling_scenario);
-  //   if (pts.N == 0) {
-  //     return 0;
-  //   }
-
-  //   if (verbosity > 0) {
-  //     drawPts(C, pts);
-  //   }
-
-  //   // maps [robot] to [index, pose]
-  //   spdlog::info("Computing stippling poses");
-  //   robot_task_pose_mapping = compute_stippling_poses_for_arms(C, pts, robots);
-  // } else {
-  // bin picking
   spdlog::info("Computing pick and place poses");
 
   // merge both maps

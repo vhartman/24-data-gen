@@ -480,7 +480,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     const uint time_ub = t_earliest_feas + max_delta * (i);
 
     spdlog::info("RRT iteration {}, upper bound time {}", i, time_ub);
-    if (time_ub > time_ub_prev_found && time_ub_prev_found > 0) {
+    if (time_ub_prev_found > 0 && time_ub >= uint(time_ub_prev_found)) {
       spdlog::info("Aborting bc. faster path found");
       break;
     }
@@ -898,19 +898,22 @@ class PrioritizedTaskPlanner {
           setActive(CPlanner, r1);
           TP.A = A;
 
-          // TODO: manage start time properly
-          uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
-          const arr pick_start_pose = (paths.count(r1) > 0) ? paths[r1].back().path[-1]: CPlanner.getJointState();
+          const arr pick_start_pose = (removed_exit_path) ? paths[r1].back().path[-1]: CPlanner.getJointState();
           const arr pick_pose = rtpm[rtp][0][0];
 
-          // ensure that the start time is not too far away from the earliest end time.
-          // TODO: fix this computation - at the moment, it can happen that the start time becomes infeasible when the exit path is removed
-          // since we do not start planing from that time
+          // ensure that the start time is not too far away from the earliest end time:
+          uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
+
           if (removed_exit_path) {
+            // if we removed the exit path, we always need to start planning from that time.
+            // If we do not, other plans might become infeasible
             pick_start_time = paths[r1].back().t(-1);
           } else {
-            const int horizon = prev_finishing_time - pick_start_time;
-            if (horizon > max_start_time_shift) {
+            // ensure that the difference between the previous finish and the 
+            // start time of this plan is not too large.
+            // By definition, pick_start_time is smaller that prev_finishing_time
+            const uint time_diff = prev_finishing_time - pick_start_time;
+            if (time_diff > max_start_time_shift) {
               pick_start_time = prev_finishing_time - max_start_time_shift;
             }
           }

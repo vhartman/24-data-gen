@@ -37,7 +37,7 @@ compute_pick_and_place_positions(rai::Configuration C,
                                  const std::vector<Robot> &robots) {
   RobotTaskPoseMap rtpm;
 
-  int num_objects = 0;
+  uint num_objects = 0;
   for (auto f: C.frames){
     if (f->name.contains("obj")){
       num_objects += 1;

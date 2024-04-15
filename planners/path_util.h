@@ -147,9 +147,11 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     // choose which indices to shortcut
     std::vector<uint> ind;
     for (uint q = 0; q < smoothedPath.d1; ++q) {
-      const double r = 1. * rand() / RAND_MAX;
+      ind.push_back(q);
+
+      // const double r = 1. * rand() / RAND_MAX;
       //if (r > 1. / smoothedPath.d1) {
-        ind.push_back(q);
+        // ind.push_back(q);
       //}
     }
 
@@ -225,7 +227,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     // if path is valid, copy it over
     // we already know that it is shorter (from the check above)
     if (shortcutFeasible) {
-      for (uint n = 1; n < j - i; ++n) {
+      for (uint n = 1; n < ps.d0; ++n) {
         smoothedPath[i + n] = ps[n];
       }
     }

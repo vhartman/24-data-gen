@@ -623,7 +623,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
     std::unordered_map<Robot, std::vector<arr>> paths;
     for (uint i = 0; i < A.getT(); ++i) {
-      uint offset = 0;
       for (uint j = 0; j < robots.size(); ++j) {
         const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
         paths[robots[j]].push_back(pose);

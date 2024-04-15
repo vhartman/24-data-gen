@@ -71,6 +71,10 @@ make_robot_environment_from_config(rai::Configuration &C,
       a = C.addFile("./in/robots/ur5_pen.g");
       ee = EndEffectorType::vacuum;
     }
+    else{
+      spdlog::error("Invalid robot type");
+      return {};
+    }
 
     C.reconfigureRoot(a, true);
     a->linkFrom(C["table"]);
