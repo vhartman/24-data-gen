@@ -18,4 +18,6 @@ jobs:
                 options: -v ${{ github.workspace }}:/home/tamp
                 run: |
                     echo $PWD
+                    cd /home/tamp/
+                    echo $PWD
                     ls -la
