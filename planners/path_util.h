@@ -127,21 +127,22 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
   // const uint resolution = 5;
   for (uint k = 0; k < max_iter; ++k) {
     // choose random indices
-    int i, j;
+    uint i, j;
     while (true) {
       i = rand() % initialPath.d0;
-      j = rand() % initialPath.d0;
-      if (abs(j - i) > 1 &&
+      j = rand() % initialPath.d0; 
+
+      if (i > j) {
+        std::swap(i, j);
+      }
+     
+      if (j-i > 1 &&
           (TP.A.prePlannedFrames.N == 0 ||
            (TP.A.prePlannedFrames.N > 0 &&
             ((i >= TP.A.tPrePlanned - t0 && j >= TP.A.tPrePlanned - t0) ||
              (i <= TP.A.tPrePlanned - t0 && j <= TP.A.tPrePlanned - t0))))) {
         break;
       }
-    }
-
-    if (i > j) {
-      std::swap(i, j);
     }
 
     // choose which indices to shortcut
