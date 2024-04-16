@@ -29,15 +29,10 @@ jobs:
                     echo "Building 24-data-gen"
                     cd /home/tamp/24-data-gen/
                     make                    
-          - name: Push?
-            uses: docker/build-push-action@v2
-            with:
-              tags: test-container:latest
-              push: false
           - name: Run the benchmarks
             uses: addnab/docker-run-action@v3
             with:
-              image: test-container:latest
+              image: miguelzamoram/v_tamp
               options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
               run: |
                   cd /home/tamp/24-data-gen/
