@@ -29,12 +29,17 @@ jobs:
                     echo "Building 24-data-gen"
                     cd /home/tamp/24-data-gen/
                     make                    
+          - name: Push?
+            with:
+              tags: test-container:latest
+              push: false
           - name: Run the benchmarks
             uses: addnab/docker-run-action@v3
             with:
-                image: miguelzamoram/v_tamp
-                options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
-                run: |
-                    ./x.exe -mode benchmark_single_keyframe
-                    ./x.exe -mode benchmark_handover
-                    ./x.exe -mode benchmark_pick_pick
+              image: test-container:latest
+              options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
+              run: |
+                  cd /home/tamp/24-data-gen/
+                  ./x.exe -mode benchmark_single_keyframe
+                  ./x.exe -mode benchmark_handover
+                  ./x.exe -mode benchmark_pick_pick
