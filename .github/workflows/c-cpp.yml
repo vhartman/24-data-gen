@@ -30,7 +30,10 @@ jobs:
                     cd /home/tamp/24-data-gen/
                     make                    
           - name: Run the benchmarks
-            run: |
-                  ./x.exe -mode benchmark_single_keyframe
-                  ./x.exe -mode benchmark_handover
-                  ./x.exe -mode benchmark_pick_pick
+            with:
+                image: miguelzamoram/v_tamp
+                options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
+                run: |
+                    ./x.exe -mode benchmark_single_keyframe
+                    ./x.exe -mode benchmark_handover
+                    ./x.exe -mode benchmark_pick_pick
