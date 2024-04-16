@@ -47,6 +47,7 @@
 #include "samplers/sampler.h"
 #include "tests/perf_test.h"
 #include "tests/test.h"
+#include "tests/benchmark.h"
 
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
@@ -436,6 +437,21 @@ int main(int argc, char **argv) {
     break;
   default:
     break;
+  }
+
+  if (mode == "benchmark_single_keyframe"){
+    benchmark_single_arm_pick_and_place_success_rate(false, false);
+    return 0;
+  }
+
+  if (mode == "benchmark_handover"){
+    benchmark_dual_arm_handover_success_rate(false, false);
+    return 0;
+  }
+
+  if (mode=="benchmark_pick_pick"){
+    benchmark_dual_arm_pick_pick_success_rate(false, false);
+    return 0;
   }
 
   if (mode == "perf_test"){
