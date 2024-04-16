@@ -30,6 +30,7 @@ jobs:
                     cd /home/tamp/24-data-gen/
                     make                    
           - name: Run the benchmarks
+            uses: addnab/docker-run-action@v3
             with:
                 image: miguelzamoram/v_tamp
                 options: -v ${{ github.workspace }}:/home/tamp/24-data-gen/
