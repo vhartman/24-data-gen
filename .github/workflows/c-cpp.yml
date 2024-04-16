@@ -29,6 +29,13 @@ jobs:
                     echo "Building 24-data-gen"
                     cd /home/tamp/24-data-gen/
                     make                    
-                    ./x.exe -mode benchmark_single_keyframe
-                    ./x.exe -mode benchmark_handover
-                    ./x.exe -mode benchmark_pick_pick
+                    mkdir ./out/
+                    ./x.exe -mode benchmark_single_keyframe > ./out/pick_and_place_keyframe.txt
+                    ./x.exe -mode benchmark_handover > ./out/handover_keyframe.txt
+                    ./x.exe -mode benchmark_pick_pick > ./out/pick_pick_keyframe.txt
+          - name: Archive keyframe computation results
+            uses: actions/upload-artifact@v4
+            with:
+              name: Keyframes
+              path: |
+                out
