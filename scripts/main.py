@@ -5,6 +5,7 @@ import os
 import argparse
 
 plt.style.use('./scripts/paper_2.mplstyle')
+default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 def read_integer_from_file(filename):
     tmp = open(filename, "r")
@@ -32,6 +33,8 @@ def load_folder(folder, time_offset = 0, iter_offset = 0):
     return d
 
 def plot_folder(ax, foldername, color='tab:blue', single_point_length=None):
+    scale_factor = 60
+
     if type(foldername) == list:
         data = []
         time_offset = 0
@@ -60,13 +63,13 @@ def plot_folder(ax, foldername, color='tab:blue', single_point_length=None):
     #plt.plot(overall_min, ls='--', drawstyle="steps", color='tab:blue')
     
     #x = iters
-    x = np.array(x) / 60 / 60
+    x = np.array(x) / scale_factor
 
-    ax.plot(x, y, ls='--', drawstyle="steps-post", color=color)
+    ax.plot(x, y, ls='--', drawstyle="steps-post", color=color, label = foldername.split('/')[-1])
     ax.plot(x, overall_min, ls='-', drawstyle="steps-post", color=color)
 
     if single_point_length is not None:
-        ax.plot([0, single_point_length / 60 / 60], [overall_min[-1], overall_min[-1]], ls='-', drawstyle="steps-post", color=color)
+        ax.plot([0, single_point_length / scale_factor], [overall_min[-1], overall_min[-1]], ls='-', drawstyle="steps-post", color=color)
 
 def plot_grid_exp():
     fig = plt.figure()
@@ -102,7 +105,7 @@ def plot_bin_pick_exp():
     plot_folder(ax, greedy_folder, "tab:orange", 4.08*3600)
     plot_folder(ax, single_arm, "tab:green", 4.09*3600)
 
-    plt.xlabel('Computation time [h]')
+    plt.xlabel('Computation time [min]')
     plt.ylabel('Makespan')
 
     plt.grid(which='major', axis='y', ls='--')
@@ -121,7 +124,7 @@ def plot_lislarge_exp():
     plot_folder(ax, greedy_folder, "tab:orange", 8.9*3600)
     plot_folder(ax, single_arm, "tab:green", 8.9*3600)
 
-    plt.xlabel('Computation time [h]')
+    plt.xlabel('Computation time [min]')
     plt.ylabel('Makespan')
 
     plt.grid(which='major', axis='y', ls='--')
@@ -140,7 +143,7 @@ def plot_lis_exp():
     plot_folder(ax, greedy_folder, "tab:orange", 37900)
     plot_folder(ax, single_arm, "tab:green", 37900)
 
-    plt.xlabel('Computation time [h]')
+    plt.xlabel('Computation time [min]')
     plt.ylabel('Makespan')
 
     plt.grid(which='major', axis='y', ls='--')
@@ -168,7 +171,7 @@ def plot_four_arm_grid():
     plot_folder(ax, greedy_folder, "tab:orange", 37900)
     #plot_folder(ax, single_arm, "tab:green", 37900)
 
-    plt.xlabel('Computation time [h]')
+    plt.xlabel('Computation time [min]')
     plt.ylabel('Makespan')
 
     plt.grid(which='major', axis='y', ls='--')
@@ -182,23 +185,28 @@ def plot_experiments():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--folder', type=str, nargs='?', help='The folder we want to have a look at.')
+    parser.add_argument('--folder', type=str, nargs='+', help='The folder we want to have a look at.')
 
     args = parser.parse_args()
-    foldername = args.folder
+    foldernames = args.folder
 
-    if foldername is None:
-        foldername = "/home/valentin/git/personal-projects/24-data-gen/out/greedy_20240124_155612/"
+    if foldernames is None:
+        foldernames = ["/home/valentin/git/personal-projects/24-data-gen/out/greedy_20240124_155612/"]
     
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    plot_folder(ax, foldername)
 
-    plt.xlabel('Computation time [h]')
-    plt.ylabel('Makespan')
+    for i, foldername in enumerate(foldernames):
+        plot_folder(ax, foldername, default_colors[i % len(default_colors)])
 
-    plt.grid(which='major', axis='y', ls='--')
-    tmp = foldername.split("/")[-2]
+        plt.xlabel('Computation time [min]')
+        plt.ylabel('Makespan')
+
+        plt.grid(which='major', axis='y', ls='--')
+        tmp = foldername.split("/")[-2]
+        
+    plt.legend()
+
     #plt.savefig(f'./out/plots/{tmp}.pdf', format='pdf', dpi=300, bbox_inches = 'tight')
 
     #plot_bin_pick_exp()
