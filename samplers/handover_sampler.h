@@ -216,55 +216,48 @@ compute_handover_poses(rai::Configuration C,
           komo.pathConfig.setJointState(inital_state);
           komo.x = inital_state;
 
-          // if (j==0){
-          //   komo.run_prepare(0.0, false);
-          // }
-          // else{
-            komo.run_prepare(0.0001, false);
+          komo.run_prepare(0.0001, false);
 
-            uint r1_cnt = 0;
-            uint r2_cnt = 0;
-            for (const auto aj : komo.pathConfig.activeJoints) {
-              const uint ind = aj->qIndex;
-              if (aj->frame->name.contains("shoulder_pan_joint") &&
-                  aj->frame->name.contains(r1.prefix.c_str())) {
-                // komo.x(ind) = cnt + j;
-                if (r1_cnt == 0){
-                  // compute orientation for robot to face towards box
-                komo.x(ind) = r1_obj_angle + (rnd.uni(-1, 1) * j)/max_attempts;
-                }
-                if (r1_cnt == 1){
-                  // compute orientation for robot to face towards other robot
-                  komo.x(ind) = r1_r2_angle + (rnd.uni(-1, 1) * j)/max_attempts;
-                }
-                ++r1_cnt;
+          uint r1_cnt = 0;
+          uint r2_cnt = 0;
+          for (const auto aj : komo.pathConfig.activeJoints) {
+            const uint ind = aj->qIndex;
+            if (aj->frame->name.contains("shoulder_pan_joint") &&
+                aj->frame->name.contains(r1.prefix.c_str())) {
+              // komo.x(ind) = cnt + j;
+              if (r1_cnt == 0){
+                // compute orientation for robot to face towards box
+              komo.x(ind) = r1_obj_angle + (rnd.uni(-1, 1) * j)/max_attempts;
               }
-
-              if (aj->frame->name.contains("shoulder_pan_joint") &&
-                  aj->frame->name.contains(r2.prefix.c_str())) {
-                // komo.x(ind) = cnt + j;
-                if (r2_cnt == 1){
-                  // compute orientation for robot to face towards box
-                komo.x(ind) = r2_r1_angle + (rnd.uni(-1, 1) * j)/max_attempts;
-                }
-                if (r2_cnt == 2){
-                  // compute orientation for robot to face towards other robot
-                  komo.x(ind) = r2_goal_angle + (rnd.uni(-1, 1) * j)/max_attempts;
-                }
-                ++r2_cnt;
+              if (r1_cnt == 1){
+                // compute orientation for robot to face towards other robot
+                komo.x(ind) = r1_r2_angle + (rnd.uni(-1, 1) * j)/max_attempts;
               }
+              ++r1_cnt;
             }
 
-            komo.pathConfig.setJointState(komo.x);
-            for (const auto f: komo.pathConfig.frames){
-              if (f->name == obj){
-                f->setPose(C[obj]->getPose());
+            if (aj->frame->name.contains("shoulder_pan_joint") &&
+                aj->frame->name.contains(r2.prefix.c_str())) {
+              // komo.x(ind) = cnt + j;
+              if (r2_cnt == 1){
+                // compute orientation for robot to face towards box
+              komo.x(ind) = r2_r1_angle + (rnd.uni(-1, 1) * j)/max_attempts;
               }
+              if (r2_cnt == 2){
+                // compute orientation for robot to face towards other robot
+                komo.x(ind) = r2_goal_angle + (rnd.uni(-1, 1) * j)/max_attempts;
+              }
+              ++r2_cnt;
             }
-            komo.run_prepare(0.0, false);
+          }
 
-            // komo.pathConfig.watch(true);
-          // }
+          komo.pathConfig.setJointState(komo.x);
+          for (const auto f: komo.pathConfig.frames){
+            if (f->name == obj){
+              f->setPose(C[obj]->getPose());
+            }
+          }
+          komo.run_prepare(0.0, false);
 
           komo.run(options);
 

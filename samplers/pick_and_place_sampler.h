@@ -195,47 +195,43 @@ compute_pick_and_place_positions(rai::Configuration C,
         komo.pathConfig.setJointState(inital_state);
         komo.reset();
 
-        if (j == 0) {
-          komo.run_prepare(0.0, false);
-        } else {
-          komo.run_prepare(0.0001, false);
+        komo.run_prepare(0.0001, false);
 
-          // set orientation to the direction of the object and the goal
-          // respectively
+        // set orientation to the direction of the object and the goal
+        // respectively
 
-          uint r1_cnt = 0;
-          for (const auto aj : komo.pathConfig.activeJoints) {
-            const uint ind = aj->qIndex;
-            if (aj->frame->name.contains("shoulder_pan_joint") &&
-                aj->frame->name.contains(r.prefix.c_str())) {
-              // komo.x(ind) = cnt + j;
-              if (r1_cnt == 0) {
-                // compute orientation for robot to face towards box
-                komo.x(ind) = r1_obj_angle + rnd.uni(-1, 1) * j / 10.;
-              }
-              if (r1_cnt == 1) {
-                // compute orientation for robot to face towards other robot
-                komo.x(ind) = r1_goal_angle + rnd.uni(-1, 1) * j / 10.;
-              }
-              ++r1_cnt;
+        uint r1_cnt = 0;
+        for (const auto aj : komo.pathConfig.activeJoints) {
+          const uint ind = aj->qIndex;
+          if (aj->frame->name.contains("shoulder_pan_joint") &&
+              aj->frame->name.contains(r.prefix.c_str())) {
+            // komo.x(ind) = cnt + j;
+            if (r1_cnt == 0) {
+              // compute orientation for robot to face towards box
+              komo.x(ind) = r1_obj_angle + rnd.uni(-1, 1) * j / 10.;
             }
+            if (r1_cnt == 1) {
+              // compute orientation for robot to face towards other robot
+              komo.x(ind) = r1_goal_angle + rnd.uni(-1, 1) * j / 10.;
+            }
+            ++r1_cnt;
           }
-
-          komo.pathConfig.setJointState(komo.x);
-          uint obj_cnt = 0;
-          for (const auto f : komo.pathConfig.frames) {
-            if (obj_cnt == 0 && f->name == obj) {
-              f->setPose(C[obj]->getPose());
-            }
-            if (obj_cnt == 1 && f->name == obj) {
-              f->setPose(C[goal]->getPose());
-            }
-            obj_cnt += 1;
-          }
-          komo.run_prepare(0.);
-          // std::cout << "init confg" << std::endl;
-          // komo.pathConfig.watch(true);
         }
+
+        komo.pathConfig.setJointState(komo.x);
+        uint obj_cnt = 0;
+        for (const auto f : komo.pathConfig.frames) {
+          if (obj_cnt == 0 && f->name == obj) {
+            f->setPose(C[obj]->getPose());
+          }
+          if (obj_cnt == 1 && f->name == obj) {
+            f->setPose(C[goal]->getPose());
+          }
+          obj_cnt += 1;
+        }
+        komo.run_prepare(0.);
+        // std::cout << "init confg" << std::endl;
+          // komo.pathConfig.watch(true);
         komo.run(options);
 
         const arr q0 = komo.getPath()[0]();
