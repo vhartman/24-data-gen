@@ -29,6 +29,8 @@ jobs:
                     echo "Building 24-data-gen"
                     cd /home/tamp/24-data-gen/
                     make                    
-                    ./x.exe -mode benchmark_single_keyframe
-                    ./x.exe -mode benchmark_handover
-                    ./x.exe -mode benchmark_pick_pick
+          - name: Run the benchmarks
+            run: |
+                  ./x.exe -mode benchmark_single_keyframe
+                  ./x.exe -mode benchmark_handover
+                  ./x.exe -mode benchmark_pick_pick
