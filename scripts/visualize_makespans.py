@@ -186,6 +186,8 @@ def plot_experiments():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder', type=str, nargs='+', help='The folder we want to have a look at.')
+    parser.add_argument('--save', dest='save_fig', action='store_true', default=False,
+                        help='save the plot as a file')
 
     args = parser.parse_args()
     foldernames = args.folder
@@ -207,7 +209,8 @@ def main():
         
     plt.legend()
 
-    #plt.savefig(f'./out/plots/{tmp}.pdf', format='pdf', dpi=300, bbox_inches = 'tight')
+    if args.save_fig:
+        plt.savefig(f'./out/plots/{tmp}.pdf', format='pdf', dpi=300, bbox_inches = 'tight')
 
     #plot_bin_pick_exp()
     #plot_experiments()
