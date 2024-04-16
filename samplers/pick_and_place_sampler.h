@@ -53,13 +53,13 @@ compute_pick_and_place_positions(rai::Configuration C,
 
   ConfigurationProblem cp(C);
   OptOptions options;
-  options.allowOverstep = true;
-  options.nonStrictSteps = 500;
+  // options.allowOverstep = true;
+  options.nonStrictSteps = 50;
   options.damping = 10;
 
-  options.stopIters = 200;
-  options.wolfe = 0.001;
-  options.maxStep = 0.5;
+  // options.stopIters = 500;
+  options.wolfe = 0.01;
+  // options.maxStep = 0.5;
 
   // options.stopIters = 100;
   // options.damping = 1e-3;
@@ -100,7 +100,7 @@ compute_pick_and_place_positions(rai::Configuration C,
       // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
       komo.setDiscreteOpt(2);
-      // komo.animateOptimization = 1;
+      // komo.animateOptimization = 3;
 
       // komo.world.stepSwift();
 
@@ -221,7 +221,19 @@ compute_pick_and_place_positions(rai::Configuration C,
             }
           }
 
-          // komo.pathConfig.setJointState(komo.x);
+          komo.pathConfig.setJointState(komo.x);
+          uint obj_cnt = 0;
+          for (const auto f : komo.pathConfig.frames) {
+            if (obj_cnt == 0 && f->name == obj) {
+              f->setPose(C[obj]->getPose());
+            }
+            if (obj_cnt == 1 && f->name == obj) {
+              f->setPose(C[goal]->getPose());
+            }
+            obj_cnt += 1;
+          }
+          komo.run_prepare(0.);
+          // std::cout << "init confg" << std::endl;
           // komo.pathConfig.watch(true);
         }
         komo.run(options);

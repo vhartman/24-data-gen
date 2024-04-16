@@ -97,13 +97,12 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
   }
 
   OptOptions options;
-  options.allowOverstep = true;
-  options.nonStrictSteps = 500;
-  options.damping = 10;
+  options.nonStrictSteps = 50;
+  options.damping = 1;
 
-  options.stopIters = 200;
+  // options.stopIters = 500;
   options.wolfe = 0.001;
-  options.maxStep = 0.5;
+  // options.maxStep = 0.5;
 
   RobotTaskPoseMap rtpm;
 
@@ -155,6 +154,14 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
         const auto r1_pen_tip = STRING(r1 << "pen_tip");
         const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
+        const double r1_z_rot = C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
+        const double r2_z_rot = C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
+
+        const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
+        const double r1_r2_angle = std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0)) - r1_z_rot;
+        const double r2_r1_angle = std::atan2(r1_pos(1) - r2_pos(1), r1_pos(0) - r2_pos(0)) - r2_z_rot;
+        const double r2_goal_angle = std::atan2(goal_pos(1) -r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
+
         Skeleton S = {
             {1., 2., SY_touch, {r1_pen_tip, obj}},
             {1., 2, SY_stable, {r1_pen_tip, obj}},
@@ -166,8 +173,7 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
             {3., 4., SY_stable, {r2_pen_tip, obj}},
             
             {4., -1, SY_poseEq, {obj, goal}},
-            // {3., -1, SY_positionEq, {obj, goal}}
-            
+            // {3., -1, SY_positionEq, {obj, goal}}  
         };
 
         komo.setSkeleton(S);
@@ -226,7 +232,6 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
                               OT_eq, {1e1}, {0.});
           }
 
-
           if (r2.ee_type == EndEffectorType::two_finger){
             komo.addObjective({3., 4.}, FS_scalarProductXY, {obj, r2_pen_tip},
                               OT_eq, {1e1}, {0.});
@@ -260,12 +265,54 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
           }
         }
 
-        for (uint j = 0; j < 3; ++j) {
+        const uint max_attempts = 5;
+        for (uint j = 0; j < max_attempts; ++j) {
           if (j==0){
             komo.run_prepare(0.0, false);
           }
           else{
             komo.run_prepare(0.00001, false);
+
+            uint r1_cnt = 0;
+            uint r2_cnt = 0;
+            for (const auto aj : komo.pathConfig.activeJoints) {
+              const uint ind = aj->qIndex;
+              if (aj->frame->name.contains("shoulder_pan_joint") &&
+                  aj->frame->name.contains(r1.prefix.c_str())) {
+                // komo.x(ind) = cnt + j;
+                if (r1_cnt == 0){
+                  // compute orientation for robot to face towards box
+                komo.x(ind) = r1_obj_angle + (rnd.uni(-1, 1) * j)/max_attempts;
+                }
+                if (r1_cnt == 1){
+                  // compute orientation for robot to face towards other robot
+                  komo.x(ind) = r1_r2_angle + (rnd.uni(-1, 1) * j)/max_attempts;
+                }
+                ++r1_cnt;
+              }
+
+              if (aj->frame->name.contains("shoulder_pan_joint") &&
+                  aj->frame->name.contains(r2.prefix.c_str())) {
+                // komo.x(ind) = cnt + j;
+                if (r2_cnt == 2){
+                  // compute orientation for robot to face towards box
+                komo.x(ind) = r2_r1_angle + (rnd.uni(-1, 1) * j)/max_attempts;
+                }
+                if (r2_cnt == 3){
+                  // compute orientation for robot to face towards other robot
+                  komo.x(ind) = r2_goal_angle + (rnd.uni(-1, 1) * j)/max_attempts;
+                }
+                ++r2_cnt;
+              }
+            }
+
+            komo.pathConfig.setJointState(komo.x);
+            for (const auto f: komo.pathConfig.frames){
+              if (f->name == obj){
+                f->setPose(C[obj]->getPose());
+              }
+            }
+            komo.run_prepare(0.0, false);
           }
           komo.run(options);
 

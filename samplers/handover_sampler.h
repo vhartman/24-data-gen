@@ -31,13 +31,13 @@ compute_handover_poses(rai::Configuration C,
 
   // C.watch(true);
   OptOptions options;
-  options.allowOverstep = true;
-  options.nonStrictSteps = 500;
+  // options.allowOverstep = true;
+  options.nonStrictSteps = 50;
   options.damping = 10;
+  options.wolfe = 0.01;
 
-  options.stopIters = 200;
-  options.wolfe = 0.001;
-  options.maxStep = 0.5;
+  // // options.stopIters = 200;
+  // options.maxStep = 0.5;
 
   // options.maxStep = 1;
 
@@ -209,17 +209,17 @@ compute_handover_poses(rai::Configuration C,
         komo.run_prepare(0.0, false);
         const auto inital_state = komo.pathConfig.getJointState();
 
-        const uint max_attempts = 5;
+        const uint max_attempts = 10;
         bool found_solution = false;
         for (uint j = 0; j < max_attempts; ++j) {
           // reset komo to initial state
           komo.pathConfig.setJointState(inital_state);
           komo.x = inital_state;
 
-          if (j==0){
-            komo.run_prepare(0.0, false);
-          }
-          else{
+          // if (j==0){
+          //   komo.run_prepare(0.0, false);
+          // }
+          // else{
             komo.run_prepare(0.0001, false);
 
             uint r1_cnt = 0;
@@ -231,11 +231,11 @@ compute_handover_poses(rai::Configuration C,
                 // komo.x(ind) = cnt + j;
                 if (r1_cnt == 0){
                   // compute orientation for robot to face towards box
-                komo.x(ind) = r1_obj_angle + rnd.uni(-1, 1) * j/10.;
+                komo.x(ind) = r1_obj_angle + (rnd.uni(-1, 1) * j)/max_attempts;
                 }
                 if (r1_cnt == 1){
                   // compute orientation for robot to face towards other robot
-                  komo.x(ind) = r1_r2_angle + rnd.uni(-1, 1) * j/10.;
+                  komo.x(ind) = r1_r2_angle + (rnd.uni(-1, 1) * j)/max_attempts;
                 }
                 ++r1_cnt;
               }
@@ -245,27 +245,26 @@ compute_handover_poses(rai::Configuration C,
                 // komo.x(ind) = cnt + j;
                 if (r2_cnt == 1){
                   // compute orientation for robot to face towards box
-                komo.x(ind) = r2_r1_angle + rnd.uni(-1, 1) * j/10.;
+                komo.x(ind) = r2_r1_angle + (rnd.uni(-1, 1) * j)/max_attempts;
                 }
                 if (r2_cnt == 2){
                   // compute orientation for robot to face towards other robot
-                  komo.x(ind) = r2_goal_angle + rnd.uni(-1, 1) * j/10.;
+                  komo.x(ind) = r2_goal_angle + (rnd.uni(-1, 1) * j)/max_attempts;
                 }
                 ++r2_cnt;
               }
             }
 
             komo.pathConfig.setJointState(komo.x);
+            for (const auto f: komo.pathConfig.frames){
+              if (f->name == obj){
+                f->setPose(C[obj]->getPose());
+              }
+            }
             komo.run_prepare(0.0, false);
 
-            // for (const auto f: komo.pathConfig.frames){
-            //   if (f->name == obj){
-            //     f->setPose(C[obj]->getPose());
-            //   }
-            // }
-
             // komo.pathConfig.watch(true);
-          }
+          // }
 
           komo.run(options);
 
