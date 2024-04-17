@@ -433,7 +433,8 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
+    // const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
+    const auto sol = compute_pick_and_place_with_intermediate_pose(C, robots[0], robots[1], STRING("obj1"), STRING("goal1"));
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration =
@@ -443,10 +444,10 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
     total_duration += duration;
 
-    spdlog::info("Found {} of {} possible solutions", rtpm.size(), 1);
+    spdlog::info("Found solution");
 
     // ensure that the keyframe we found is the one we are looking for
-    if (rtpm.size() >= 1){
+    if (sol.size() >= 1){
       cnt_success += 1;
       report_test_result("Success", true);
     }

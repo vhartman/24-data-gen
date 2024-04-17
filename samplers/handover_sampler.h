@@ -10,6 +10,8 @@
 #include "../planners/prioritized_planner.h"
 #include "../util.h"
 
+// TODO: unify the two things
+// - reduce code duplication of actual solver and subproblem
 std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
                                   rai::String obj, rai::String goal) {
   std::unordered_map<Robot, FrameL> robot_frames;
@@ -659,23 +661,6 @@ compute_all_handover_poses(rai::Configuration C,
   delete_unnecessary_frames(C);
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
-
-  std::unordered_map<Robot, FrameL> robot_frames;
-  for (const auto &r: robots){
-    robot_frames[r] = get_robot_joints(C, r);
-  }
-
-  // C.watch(true);
-  OptOptions options;
-  // options.allowOverstep = true;
-  options.nonStrictSteps = 50;
-  options.damping = 10;
-  options.wolfe = 0.01;
-
-  // // options.stopIters = 200;
-  // options.maxStep = 0.5;
-
-  // options.maxStep = 1;
 
   HandoverSampler sampler(C);
   RobotTaskPoseMap rtpm;
