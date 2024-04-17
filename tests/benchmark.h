@@ -16,7 +16,7 @@ void benchmark_single_arm_pick_and_place_success_rate(
   uint cnt_success = 0;
 
   rai::Configuration C;
-  const auto robots = single_robot_configuration(C, false);
+  const auto robots = single_robot_configuration(C, true);
 
   const arr base_pos = C["a0_base"]->getPosition();
 
@@ -153,7 +153,7 @@ void benchmark_single_arm_pick_and_place_success_rate(
       report_test_result("Failure", false);
       std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos) << std::endl;
       std::cout << "obj " << length(C["obj1"]->getPosition() - base_pos) << std::endl;
-      C.watch(true);
+      // C.watch(true);
     }
   }
 
