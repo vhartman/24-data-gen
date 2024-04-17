@@ -284,7 +284,8 @@ void benchmark_dual_arm_handover_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    const auto rtpm = compute_all_handover_poses(C, robots);
+    // const auto rtpm = compute_all_handover_poses(C, robots);
+    const auto sol = compute_handover_pose(C, robots[0], robots[1], STRING("obj1"), STRING("goal1"));
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -293,9 +294,9 @@ void benchmark_dual_arm_handover_success_rate(
 
     total_duration += duration;
 
-    spdlog::info("Found {} of {} possible solutions", rtpm.size(), 1);
+    spdlog::info("Found the solution.");
 
-    if (rtpm.size() >= 1){
+    if (sol.size() >= 1){
       cnt_success += 1;
       report_test_result("Success", true);
     }
