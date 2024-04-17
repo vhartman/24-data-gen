@@ -1,74 +1,25 @@
-This repository contains the code that was used for the paper "Towards computing low-makespan solutions for multi-arm multi-task planning problems".
-A writeup of the content can be found [here](https://vhartmann.com/low-makespan-tamp/), and the paper itself is [here](https://arxiv.org/abs/2305.17527).
-It is under active development, the version that was used to produce the result in the paper is tagged.
+This repo started out as the codebase that I developed as part of [the paper "Towards computing low-makespan solutions for multi-arm multi-task planning problems"](https://vhartmann.com/robplan-low-makespan/).
+Compared to the state in the paper, the stippling is currently not available, but it is much faster, and handovers and other primitives are available.
 
 # Installation
-The code depends on [rai](https://github.com/vhartman/rai) and [rai-robotModels](https://github.com/MarcToussaint/rai-robotModels).
-The path to rai needs to be added in the Makefile, and rai-robotModels should be in the same parent forlder as this project.
+The code depends on [rai](https://github.com/vhartman/rai/tree/changes), [rai-manip](https://github.com/vhartman/rai-manip) and [rai-robotModels](https://github.com/vhartman/rai-robotModels).
+Ideally, all repos live in the same folder. Otherwise, some paths have to be adjusted.
 
-Compilation then works with 
-```
-make -j8
-```
+For an example of how to build, please have a look at [rai](https://github.com/vhartman/rai/tree/changes), respectively at the [CI](https://github.com/vhartman/24-data-gen/actions).
 
-In case of issues, try
-
+# Example use
+The following command runs a random search on the default (random) environment.
 ```
-make cleanAll
+./x.exe -mode random_search
 ```
 
-To update dependencies
-
+The follwing command rnus a random search on a user-specified scenario and exports the images, and displays some solutions.
 ```
-make depend
+./x.exe -pnp true -mode random_search -seed 879 -robot_env 'in/envs/three_opposite_gripper.json' -env 'in/objects/four_obj.json' -display true -export_images true
 ```
 
-Also have a look at the intructions in 'rai'.
-
-# Usage
-Flags:
-- mode [test/show\_plan/random\_search/greedy\_random\_search/simulated\_annealing]
-- pnp [true/false]
-- stippling\_pts [lots]
-- env [lab/'']
-
-# To Do
-#### Misc
-- Ensure correct dependencies of rai/rai-robotModels: possibly make a submodule
-- Tests
-- Performance benchmark to ensure changes improve things
-- Optimization benchmark to compare different search approaches
-
-#### Code
-- split main planning subroutine
-- fix loading and visualization of previously computed paths
-- get rid of warnings
-
-#### Speed improvements
-- squeaky wheel planner
-- simulated annealing
-- speed up komo runs
-- more sensible search approach: use the fact that we can cache the end
-
-#### Capabilities
-- enable things that are not only 'go to point', e.g. drawing a line
-- Take multiple poses into account for 'go to point' tasks
-- enable search over sequences with precendence constraints
-- time-rescale path
-- enable multi-arm cooperation
-- look into more complex motion planning:
-  - joint optimization
-  - constrained sampling based planning
-  - inspired by the CMA-ES method?
-- more statistics
-- joint optimization over the whole path
-- reuse more computations (e.g., dummy paths)
-- better (closed form?) approximation of lower bound
-
-#### Execution
-- Replanning?
-- Controller synthesis
-- Optimizing for robustness
+#### Flags
+There are many flags to specify behaviour. Please refer to `main.cpp` for them.
 
 # Citation
 If you use this codebase in your research, please cite the paper where the codebase is from as

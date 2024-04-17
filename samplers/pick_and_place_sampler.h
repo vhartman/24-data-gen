@@ -17,12 +17,13 @@ public:
     C.fcl()->deactivatePairs(pairs);
   }
 
-  TaskPoses sample_at_times(std::vector<Robot> robots, std::string obj, rai::Animation A){
+  TaskPoses sample_at_times(std::vector<Robot> robots, std::string obj,
+                            rai::Animation A) {
     // TODO: set things to state.
     return sample(robots, obj);
   }
 
-  TaskPoses sample(std::vector<Robot> robots, const std::string obj){
+  TaskPoses sample(std::vector<Robot> robots, const std::string obj) {
     KOMO komo;
     komo.setModel(C, true);
     komo.setDiscreteOpt(2);
@@ -34,12 +35,12 @@ public:
 
 RobotTaskPoseMap
 compute_all_pick_and_place_positions(rai::Configuration C,
-                                 const std::vector<Robot> &robots) {
+                                     const std::vector<Robot> &robots) {
   RobotTaskPoseMap rtpm;
 
   uint num_objects = 0;
-  for (auto f: C.frames){
-    if (f->name.contains("obj")){
+  for (auto f : C.frames) {
+    if (f->name.contains("obj")) {
       num_objects += 1;
     }
   }
@@ -67,10 +68,11 @@ compute_all_pick_and_place_positions(rai::Configuration C,
   for (const Robot &r : robots) {
     setActive(C, r);
     setActive(cp.C, r.prefix);
-    
+
     for (uint i = 0; i < num_objects; ++i) {
       // C.watch(true);
-      spdlog::info("Attempting to compute keyframes for robot {} and object {}", r.prefix, i);
+      spdlog::info("Attempting to compute keyframes for robot {} and object {}",
+                   r.prefix, i);
 
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
@@ -92,7 +94,7 @@ compute_all_pick_and_place_positions(rai::Configuration C,
 
       RobotTaskPair rtp;
       rtp.robots = {r};
-      rtp.task = Task{.object=i, .type=PrimitiveType::pick};
+      rtp.task = Task{.object = i, .type = PrimitiveType::pick};
 
       KOMO komo;
       komo.verbose = 0;
@@ -109,13 +111,17 @@ compute_all_pick_and_place_positions(rai::Configuration C,
 
       const auto pen_tip = STRING(r.prefix << "pen_tip");
 
-      const double r1_z_rot = C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
+      const double r1_z_rot =
+          C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
 
-      const double r1_obj_angle = std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
-      const double r1_goal_angle = std::atan2(goal_pos(1) -r1_pos(1), goal_pos(0) - r1_pos(0)) - r1_z_rot;
+      const double r1_obj_angle =
+          std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
+      const double r1_goal_angle =
+          std::atan2(goal_pos(1) - r1_pos(1), goal_pos(0) - r1_pos(0)) -
+          r1_z_rot;
 
       Skeleton S = {
-        //   {1., 1., SY_touch, {pen_tip, obj}},
+          //   {1., 1., SY_touch, {pen_tip, obj}},
           {1., 2, SY_stable, {pen_tip, obj}},
           {2., 2, SY_poseEq, {obj, goal}},
           // {2., -1, SY_positionEq, {obj, goal}},
@@ -123,34 +129,35 @@ compute_all_pick_and_place_positions(rai::Configuration C,
 
       komo.setSkeleton(S);
 
-    //   komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")}, OT_eq,
-    //                     {1e2}, point);
-    //   komo.addObjective({1., 1.}, FS_distance,
-    //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
-    //                     {1e1});
+      //   komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
+      //   OT_eq,
+      //                     {1e2}, point);
+      //   komo.addObjective({1., 1.}, FS_distance,
+      //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
+      //                     {1e1});
       // komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
       //                   OT_sos, {1e-1});
 
-      komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, obj},
-                          OT_sos, {1e0});
+      komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, obj}, OT_sos,
+                        {1e0});
 
-      komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, obj}, OT_ineq,
-                        {5e1});
+      komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, obj}, OT_ineq, {5e1});
 
       komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
                         {1e1}, {-1.});
 
-      // only add the 'alignment' constaint if the end effector is a two-finger-gripper
-      if (r.ee_type == EndEffectorType::two_finger){
+      // only add the 'alignment' constaint if the end effector is a
+      // two-finger-gripper
+      if (r.ee_type == EndEffectorType::two_finger) {
         if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
           // x longer than y
           spdlog::info("Trying to grab along x-axis");
-          komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip},
-                            OT_eq, {1e1}, {0.});
+          komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
+                            {1e1}, {0.});
         } else {
           spdlog::info("Trying to grab along y-axis");
-          komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip},
-                            OT_eq, {1e1}, {0.});
+          komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip}, OT_eq,
+                            {1e1}, {0.});
         }
       }
 
@@ -161,8 +168,8 @@ compute_all_pick_and_place_positions(rai::Configuration C,
       //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
       //                     OT_ineq, {1e1}, {margin, margin, margin});
 
-    //   komo.addObjective({1.}, FS_vectorZ, {pen_tip},
-    //                     OT_sos, {1e0}, {0., 0., -1.});
+      //   komo.addObjective({1.}, FS_vectorZ, {pen_tip},
+      //                     OT_sos, {1e0}, {0., 0., -1.});
 
       // komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
       // OT_sos, {1e0}, C[obj]->getPosition());
@@ -172,19 +179,19 @@ compute_all_pick_and_place_positions(rai::Configuration C,
       // {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1}, {0., 0., -0.9});
 
       if (true) {
-          for (const auto &base_name : {r.prefix}) {
-            uintA bodies;
-            rai::Joint *j;
-            for (rai::Frame *f : komo.world.frames) {
-              if ((j = f->joint) && j->qDim() > 0 &&
-                  (f->name.contains(base_name.c_str()))) {
-                bodies.append(f->ID);
-              }
+        for (const auto &base_name : {r.prefix}) {
+          uintA bodies;
+          rai::Joint *j;
+          for (rai::Frame *f : komo.world.frames) {
+            if ((j = f->joint) && j->qDim() > 0 &&
+                (f->name.contains(base_name.c_str()))) {
+              bodies.append(f->ID);
             }
-            komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
-                              OT_sos, {1e0}, NoArr); // world.q, prec);
           }
+          komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
+                            OT_sos, {1e0}, NoArr); // world.q, prec);
         }
+      }
 
       komo.run_prepare(0.0, false);
       const auto inital_state = komo.pathConfig.getJointState();
@@ -219,19 +226,20 @@ compute_all_pick_and_place_positions(rai::Configuration C,
         }
 
         komo.pathConfig.setJointState(komo.x);
-        uint obj_cnt = 0;
-        for (const auto f : komo.pathConfig.frames) {
-          if (obj_cnt == 0 && f->name == obj) {
-            f->setPose(C[obj]->getPose());
-          }
-          if (obj_cnt == 1 && f->name == obj) {
-            f->setPose(C[goal]->getPose());
-          }
-          obj_cnt += 1;
-        }
+        
+        uintA objID;
+        objID.append(C[obj]->ID);
+        rai::Frame *obj1 =
+            komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 1 + objID)(0);
+        obj1->setPose(C[obj]->getPose());
+
+        rai::Frame *obj2 =
+            komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 2 + objID)(0);
+        obj2->setPose(C[goal]->getPose());
+
         komo.run_prepare(0.);
         // std::cout << "init confg" << std::endl;
-          // komo.pathConfig.watch(true);
+        // komo.pathConfig.watch(true);
         komo.run(options);
 
         const arr q0 = komo.getPath()[0]();
@@ -272,8 +280,11 @@ compute_all_pick_and_place_positions(rai::Configuration C,
 
           break;
         } else {
-          spdlog::info("pick/place failed for robot {} and {} ineq: {:03.2f} eq: {:03.2f}", r.prefix, obj, ineq, eq);
-          spdlog::info("Collisions: pose 1 coll: {0} pose 2 coll: {1}", res1->isFeasible, res2->isFeasible);
+          spdlog::info("pick/place failed for robot {} and {} ineq: {:03.2f} "
+                       "eq: {:03.2f}",
+                       r.prefix, obj, ineq, eq);
+          spdlog::info("Collisions: pose 1 coll: {0} pose 2 coll: {1}",
+                       res1->isFeasible, res2->isFeasible);
 
           if (!res1->isFeasible) {
             std::stringstream ss;
@@ -289,7 +300,7 @@ compute_all_pick_and_place_positions(rai::Configuration C,
         }
       }
 
-      if (!found_solution){
+      if (!found_solution) {
         spdlog::info("Did not find a solution");
       }
     }
