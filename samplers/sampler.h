@@ -308,6 +308,12 @@ RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
               f->setPose(C[obj]->getPose());
             }
           }
+          
+          uintA objID;
+          objID.append(C[obj]->ID);
+          rai::Frame* obj3 = komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 4 + objID)(0);
+          obj3->setPose(C[goal]->getPose());
+
           komo.run_prepare(0.0, false);
         
           komo.run(options);
