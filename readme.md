@@ -18,6 +18,13 @@ The follwing command rnus a random search on a user-specified scenario and expor
 ./x.exe -pnp true -mode random_search -seed 879 -robot_env 'in/envs/three_opposite_gripper.json' -env 'in/objects/four_obj.json' -display true -export_images true
 ```
 
+The images that are stored can be made into a video with 
+```
+ffmpeg -pattern_type glob -framerate 30 -i "*.ppm" -q:v 1 vid.mpeg
+```
+which would in this case result in the following video:
+![Robot Video](./example/example.gif)
+
 #### Flags
 There are many flags to specify behaviour. Please refer to `main.cpp` for them.
 
