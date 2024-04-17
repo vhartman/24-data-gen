@@ -63,35 +63,34 @@ void benchmark_single_arm_pick_and_place_success_rate(
 
   double total_duration = 0.;
 
-  for (uint i=0; i<N; ++i){
+  for (uint i = 0; i < N; ++i) {
     // add object to move
     double width = rnd.uni(0.02, 0.04);
     double depth = rnd.uni(0.04, 0.08);
-
 
     obj->setShape(rai::ST_box, {depth, width, 0.05, 0.01});
     obj->setContact(1);
     obj->setJoint(rai::JT_rigid);
     // obj->setColor({col(0), col(1), col(2)});
 
-    while (true){
+    while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
 
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       if (length(ARR(x, y, 0)) > 0.9 || length(ARR(x, y, 0)) < 0.3) {
         continue;
       }
 
       obj->setPosition({base_pos(0) + x, base_pos(1) + y, 0.61});
-      obj->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
-      
+      obj->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
-      if (res->isFeasible){
-                std::cout << "goal rot: " << alpha << std::endl;
+      if (res->isFeasible) {
+        std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -105,19 +104,18 @@ void benchmark_single_arm_pick_and_place_success_rate(
     while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       // ensure that it is not too close to the base
-      if (length(ARR(x, y, 0)) < 0.3 ||
-          length(ARR(x, y, 0)) > 0.85){
+      if (length(ARR(x, y, 0)) < 0.3 || length(ARR(x, y, 0)) > 0.85) {
         continue;
       }
 
       goal->setPosition({base_pos(0) + x, base_pos(1) + y, 0.61});
-      goal->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
+      goal->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
 
       // goal->setColor({col(0), col(1), col(2), 0.5});
-      
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
@@ -140,24 +138,26 @@ void benchmark_single_arm_pick_and_place_success_rate(
     const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                               end_time - start_time)
                               .count();
-    
+
     total_duration += duration;
 
     spdlog::info("Found {} of {} possible solutions", rtpm.size(), 1);
 
-    if (rtpm.size() == 1){
+    if (rtpm.size() == 1) {
       cnt_success += 1;
       report_test_result("Success", true);
-    }
-    else{
+    } else {
       report_test_result("Failure", false);
-      std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos) << std::endl;
-      std::cout << "obj " << length(C["obj1"]->getPosition() - base_pos) << std::endl;
+      std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos)
+                << std::endl;
+      std::cout << "obj " << length(C["obj1"]->getPosition() - base_pos)
+                << std::endl;
       // C.watch(true);
     }
   }
 
-  std::cout << cnt_success << " out of " << N << " solutions found" << std::endl;
+  std::cout << cnt_success << " out of " << N << " solutions found"
+            << std::endl;
   std::cout << "Took " << total_duration / 1000 << "ms" << std::endl;
 
   spdlog::info("Found {} of {} solutions.", cnt_success, N);
@@ -186,7 +186,7 @@ void benchmark_dual_arm_handover_success_rate(
 
   double total_duration = 0.;
 
-  for (uint i=0; i<N; ++i){
+  for (uint i = 0; i < N; ++i) {
     // add obstacles
     // for (uint j=0; j<5; ++j){
     //   double width = rnd.uni(0.05, 0.2);
@@ -224,24 +224,24 @@ void benchmark_dual_arm_handover_success_rate(
     obj->setJoint(rai::JT_rigid);
     // obj->setColor({col(0), col(1), col(2)});
 
-    while (true){
+    while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
 
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       if (length(ARR(x, y, 0)) > 0.85 || length(ARR(x, y, 0)) < 0.3) {
         continue;
       }
 
       obj->setPosition({r1_base_pos(0) + x, r1_base_pos(1) + y, 0.61});
-      obj->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
-      
+      obj->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
-      if (res->isFeasible){
-                std::cout << "goal rot: " << alpha << std::endl;
+      if (res->isFeasible) {
+        std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -255,19 +255,18 @@ void benchmark_dual_arm_handover_success_rate(
     while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       // ensure that it is not too close to the base
-      if (length(ARR(x, y, 0)) < 0.3 ||
-          length(ARR(x, y, 0)) > 0.9){
+      if (length(ARR(x, y, 0)) < 0.3 || length(ARR(x, y, 0)) > 0.9) {
         continue;
       }
 
       goal->setPosition({r2_base_pos(0) + x, r2_base_pos(1) + y, 0.61});
-      goal->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
+      goal->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
 
       // goal->setColor({col(0), col(1), col(2), 0.5});
-      
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
@@ -285,7 +284,8 @@ void benchmark_dual_arm_handover_success_rate(
     const auto start_time = std::chrono::high_resolution_clock::now();
 
     // const auto rtpm = compute_all_handover_poses(C, robots);
-    const auto sol = compute_handover_pose(C, robots[0], robots[1], STRING("obj1"), STRING("goal1"));
+    const auto sol = compute_handover_pose(C, robots[0], robots[1],
+                                           STRING("obj1"), STRING("goal1"));
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -296,15 +296,14 @@ void benchmark_dual_arm_handover_success_rate(
 
     spdlog::info("Found the solution.");
 
-    if (sol.size() >= 1){
+    if (sol.size() >= 1) {
       cnt_success += 1;
       report_test_result("Success", true);
-    }
-    else{
+    } else {
       report_test_result("Failure", false);
-      // std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos) << std::endl;
-      // std::cout << "obj " << length(C["obj1"]->getPosition() - base_pos) << std::endl;
-      // C.watch(true);
+      // std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos)
+      // << std::endl; std::cout << "obj " << length(C["obj1"]->getPosition() -
+      // base_pos) << std::endl; C.watch(true);
     }
 
     // for (const auto &r : rtpm) {
@@ -334,7 +333,8 @@ void benchmark_dual_arm_handover_success_rate(
     // }
   }
 
-  std::cout << cnt_success << " out of " << N << " solutions found" << std::endl;
+  std::cout << cnt_success << " out of " << N << " solutions found"
+            << std::endl;
   std::cout << "Took " << total_duration / 1000 << "ms" << std::endl;
 
   spdlog::info("Found {} of {} solutions.", cnt_success, N);
@@ -362,35 +362,34 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
   double total_duration = 0.;
 
-  for (uint i=0; i<N; ++i){
+  for (uint i = 0; i < N; ++i) {
     // add object to move
     double width = rnd.uni(0.03, 0.04);
     double depth = rnd.uni(0.08, 0.1);
-
 
     obj->setShape(rai::ST_box, {depth, width, 0.05, 0.01});
     obj->setContact(1);
     obj->setJoint(rai::JT_rigid);
     // obj->setColor({col(0), col(1), col(2)});
 
-    while (true){
+    while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
 
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       if (length(ARR(x, y, 0)) > 0.85 || length(ARR(x, y, 0)) < 0.3) {
         continue;
       }
 
       obj->setPosition({r1_base_pos(0) + x, r1_base_pos(1) + y, 0.61});
-      obj->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
-      
+      obj->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
-      if (res->isFeasible){
-                std::cout << "goal rot: " << alpha << std::endl;
+      if (res->isFeasible) {
+        std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -404,19 +403,18 @@ void benchmark_dual_arm_pick_pick_success_rate(
     while (true) {
       const double x = rnd.uni(-0.8, 0.8);
       const double y = rnd.uni(-0.8, 0.8);
-      const double alpha = rnd.uni(0, 2*3.1415);
+      const double alpha = rnd.uni(0, 2 * 3.1415);
 
       // ensure that it is not too close to the base
-      if (length(ARR(x, y, 0)) < 0.3 ||
-          length(ARR(x, y, 0)) > 0.9){
+      if (length(ARR(x, y, 0)) < 0.3 || length(ARR(x, y, 0)) > 0.9) {
         continue;
       }
 
       goal->setPosition({r2_base_pos(0) + x, r2_base_pos(1) + y, 0.61});
-      goal->setRelativeQuaternion({cos(alpha/2), 0, 0, sin(alpha/2)});
+      goal->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
 
       // goal->setColor({col(0), col(1), col(2), 0.5});
-      
+
       // check if something is in collision
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
@@ -433,29 +431,29 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    // const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
-    const auto sol = compute_pick_and_place_with_intermediate_pose(C, robots[0], robots[1], STRING("obj1"), STRING("goal1"));
+    // const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C,
+    // robots);
+    const auto sol = compute_pick_and_place_with_intermediate_pose(
+        C, robots[0], robots[1], STRING("obj1"), STRING("goal1"));
 
     const auto end_time = std::chrono::high_resolution_clock::now();
-    const auto duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(end_time -
-                                                              start_time)
-            .count();
+    const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                              end_time - start_time)
+                              .count();
 
     total_duration += duration;
 
     spdlog::info("Found solution");
 
     // ensure that the keyframe we found is the one we are looking for
-    if (sol.size() >= 1){
+    if (sol.size() >= 1) {
       cnt_success += 1;
       report_test_result("Success", true);
-    }
-    else{
+    } else {
       report_test_result("Failure", false);
-      // std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos) << std::endl;
-      // std::cout << "obj " << length(C["obj1"]->getPosition() - base_pos) << std::endl;
-      // C.watch(true);
+      // std::cout << "goal: " << length(C["goal1"]->getPosition() - base_pos)
+      // << std::endl; std::cout << "obj " << length(C["obj1"]->getPosition() -
+      // base_pos) << std::endl; C.watch(true);
     }
 
     // for (const auto &r : rtpm) {
@@ -485,7 +483,8 @@ void benchmark_dual_arm_pick_pick_success_rate(
     // }
   }
 
-  std::cout << cnt_success << " out of " << N << " solutions found" << std::endl;
+  std::cout << cnt_success << " out of " << N << " solutions found"
+            << std::endl;
   std::cout << "Took " << total_duration / 1000 << "ms" << std::endl;
   spdlog::info("Found {} of {} solutions.", cnt_success, N);
 }
