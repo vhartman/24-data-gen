@@ -134,7 +134,7 @@ void benchmark_single_arm_pick_and_place_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    const auto rtpm = compute_pick_and_place_positions(C, robots);
+    const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -284,7 +284,7 @@ void benchmark_dual_arm_handover_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    const auto rtpm = compute_handover_poses(C, robots);
+    const auto rtpm = compute_all_handover_poses(C, robots);
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -432,7 +432,7 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
-    const auto rtpm = compute_pick_and_place_with_intermediate_pose(C, robots);
+    const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
 
     const auto end_time = std::chrono::high_resolution_clock::now();
     const auto duration =

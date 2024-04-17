@@ -153,7 +153,6 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   const auto inital_state = komo.pathConfig.getJointState();
 
   const uint max_attempts = 10;
-  bool found_solution = false;
   for (uint j = 0; j < max_attempts; ++j) {
     // reset komo to initial state
     komo.pathConfig.setJointState(inital_state);
@@ -191,6 +190,8 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
     }
 
     komo.pathConfig.setJointState(komo.x);
+    
+    // TODO: replace
     for (const auto f : komo.pathConfig.frames) {
       if (f->name == obj) {
         f->setPose(C[obj]->getPose());
@@ -277,7 +278,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
 }
 
 RobotTaskPoseMap
-compute_handover_poses(rai::Configuration C,
+compute_all_handover_poses(rai::Configuration C,
                        const std::vector<Robot> &robots) {
   uint num_objects = 0;
   for (auto f : C.frames) {

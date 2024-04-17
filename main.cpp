@@ -540,12 +540,12 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "repeated_pick"){
-    compute_pick_and_place_with_intermediate_pose(C, robots);
+    compute_all_pick_and_place_with_intermediate_pose(C, robots);
     return 0;
   }
 
   if (mode == "repeated_pick_planning"){
-    const auto rtpm = compute_pick_and_place_with_intermediate_pose(C, robots);
+    const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
     const auto test_sequence_for_repeated_manip = make_pick_pick_seq(robots, num_objects, rtpm);
 
     auto plan = plan_multiple_arms_given_sequence(C, rtpm, test_sequence_for_repeated_manip, home_poses);
@@ -570,8 +570,8 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "handover_test"){
-    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
-    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(C, robots);
 
     // merge both maps
     RobotTaskPoseMap rtpm;
@@ -594,8 +594,8 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "plan_for_sequence"){
-    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
-    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(C, robots);
 
     // merge both maps
     RobotTaskPoseMap rtpm;
@@ -634,11 +634,11 @@ int main(int argc, char **argv) {
   RobotTaskPoseMap robot_task_pose_mapping;
   if (mode == "compute_keyframes"){
     if (use_picks){
-      RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+      RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(C, robots);
       robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
     }
     if (use_handovers) {
-      RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+      RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
       robot_task_pose_mapping.insert(handover_rtpm.begin(),
                                      handover_rtpm.end());
     }
@@ -651,16 +651,16 @@ int main(int argc, char **argv) {
 
   // merge both maps
   if (use_picks){
-    RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+    RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(C, robots);
     robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
   }
   if (use_handovers) {
-    RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
     robot_task_pose_mapping.insert(handover_rtpm.begin(),
                                     handover_rtpm.end());
   }
   if (use_repeated_picks) {
-    RobotTaskPoseMap pick_pick_rtpm = compute_pick_and_place_with_intermediate_pose(C, robots);
+    RobotTaskPoseMap pick_pick_rtpm = compute_all_pick_and_place_with_intermediate_pose(C, robots);
     robot_task_pose_mapping.insert(pick_pick_rtpm.begin(),
                                     pick_pick_rtpm.end());
   }

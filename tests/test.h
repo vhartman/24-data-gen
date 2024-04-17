@@ -58,10 +58,10 @@ bool run_test_problem_from_files(const std::string &env_path,
   }
 
   RobotTaskPoseMap robot_task_pose_mapping;
-  RobotTaskPoseMap pick_rtpm = compute_pick_and_place_positions(C, robots);
+  RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(C, robots);
   robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
 
-  RobotTaskPoseMap handover_rtpm = compute_handover_poses(C, robots);
+  RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
   robot_task_pose_mapping.insert(handover_rtpm.begin(), handover_rtpm.end());
 
   // TODO: add expected number of keyframes
@@ -156,7 +156,7 @@ void single_arm_two_finger_keyframe_test(const bool show = false,
 
   // C.watch(true);
 
-  const auto rtpm = compute_pick_and_place_positions(C, robots);
+  const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
   assert(rtpm.size() == num_objects);
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects);
@@ -196,7 +196,7 @@ void two_arms_two_finger_keyframe_test(const bool show = false, const bool expor
 
   // C.watch(true);
 
-  const auto rtpm = compute_pick_and_place_positions(C, robots);
+  const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2);
   assert(rtpm.size() == num_objects * 2);
@@ -235,7 +235,7 @@ void three_arms_two_finger_keyframe_test(const bool show = false, const bool exp
 
   // C.watch(true);
 
-  const auto rtpm = compute_pick_and_place_positions(C, robots);
+  const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 3);
   assert(rtpm.size() == num_objects * 3);
@@ -274,7 +274,7 @@ void two_arm_two_finger_handover_keyframe_test(const bool show = false, const bo
 
   // C.watch(true);
 
-  const auto rtpm = compute_handover_poses(C, robots);
+  const auto rtpm = compute_all_handover_poses(C, robots);
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2);
 
   for (const auto &r : rtpm) {
@@ -320,7 +320,7 @@ void three_arm_two_finger_handover_keyframe_test(const bool show = false, const 
 
   // C.watch(true);
 
-  const auto rtpm = compute_handover_poses(C, robots);
+  const auto rtpm = compute_all_handover_poses(C, robots);
   spdlog::info("Found {} of {} possible solutions", rtpm.size(), num_objects * 2 * 3);
 
   for (const auto &r : rtpm) {
@@ -362,7 +362,7 @@ void single_arm_two_finger_planning_test(const bool show = false) {
   // C.watch(true);
 
   const auto home_poses = get_robot_home_poses(robots);
-  const auto rtpm = compute_pick_and_place_positions(C, robots);
+  const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
   assert(rtpm.size() == 2);
 
@@ -411,7 +411,7 @@ void two_arm_two_finger_planning_test(const bool show = false) {
     C.watch(true);
 
     const auto home_poses = get_robot_home_poses(robots);
-    const auto rtpm = compute_pick_and_place_positions(C, robots);
+    const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
     assert(rtpm.size() == num_objects * 2);
 
@@ -461,7 +461,7 @@ void three_arm_two_finger_planning_test(const bool show = false) {
     // C.watch(true);
 
     const auto home_poses = get_robot_home_poses(robots);
-    const auto rtpm = compute_pick_and_place_positions(C, robots);
+    const auto rtpm = compute_all_pick_and_place_positions(C, robots);
 
     assert(rtpm.size() == num_objects * 3);
 
@@ -509,7 +509,7 @@ void two_arm_two_finger_handover_planning_test(const bool show = false) {
 
     // C.watch(true);
 
-    const auto rtpm = compute_handover_poses(C, robots);
+    const auto rtpm = compute_all_handover_poses(C, robots);
 
     for (const auto &r : rtpm) {
       // we should get feasible poses for all the robots in this setting
@@ -566,7 +566,7 @@ void three_arm_two_finger_handover_planning_test(const bool show = false) {
 
     // C.watch(true);
 
-    const auto rtpm = compute_handover_poses(C, robots);
+    const auto rtpm = compute_all_handover_poses(C, robots);
 
     for (const auto &r : rtpm) {
       // we should get feasible poses for all the robots in this setting

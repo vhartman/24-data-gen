@@ -33,7 +33,7 @@ public:
 };
 
 RobotTaskPoseMap
-compute_pick_and_place_positions(rai::Configuration C,
+compute_all_pick_and_place_positions(rai::Configuration C,
                                  const std::vector<Robot> &robots) {
   RobotTaskPoseMap rtpm;
 

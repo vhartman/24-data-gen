@@ -78,7 +78,7 @@ class RobotTaskPoseSampler{
 // };
 
 
-RobotTaskPoseMap compute_pick_and_place_with_intermediate_pose(
+RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
     rai::Configuration C, const std::vector<Robot> &robots) {
   uint num_objects = 0;
   for (auto f : C.frames) {
