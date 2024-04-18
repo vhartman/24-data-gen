@@ -50,16 +50,16 @@ Plan plan_multiple_arms_random_search(
       return Plan();
     }
 
-    const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
-    std::cout << "LB for sequence " << lb << std::endl;
-    for (auto s : seq) {
-      std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
-    }
-    std::cout << std::endl;
+    // const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
+    // std::cout << "LB for sequence " << lb << std::endl;
+    // for (auto s : seq) {
+    //   std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
+    // }
+    // std::cout << std::endl;
 
-    if (lb > best_makespan) {
-      continue;
-    }
+    // if (lb > best_makespan) {
+    //   continue;
+    // }
 
     // plan for it
     const auto plan_result = plan_multiple_arms_given_sequence(
