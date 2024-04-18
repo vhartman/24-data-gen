@@ -73,6 +73,9 @@ make_robot_environment_from_config(rai::Configuration &C,
     } else if (robot == "franka"){
       a = C.addFile("./in/robots/franka.g");
       ee = EndEffectorType::two_finger;
+    } else if (robot == "kuka"){
+      a = C.addFile("./in/robots/kuka.g");
+      ee = EndEffectorType::two_finger;
     }
     else{
       spdlog::error("Invalid robot type");

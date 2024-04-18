@@ -3,12 +3,14 @@
 		{
 			"base_pos": [-0.5, -0.1, 0.0],
 			"base_quat": [1, 0.0, 0.0, 0],
-			"type": "ur5_vacuum"
+			"type": "kuka"
 		},
 		{
 			"base_pos": [0.6, 0.1, 0.0],
 			"base_quat": [0.0, 0.0, 0.0, 1.0],
+			"start_pose": [0, -1.0, -0.25, -2.0, 0, 2.0, 0],
 			"type": "franka"
 		}
 	]
 }
+
