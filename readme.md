@@ -23,10 +23,21 @@ The images that are stored can be made into a video with
 ffmpeg -pattern_type glob -framerate 30 -i "*.ppm" -q:v 1 vid.mpeg
 ```
 which would in this case result in the following video:
+
 ![Robot Video](./example/example.gif)
 
 #### Flags
-There are many flags to specify behaviour. Please refer to `main.cpp` for them.
+There are many flags to specify behaviour. Some of them are
+
+| flag | meaning |
+|---|---|
+| mode | What mode to run. Should likely be `random_search`. `show_env` can be used to display the environment. `compute_keyframes` can be used to compute keyframes. |
+| robot_env | Specified the path to the file for the robot layout |
+| env | Specifies the path to the file of the environment layout |
+| sequence_path | Specifies the sequence to plan for |
+| out_path | Specifies the output path |
+
+Please refer to `main.cpp` for all of them.
 
 # Citation
 If you use this codebase in your research, please cite the paper where the codebase is from as
