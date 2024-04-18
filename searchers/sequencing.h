@@ -127,6 +127,7 @@ generate_random_valid_sequence(const std::vector<Robot> &robots,
   std::vector<std::deque<RobotTaskPair>> sequence_of_primitives;
   for (uint i=0; i<num_tasks; ++i){
     // extract available primitives and choose one
+    spdlog::info("Collecting available robots for obj {}", i);
     std::vector<RobotTaskPair> available_primitives_for_object;
     for (const auto &e: rtpm){
       // we filter out pick_pick_2, because it is the second action of a 
@@ -135,6 +136,11 @@ generate_random_valid_sequence(const std::vector<Robot> &robots,
           e.first.task.type != PrimitiveType::pick_pick_2) {
         available_primitives_for_object.push_back(e.first);
       }
+    }
+
+    if (available_primitives_for_object.size() == 0){
+      spdlog::error("No primitive available for task {}", i);
+      return {};
     }
 
     const uint primitive_index = std::rand() % available_primitives_for_object.size();
