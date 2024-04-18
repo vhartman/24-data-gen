@@ -43,8 +43,9 @@ double compute_lb_for_sequence(const OrderedTaskSequence &seq,
       robot_time[robot] = 0.;
     }
 
-    std::cout << robot << " " << task_index << std::endl;
+    spdlog::info("Computing duration for {} and task {}", robot.prefix, task_index);
 
+    // TODO: fix this - does not work for new primitives
     const arr start_pose = robot_pos[robot];
     const arr goal_pose = rtpm.at(task_tuple)[0][0];
 

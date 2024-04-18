@@ -70,6 +70,9 @@ make_robot_environment_from_config(rai::Configuration &C,
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_pen.g");
       ee = EndEffectorType::vacuum;
+    } else if (robot == "franka"){
+      a = C.addFile("./in/robots/franka.g");
+      ee = EndEffectorType::two_finger;
     }
     else{
       spdlog::error("Invalid robot type");

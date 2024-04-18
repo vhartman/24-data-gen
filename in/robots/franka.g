@@ -47,7 +47,12 @@ pen_tip (robotiq_base){
     color:[.9, 0, 0 ,1], 
     Q:<t(.0 0.0 .15)>,
     size:[0.005],
-    contact:1
+    contact:0
+}
+
+pen_tip_marker (pen_tip){
+    shape: marker,
+    size:[0.05]
 }
 
 #gripper (panda_joint7){
