@@ -454,6 +454,11 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (mode == "benchmark_planning"){
+    benchmark_dual_arm_planning();
+    return 0;
+  }
+
   if (mode == "perf_test"){
     vacuum_gripper_keyframe_perf_test();
     return 0;

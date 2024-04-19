@@ -30,9 +30,12 @@ jobs:
                     cd /home/tamp/24-data-gen/
                     make                    
                     mkdir ./out/
+                    echo "Running keyframe tests"
                     ./x.exe -mode benchmark_single_keyframe > ./out/pick_and_place_keyframe.txt
                     ./x.exe -mode benchmark_handover > ./out/handover_keyframe.txt
                     ./x.exe -mode benchmark_pick_pick > ./out/pick_pick_keyframe.txt
+                    echo "Running planning tests"
+                    ./x.exe -mode benchmark_planning -verbosity 2
           - name: Archive keyframe computation results
             uses: actions/upload-artifact@v4
             with:
