@@ -401,7 +401,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // Check if start q is feasible
   const auto start_res = TP.query(q0, t0);
   if (!start_res->isFeasible) {
-    TP.C.watch(true);
+    // TP.C.watch(true);
 
     spdlog::error("q_start is not feasible at time {}! This should not happen", t0);
     start_res->writeDetails(cout, TP.C);
@@ -412,7 +412,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
     // TP.A.setToTime(TP.C, t0);
     // TP.C.setJointState(q0);
-    TP.C.watch(true);
+    // TP.C.watch(true);
 
     return TaskPart();
   }
@@ -1536,10 +1536,10 @@ class PrioritizedTaskPlanner {
           TP.A = A;
 
           // if (true) {
-          //   for (uint i = 0; i < A.getT(); ++i) {
+          //   for (uint i = 0; i < A.getT() + 10; ++i) {
           //     A.setToTime(CPlanner, i);
           //     CPlanner.watch(false);
-          //     rai::wait(0.1);
+          //     rai::wait(0.05);
           //   }
           // }
 
@@ -1593,6 +1593,8 @@ class PrioritizedTaskPlanner {
               const auto obj = STRING("obj" << task + 1);
               auto to = CPlanner[obj];
               tmp_frames.append(to);
+
+              // std::cout << "ADDING OBJ " << task + 1 << " TO ANIM" << std::endl;
             }
             const auto anim_part =
                 make_animation_part(CPlanner, path.path, tmp_frames, start_time);
@@ -1662,12 +1664,12 @@ class PrioritizedTaskPlanner {
         TP.A = A;
 
         // if (true) {
-        //     for (uint i = 0; i < A.getT(); ++i) {
-        //       A.setToTime(CPlanner, i);
-        //       CPlanner.watch(false);
-        //       rai::wait(0.1);
-        //     }
+        //   for (uint i = 0; i < A.getT(); ++i) {
+        //     A.setToTime(CPlanner, i);
+        //     CPlanner.watch(false);
+        //     rai::wait(0.05);
         //   }
+        // }
 
         auto exit_path =
             plan_in_animation(TP, exit_start_time, exit_path_start_pose,

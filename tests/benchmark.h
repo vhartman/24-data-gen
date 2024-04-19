@@ -90,7 +90,7 @@ void benchmark_single_arm_pick_and_place_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -121,7 +121,7 @@ void benchmark_single_arm_pick_and_place_success_rate(
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
 
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -241,7 +241,7 @@ void benchmark_dual_arm_handover_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -272,7 +272,7 @@ void benchmark_dual_arm_handover_success_rate(
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
 
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -389,7 +389,7 @@ void benchmark_dual_arm_pick_pick_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
 
         break;
       }
@@ -420,7 +420,7 @@ void benchmark_dual_arm_pick_pick_success_rate(
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
 
-        std::cout << "goal rot: " << alpha << std::endl;
+        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -504,11 +504,16 @@ void benchmark_dual_arm_planning(){
 
   for (uint i=0; i<2; ++i){
     auto *obj = C.addFrame(STRING("obj"<<i+1), "table");
+    arr col(3);
+    rndUniform(col, 0, 1);
+    obj->setColor(col);
+
     auto *marker = C.addFrame("marker", obj->name);
     marker->setShape(rai::ST_marker, {0.1});
     marker->setContact(0.);
 
     auto *goal = C.addFrame(STRING("goal"<<i+1), "table");
+    goal->setColor({col(0), col(1), col(2), 0.2});
   }
 
   double total_duration = 0.;
@@ -532,7 +537,7 @@ void benchmark_dual_arm_planning(){
 
         const double alpha = rnd.uni(0, 2 * 3.1415);
 
-        if (length(ARR(x, y, 0)) > 0.85 || length(ARR(x, y, 0)) < 0.3 || x > 0) {
+        if (length(ARR(x, y, 0)) > 0.85 || length(ARR(x, y, 0)) < 0.3 || x > -0.1) {
           continue;
         }
 
@@ -553,7 +558,6 @@ void benchmark_dual_arm_planning(){
       goal->setShape(rai::ST_box, {depth, width, 0.05, 0.03});
       goal->setContact(1);
       goal->setJoint(rai::JT_rigid);
-      goal->setColor({0, 0, 0, 0.5});
 
       while (true) {
         const double x = rnd.uni(-0.8, 0.8);
@@ -561,7 +565,7 @@ void benchmark_dual_arm_planning(){
         const double alpha = rnd.uni(0, 2 * 3.1415);
 
         // ensure that it is not too close to the base
-        if (length(ARR(x, y, 0)) < 0.3 || length(ARR(x, y, 0)) > 0.9 || x < 0) {
+        if (length(ARR(x, y, 0)) < 0.3 || length(ARR(x, y, 0)) > 0.9 || x < 0.1) {
           continue;
         }
 
@@ -591,7 +595,8 @@ void benchmark_dual_arm_planning(){
     const auto start_time = std::chrono::high_resolution_clock::now();
 
     const auto rtpm =
-        compute_all_pick_and_place_with_intermediate_pose(C, robots);
+        // compute_all_handover_poses(C, robots);
+    compute_all_pick_and_place_with_intermediate_pose(C, robots);
 
     const auto seq = generate_random_valid_sequence(robots, 2, rtpm);
 
