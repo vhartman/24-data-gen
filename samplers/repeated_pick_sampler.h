@@ -96,9 +96,9 @@ public:
 
     // constraints for placing the object
     komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e0},
-                      {-0.01});
+                      {-0.04});
     komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
-                      {0.5});
+                      {0.2});
 
     // constraints for picking the object
     komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,
@@ -106,8 +106,10 @@ public:
     komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, obj}, OT_ineq,
                       {5e1});
 
-    // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
-    //                   OT_sos, {1e1});
+    // komo.addObjective({3., 3.}, FS_positionDiff, {STRING(r1<<"base"), STRING(obj)},
+    //                   OT_sos, {1e0});
+    // komo.addObjective({3., 3.}, FS_positionDiff,
+    //                   {STRING(r2 << "base"), STRING(obj)}, OT_sos, {1e0});
 
     // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
     //                   OT_sos, {1e1});
@@ -132,7 +134,7 @@ public:
                       {1e1}, {-1.});
 
     komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, "table"}, OT_eq,
-                      {1e0}, {1.});
+                      {1e1}, {1.});
 
     // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
     //                   OT_sos, {1e0}, {1.});
@@ -177,7 +179,7 @@ public:
           }
         }
         komo.addObjective({0, 5}, make_shared<F_qItself>(bodies, true), {},
-                          OT_sos, {1e-1}, NoArr); // world.q, prec);
+                          OT_sos, {1e1}, NoArr); // world.q, prec);
       }
     }
 
@@ -227,6 +229,12 @@ public:
 
       uintA objID;
       objID.append(C[obj]->ID);
+      // rai::Frame *obj2 =
+      //     komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 3 + objID)(0);
+      // arr rndpos(2);
+      // rndUniform(rndpos, -1, 1);
+      // obj2->setRelativePosition({rndpos(0), rndpos(1), C[obj]->getRelativePosition()(2)});
+      
       rai::Frame *obj3 =
           komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 4 + objID)(0);
       obj3->setPose(C[goal]->getPose());
@@ -265,6 +273,8 @@ public:
 
       if (res1->isFeasible && res2->isFeasible && res3->isFeasible &&
           res4->isFeasible && ineq < 1. && eq < 1.) {
+        // komo.pathConfig.watch(true);
+
         const auto home = C.getJointState();
 
         C.setJointState(q0);
