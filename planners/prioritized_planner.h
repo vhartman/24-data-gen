@@ -247,7 +247,10 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
     // std::cout << t0 << std::endl;
     // LOG(-1) << "q_start is not feasible! This should not happen ";
     spdlog::error("q_start is not feasible at time {}! This should not happen", t0);
-    spdlog::error("penetration is {}", min(start_res->coll_y));
+    
+    if (start_res->coll_y.N > 0){
+      spdlog::error("penetration is {}", min(start_res->coll_y));
+    }
 
     start_res->writeDetails(cout, TP.C);
     // std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
@@ -404,8 +407,19 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     // TP.C.watch(true);
 
     spdlog::error("q_start is not feasible at time {}! This should not happen", t0);
+    // std::cout << q0 << std::endl;
     start_res->writeDetails(cout, TP.C);
-    spdlog::error("penetration is {}", min(start_res->coll_y));
+    if (start_res->coll_y.N > 0){
+      spdlog::error("penetration is {}", min(start_res->coll_y));
+    }
+
+    // for (uint i=0; i<TP.A.getT(); ++i){
+    //   std::cout << i << std::endl;
+    //   TP.A.setToTime(TP.C, i);
+    //   //TP.C.setJointState(q1);
+    //   TP.C.watch(true);
+    // }
+
     // std::cout << t0 << std::endl;
     // LOG(-1) << "q_start is not feasible! This should not happen ";
     // std::cout << "colliding by " << min(start_res->coll_y) << std::endl;
@@ -539,7 +553,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     t(i) = i + t0;
   }
 
-  // std::cout << t(0) << " " << t(t.N-1) << std::endl;
+  // std::cout << timedPath.time(-1) << " " <<  t(0) << " " << t(t.N-1) << std::endl;
 
   const arr path = timedPath.resample(t, TP.C);
 
@@ -579,7 +593,39 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   arr new_path = path;
   if (should_shortcut){
     spdlog::info("Running shortcutter");
+    // for (uint i = 0; i < path.d0; ++i) {
+    //   const auto res = TP.query(path[i], t(i));
+    //   std::cout << "checking at time " << t(i) << std::endl;
+    //   if (t(i) == 70){
+    //     TP.C.watch(true);
+    //   }
+    //   if (!res->isFeasible) {
+    //     // std::cout << i << std::endl;
+    //     // TP.C.watch(true);
+    //     spdlog::warn("pre shortcut path infeasible, penetration {} at time {} "
+    //                  "(timestep {} / {})",
+    //                  min(res->coll_y), t(i), i, new_path.d0);
+    //     res->writeDetails(std::cout, TP.C);
+    //     break;
+    //   }
+    // }
+
     new_path = partial_spacetime_shortcut(TP, path, t0);
+
+    for (uint i = 0; i < new_path.d0; ++i) {
+      const auto res = TP.query(new_path[i], t(i));
+      if (!res->isFeasible) {
+        // std::cout << i << std::endl;
+        // TP.C.watch(true);
+        res->writeDetails(std::cout, TP.C);
+        if (res->coll_y.N > 0){
+          spdlog::warn("shortcut path infeasible, penetration {} at time {} "
+                       "(timestep {} / {})",
+                       min(res->coll_y), t(i), i, new_path.d0);
+        }
+        break;
+      }
+    }
 
     const double max_speed = get_max_speed(new_path);
     spdlog::info("RRT maximum speed after shortcutting {}", max_speed);
@@ -607,6 +653,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
     smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix);
     
     if (smooth_path.N == 0){
+      spdlog::info("Smoothing failed.");
       smooth_path = new_path;
     }
     else{
@@ -622,6 +669,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
         //     break;
         //   }
         // }
+        // std::cout << "checking at time " << t(i) << std::endl;
         if (!res->isFeasible) {
           // std::cout << i << std::endl;
           // TP.C.watch(true);
@@ -1484,7 +1532,7 @@ class PrioritizedTaskPlanner {
           paths[robot].pop_back();
           removed_exit_path = true;
 
-          spdlog::info("New end tim: {}", paths[robot].back().t(-1));
+          spdlog::info("New end time: {}", paths[robot].back().t(-1));
         }
 
         for (uint j = 0; j < poses.size(); ++j) {

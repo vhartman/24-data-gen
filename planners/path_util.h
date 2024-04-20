@@ -32,17 +32,22 @@ arr constructShortcutPath(const rai::Configuration &C, const arr &path,
       const double start = p2(l);
       const double end = p1(l);
       delta(l) = std::fmod(start - end + 3. * RAI_PI, 2 * RAI_PI) - RAI_PI;
+      // delta(l) = start - end;
     }
   }
 
-  arr p(j - i, path.d1);
+  arr p(j - i + 1, path.d1);
 
-  for (uint l = 0; l < j - i; ++l) {
+  for (uint l = 0; l < p.d0; ++l) {
     for (uint k = 0; k < path.d1; ++k) {
       if (std::find(short_ind.begin(), short_ind.end(), k) != short_ind.end()) {
         const double a = 1. * l / (j - i);
-        // p(l, k) = path(i, k) + a * (path(j, k) - path(i, k));
         p(l, k) = path(i, k) + a * (delta(k));
+
+        if (periodicDimensions[k]){
+          p(l, k) = std::fmod(p(l, k) + 3. * RAI_PI, 2 * RAI_PI) - RAI_PI;
+        }
+
       } else {
         p(l, k) = path(l + i, k);
       }
@@ -161,9 +166,6 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     auto ps = constructShortcutPath(TP.C, smoothedPath, i, j, ind);
     
     if (TP.A.prePlannedFrames.N > 0){
-      // std::cout << t0 << " " << i << " " << j << std::endl;
-      // std::cout << TP.A.tPrePlanned << std::endl;
-      // for (const auto f: TP.A.prePlannedFrames) std::cout << f->name << std::endl;
       for (uint n=0; n<ps.d0; ++n){
         // project path
         if (t0 + i + n <= TP.A.tPrePlanned){
@@ -187,7 +189,7 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
     // check if the new path is feasible (interpolate)
     // permute the indices that we check
     uintA q;
-    q.setStraightPerm(j - i - 1);
+    q.setStraightPerm(j - i);
     q.permuteRandomly();
 
     // enable not checking everything here
@@ -198,23 +200,12 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
       const uint num_pts = uint(std::max(dist / resolution, 1.));
       for (uint l = 0; l < num_pts; ++l) {
         const double interp = corput(l);
-        const arr point = ps[n] + dir * interp;
-        const double t = t0 + i + n + interp;
+        const arr point = ps[n] + interp * 1. * dir;
+        const double t = t0 + i + n + 1. * interp;
 
         // std::cout << t << " " << point << std::endl;
 
         const auto qr = TP.query(point, t);
-
-        // ConfigurationProblem cp(TP.C);
-        // auto tmp = cp.query({}, false);
-
-        // std::cout << qr->isFeasible << std::endl;
-        // std::cout << tmp->isFeasible << std::endl;
-
-        // if (tmp->isFeasible != qr->isFeasible){
-        //   TP.C.watch();
-        //   cp.C.watch(true);
-        // }
 
         if (!qr->isFeasible) {
           // std::cout << "A" << std::endl;
@@ -306,7 +297,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   options.damping = 10;
   // options.stopTolerance = 0.1;
   options.allowOverstep = false;
-  options.nonStrictSteps = 5;
+  // options.nonStrictSteps = 5;
   options.wolfe = 0.001;
   // options.maxStep = 0.01;
 
