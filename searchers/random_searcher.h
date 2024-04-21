@@ -1,7 +1,7 @@
 #pragma once
 
-#include "plan.h"
 #include "../planners/prioritized_planner.h"
+#include "plan.h"
 #include "search_util.h"
 #include "sequencing.h"
 
@@ -46,7 +46,7 @@ Plan plan_multiple_arms_random_search(
 
     const auto seq = generate_random_valid_sequence(robots, num_tasks, rtpm);
 
-    if (seq.size() == 0){
+    if (seq.size() == 0) {
       return Plan();
     }
 
@@ -68,30 +68,40 @@ Plan plan_multiple_arms_random_search(
       const Plan plan = plan_result.plan;
       const double makespan = get_makespan_from_plan(plan);
 
-      std::cout << "\n\n\nMAKESPAN " << makespan << " best so far "
-                << best_makespan << std::endl;
+      spdlog::info("Current MAKESPAN {}, best so far: {}", makespan,
+                   best_makespan);
+      std::stringstream ss;
       for (auto s : seq) {
-        std::cout << "(" << s.robots[0] << " " << s.task.object << ")";
+        ss << "( robots: ";
+        for (auto r: s.robots){ss << r << " ";}
+        ss << "obj: " << s.task.object << "primitive: ";
+        if (s.task.type == PrimitiveType::go_to){ss << "go_to";}
+        else if (s.task.type == PrimitiveType::handover){ss << "handover";}
+        else if (s.task.type == PrimitiveType::pick){ss << "pick";}
+        else if (s.task.type == PrimitiveType::pick_pick_1){ss << "pickpick1";}
+        else if (s.task.type == PrimitiveType::pick_pick_2){ss << "pickpick2";}
+        ss << ")";
       }
-      std::cout << "\n\n\n" << std::endl;
+      spdlog::info(ss.str());
 
-        const auto end_time = std::chrono::high_resolution_clock::now();
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  end_time - start_time)
-                                  .count();
+      const auto end_time = std::chrono::high_resolution_clock::now();
+      const auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+                                                                start_time)
+              .count();
 
-      export_plan(C, robots, home_poses, plan, seq, buffer.str(), i,
-                  duration);
+      export_plan(C, robots, home_poses, plan, seq, buffer.str(), i, duration);
 
       if (makespan < best_makespan) {
         best_makespan = makespan;
         best_plan = plan;
 
-        if (global_params.export_images){
-          const std::string image_path = global_params.output_path + buffer.str() + "/" + std::to_string(i) + "/img/";
+        if (global_params.export_images) {
+          const std::string image_path = global_params.output_path +
+                                         buffer.str() + "/" +
+                                         std::to_string(i) + "/img/";
           visualize_plan(C, best_plan, global_params.allow_display, image_path);
-        }
-        else{
+        } else {
           visualize_plan(C, best_plan, global_params.allow_display);
         }
       }

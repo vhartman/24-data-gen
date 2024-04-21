@@ -454,7 +454,12 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (mode == "benchmark_planning"){
+  if (mode == "benchmark_pick_pick_planning"){
+    benchmark_dual_arm_multi_pick_planning();
+    return 0;
+  }
+
+  if (mode == "benchmark_planning") {
     benchmark_dual_arm_planning();
     return 0;
   }
