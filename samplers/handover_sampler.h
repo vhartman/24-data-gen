@@ -316,6 +316,9 @@ public:
       spdlog::info("Skipping handover keyframe copmutation for obj {} and "
                    "robots {}, {}",
                    obj.p, r1.prefix, r2.prefix);
+      spdlog::info("distance: r1-obj {}, r2-goal {}, r1-r2 {}", euclideanDistance(obj_pos, r1_pos),
+                   euclideanDistance(goal_pos, r2_pos),
+                   euclideanDistance(r1_pos, r2_pos));
       return {};
     }
 
@@ -609,6 +612,8 @@ public:
         // std::cout << place_pose << std::endl;
 
         C.setJointState(home);
+
+        std::cout << "succ" << std::endl;
 
         return {pick_pose, q1, place_pose};
       } else {

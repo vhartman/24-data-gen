@@ -13,6 +13,14 @@
 #include "pick_and_place_sampler.h"
 #include "repeated_pick_sampler.h"
 
+class TaskPoseSampler{
+  public:
+    rai::Configuration C;
+    TaskPoseSampler(rai::Configuration &_C): C(_C) {};
+    virtual TaskPoses sample(const RobotTaskPair &rtp) = 0;
+    virtual TaskPoses sample(const RobotTaskPair &rtp, const rai::Animation &A) = 0;
+};
+
 // class RobotTaskPoseSampler{
 //   public:
 //     // this implements caching of results

@@ -95,10 +95,10 @@ public:
     komo.setSkeleton(S);
 
     // constraints for placing the object
-    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e0},
+    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e1},
                       {-0.04});
-    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
-                      {0.2});
+    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e1},
+                      {0.05});
 
     // constraints for picking the object
     komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,

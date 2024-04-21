@@ -443,8 +443,6 @@ void benchmark_dual_arm_pick_pick_success_rate(
 
     total_duration += duration;
 
-    spdlog::info("Found solution");
-
     // ensure that the keyframe we found is the one we are looking for
     if (sol.size() >= 1) {
       cnt_success += 1;
@@ -602,6 +600,11 @@ void benchmark_dual_arm_multi_pick_planning() {
 
     const auto seq = generate_random_valid_sequence(robots, 2, rtpm);
 
+    if (seq.size() == 0){
+      report_test_result("Failure", false);
+      continue;
+    }
+
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
 
@@ -673,7 +676,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
 
   for (uint i = 0; i < N; ++i) {
     spdlog::info("Running scenario {}", i);
-    
+
     for (uint j = 0; j < num_objs; ++j) {
       double width = rnd.uni(0.03, 0.04);
       double depth = rnd.uni(0.08, 0.1);
@@ -698,7 +701,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
             too_close = true;
           }
 
-          if (length(ARR(x - p(0), y - p(1), 0)) < 0.9) {
+          if (length(ARR(x - p(0), y - p(1), 0)) < 0.8) {
             too_far_away = false;
           }
         }
@@ -739,7 +742,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
             too_close = true;
           }
 
-          if (length(ARR(x - p(0), y - p(1), 0)) < 0.9) {
+          if (length(ARR(x - p(0), y - p(1), 0)) < 0.8) {
             too_far_away = false;
           }
         }
@@ -785,7 +788,14 @@ void benchmark_dual_arm_planning(const uint N = 50) {
         compute_all_pick_and_place_with_intermediate_pose(C, robots);
     rtpm.insert(pick_pick_rtpm.begin(), pick_pick_rtpm.end());
 
-    const auto seq = generate_random_valid_sequence(robots, 2, rtpm);
+    const auto seq = generate_random_valid_sequence(robots, num_objs, rtpm);
+
+    if (seq.size() == 0){
+      // C.watch(true);
+
+      report_test_result("Failure", false);
+      continue;
+    }
 
     const auto plan_result =
         plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);

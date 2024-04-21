@@ -74,7 +74,7 @@ Plan plan_multiple_arms_random_search(
       for (auto s : seq) {
         ss << "( robots: ";
         for (auto r: s.robots){ss << r << " ";}
-        ss << "obj: " << s.task.object << "primitive: ";
+        ss << "obj: " << s.task.object << " primitive: ";
         if (s.task.type == PrimitiveType::go_to){ss << "go_to";}
         else if (s.task.type == PrimitiveType::handover){ss << "handover";}
         else if (s.task.type == PrimitiveType::pick){ss << "pick";}

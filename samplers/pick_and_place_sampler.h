@@ -45,6 +45,8 @@ public:
 
     const arr r1_pos = C[STRING(r << "base")]->getPosition();
 
+    setActive(C, r);
+
     // TODO: solve subproblems to check for feasibility.
     // For now: hardcode the radius of the ur5
     if (euclideanDistance(obj_pos, r1_pos) > 1. ||
@@ -278,6 +280,7 @@ compute_all_pick_and_place_positions(rai::Configuration C,
     for (uint i = 0; i < num_objects; ++i) {
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
+      
       const auto sol = sampler.sample(r, obj, goal);
 
       if (sol.size() > 0) {

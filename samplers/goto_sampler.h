@@ -24,7 +24,7 @@ public:
   rai::Configuration C;
   OptOptions options;
 
-  std::vector<arr> sample(Robot r, rai::String goal) {
+  std::vector<arr> sample(const Robot r, const rai::String goal) {
     setActive(C, std::vector<Robot>{r});
     std::unordered_map<Robot, FrameL> robot_frames;
     for (const auto &r : {r}) {
