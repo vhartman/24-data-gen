@@ -71,16 +71,8 @@ Plan plan_multiple_arms_random_search(
       spdlog::info("Current MAKESPAN {}, best so far: {}", makespan,
                    best_makespan);
       std::stringstream ss;
-      for (auto s : seq) {
-        ss << "( robots: ";
-        for (auto r: s.robots){ss << r << " ";}
-        ss << "obj: " << s.task.object << " primitive: ";
-        if (s.task.type == PrimitiveType::go_to){ss << "go_to";}
-        else if (s.task.type == PrimitiveType::handover){ss << "handover";}
-        else if (s.task.type == PrimitiveType::pick){ss << "pick";}
-        else if (s.task.type == PrimitiveType::pick_pick_1){ss << "pickpick1";}
-        else if (s.task.type == PrimitiveType::pick_pick_2){ss << "pickpick2";}
-        ss << ")";
+      for (const auto &s : seq) {
+        ss << "(" << s.serialize() << ")";
       }
       spdlog::info(ss.str());
 

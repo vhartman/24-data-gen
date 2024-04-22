@@ -388,7 +388,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     std::ofstream f;
     f.open(folder + "sequence.txt", std::ios_base::trunc);
     for (const auto &s : seq) {
-      f << "(" << s.robots[0] << " " << s.task.object << " " << int(s.task.type) << ")";
+      f << "(" << s.serialize() << ")";
     }
   }
 

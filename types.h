@@ -5,6 +5,22 @@
 #include <Core/array.h>
 
 enum class PrimitiveType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
+std::string primitive_type_to_string(PrimitiveType t){
+  if (t == PrimitiveType::go_to){
+    return "go_to";
+  } else if (t == PrimitiveType::handover) {
+    return "handover";
+  } else if (t == PrimitiveType::pick) {
+    return "pick";
+  } else if (t == PrimitiveType::pick_pick_1) {
+    return "pickpick1";
+  } else if (t == PrimitiveType::pick_pick_2) {
+    return "pickpick2";
+  }
+
+  return "TYPE NOT DEFINED";
+}
+
 struct Task {
   unsigned int object;
   PrimitiveType type;
@@ -46,6 +62,17 @@ template <> struct std::hash<Robot> {
 struct RobotTaskPair {
   std::vector<Robot> robots;
   Task task;
+
+  std::string serialize() const {
+    std::stringstream ss;
+    ss << "robots: ";
+    for (const auto &r : robots) {
+      ss << r << ", ";
+    }
+    ss << "; obj: " << task.object
+       << ";  primitive: " << primitive_type_to_string(task.type);
+    return ss.str();
+  }
 
   bool operator==(const RobotTaskPair &other) const {
     if (robots.size() != other.robots.size()) {

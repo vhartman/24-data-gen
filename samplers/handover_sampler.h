@@ -613,8 +613,6 @@ public:
 
         C.setJointState(home);
 
-        std::cout << "succ" << std::endl;
-
         return {pick_pose, q1, place_pose};
       } else {
         spdlog::debug("pick/place failed for robot {} and {}, obj {} ineq: "
