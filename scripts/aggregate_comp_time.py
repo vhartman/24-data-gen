@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 
-plt.style.use('./scripts/paper_2.mplstyle')
+# plt.style.use('./scripts/paper_2.mplstyle')
 
 def load_comp_times_from_txt_file(filename):
     tmp = open(filename, "r").read()
@@ -60,45 +60,60 @@ def load_comp_times_from_txt_file(filename):
         'komo-times': komo_times
     }
 
-def visualize_times(filename):
-    data = load_comp_times_from_txt_file(filename)
+def load_folder(folder, time_offset = 0, iter_offset = 0):
+    subfolders = [ f.path for f in os.scandir(folder) if f.is_dir() ]
+
+    d = []
+    for f in subfolders:
+        if os.path.exists(f + "/computation_times.txt"):
+            data = load_comp_times_from_txt_file(f + "/computation_times.txt")
+
+            d.append(data)
+
+    return d
+
+def aggregate(data):
+    agg = {}
+
+    for tmp in data:
+        for k, v in tmp.items():
+            if k == 'labels':
+                continue
+
+            if k in agg:
+                agg[k].extend(v)
+            else:
+                agg[k] = v
+
+    return agg
+
+def visualize_times(foldername):
+    data = load_folder(foldername)
+    agg_data = aggregate(data)
+
+    sums = {}
+    for k, v in agg_data.items():
+        sums[k] = np.sum(v)
     
-    total_times = data['totals']
-    komo_times = data['komo-times']
-    rrt_times = data['rrt-times']
-    rrt_plan_times = data['rrt-plan-times']
-    coll_times = data['coll-times']
-    nn_times = data['nn-times']
-    shortcut_times = data['shortcut-times']
-    smoothing_times = data['smoothing-times']
+    plt.figure('percentage')
+    plt.bar([l for l, _ in sums.items()], [v / sums['totals'] for _, v in sums.items()])
 
-    labels = data['labels']
+    plt.figure('sums')
+    plt.bar([l for l, _ in sums.items()], [v for _, v in sums.items()])
 
-    plt.xticks(np.arange(len(total_times)), labels, rotation=45)
-
-    plt.plot(total_times, label='total')
-    plt.plot(rrt_times, label='rrt')
-    plt.plot(rrt_plan_times, label='rrt-plan')
-    plt.plot(komo_times, label='komo')
-
-    plt.plot(nn_times, label='nn')
-    plt.plot(coll_times, label='coll')
-    plt.plot(shortcut_times, label='shortcut')
-    plt.plot(smoothing_times, label='smoothing')
-    plt.legend()
     plt.show()
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file', type=str, nargs='?', help='The file we want to have a look at.')
+    parser.add_argument('--folder', type=str, nargs='?', help='The file we want to have a look at.')
 
     args = parser.parse_args()
-    filename = args.file
+    folder = args.folder
 
-    if filename is None:
-        filename = "/home/valentin/git/personal-projects/23-shortcutting/out/Handover_1_20231127_183015"
+    if folder is None:
+        print("No folder specified")
 
-    visualize_times(filename)
+    visualize_times(folder)
 
 if __name__ == "__main__":
     main()
