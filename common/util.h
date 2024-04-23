@@ -3,6 +3,8 @@
 #include <numeric>
 #include "types.h"
 
+#include <KOMO/komo.h>
+
 rai::Animation::AnimationPart make_animation_part(rai::Configuration &C,
                                                   const arr &path,
                                                   const FrameL &frames,

@@ -4,9 +4,10 @@
 
 #include <Kin/featureSymbols.h>
 
-#include "../plan.h"
-#include "../planners/prioritized_planner.h"
-#include "../util.h"
+#include "planners/plan.h"
+#include "planners/prioritized_planner.h"
+
+#include "common/util.h"
 
 #include "goto_sampler.h"
 #include "handover_sampler.h"

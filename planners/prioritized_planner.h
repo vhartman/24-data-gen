@@ -14,11 +14,11 @@
 #include <Geo/fclInterface.h>
 
 #include "plan.h"
-#include "util.h"
 #include "path_util.h"
-#include "env_util.h"
 
-#include "config.h"
+#include "common/util.h"
+#include "common/env_util.h"
+#include "common/config.h"
 
 /*class PrioritizedSequencePlanner{
   public: 

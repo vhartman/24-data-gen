@@ -9,12 +9,10 @@
 
 #include <Core/array.h>
 
-#include "util.h"
-#include "env_util.h"
-
-#include "types.h"
-
-#include "config.h"
+#include "common/util.h"
+#include "common/env_util.h"
+#include "common/types.h"
+#include "common/config.h"
 
 using json = nlohmann::json;
 
@@ -43,11 +41,16 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
         }
       }
     }
+
     rtp.task.object = std::stoi(object);
     if (primitive == "handover") {
       rtp.task.type = PrimitiveType::handover;
     } else if (primitive == "pick") {
       rtp.task.type = PrimitiveType::pick;
+    } else if (primitive == "pickpick1") {
+      rtp.task.type = PrimitiveType::pick_pick_1;
+    } else if (primitive == "pickpick2") {
+      rtp.task.type = PrimitiveType::pick_pick_2;
     } else {
       spdlog::error("No task specified.");
     }

@@ -3,8 +3,8 @@
 #include "spdlog/spdlog.h"
 
 #include "../samplers/sampler.h"
-#include "env_util.h"
-#include "types.h"
+#include "common/env_util.h"
+#include "common/types.h"
 
 #include <experimental/filesystem>
 
@@ -600,7 +600,7 @@ void benchmark_dual_arm_multi_pick_planning() {
 
     const auto seq = generate_random_valid_sequence(robots, 2, rtpm);
 
-    if (seq.size() == 0){
+    if (seq.size() == 0) {
       report_test_result("Failure", false);
       continue;
     }
@@ -658,6 +658,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
 
   const uint num_objs = 4;
 
+  // add objects
   for (uint i = 0; i < num_objs; ++i) {
     auto *obj = C.addFrame(STRING("obj" << i + 1), "table");
     arr col(3);
@@ -677,6 +678,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
   for (uint i = 0; i < N; ++i) {
     spdlog::info("Running scenario {}", i);
 
+    // set the objects to random locations
     for (uint j = 0; j < num_objs; ++j) {
       double width = rnd.uni(0.03, 0.04);
       double depth = rnd.uni(0.08, 0.1);
@@ -696,7 +698,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
         bool too_close = false;
         bool too_far_away = true;
 
-        for (const arr& p : base_poses) {
+        for (const arr &p : base_poses) {
           if (length(ARR(x - p(0), y - p(1), 0)) < 0.3) {
             too_close = true;
           }
@@ -737,7 +739,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
         bool too_close = false;
         bool too_far_away = true;
 
-        for (const arr& p : base_poses) {
+        for (const arr &p : base_poses) {
           if (length(ARR(x - p(0), y - p(1), 0)) < 0.3) {
             too_close = true;
           }
@@ -790,7 +792,7 @@ void benchmark_dual_arm_planning(const uint N = 50) {
 
     const auto seq = generate_random_valid_sequence(robots, num_objs, rtpm);
 
-    if (seq.size() == 0){
+    if (seq.size() == 0) {
       // C.watch(true);
 
       report_test_result("Failure", false);

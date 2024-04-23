@@ -4,7 +4,6 @@
 #include <Kin/kin.h>
 
 #include "types.h"
-#include "plan.h"
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
 using json = nlohmann::json;

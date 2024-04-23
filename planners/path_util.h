@@ -8,8 +8,8 @@
 
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
-#include "util.h"
-#include "config.h"
+#include "common/util.h"
+#include "common/config.h"
 
 arr constructShortcutPath(const rai::Configuration &C, const arr &path,
                           const uint i, const uint j,
@@ -423,4 +423,3 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   spdlog::info("Done with smoothing");
   return unscaled_path;
 }
-

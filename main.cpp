@@ -28,23 +28,21 @@
 #include <PlanningSubroutines/Animation.h>
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
-#include "plan.h"
-
-#include "env_util.h"
-#include "planners/path_util.h"
 // #include "stippling.h"
-#include "util.h"
 
 #include "searchers/annealing_searcher.h"
 #include "searchers/greedy_random_searcher.h"
 #include "searchers/random_searcher.h"
 #include "searchers/sequencing.h"
 
+#include "planners/plan.h"
+#include "planners/path_util.h"
 #include "planners/optimal_planner.h"
 #include "planners/planner.h"
 #include "planners/prioritized_planner.h"
 
 #include "samplers/sampler.h"
+
 #include "tests/perf_test.h"
 #include "tests/test.h"
 #include "tests/benchmark.h"
@@ -52,7 +50,9 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 
-#include "config.h"
+#include "common/util.h"
+#include "common/env_util.h"
+#include "common/config.h"
 
 manip::Parameters global_params;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "plan.h"
+#include "planners/plan.h"
 #include "planners/prioritized_planner.h"
 #include "search_util.h"
 #include "sequencing.h"

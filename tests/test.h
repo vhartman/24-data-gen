@@ -3,8 +3,9 @@
 #include "spdlog/spdlog.h"
 
 #include "../samplers/sampler.h"
-#include "env_util.h"
-#include "types.h"
+
+#include "common/env_util.h"
+#include "common/types.h"
 
 #include <experimental/filesystem>
 

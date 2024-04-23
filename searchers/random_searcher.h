@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../planners/prioritized_planner.h"
-#include "plan.h"
+#include "planners/plan.h"
 #include "search_util.h"
 #include "sequencing.h"
 
-#include "config.h"
+#include "common/config.h"
 
 Plan plan_multiple_arms_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,

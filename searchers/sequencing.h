@@ -4,8 +4,8 @@
 #include <vector>
 #include <deque>
 
-#include "plan.h"
-#include "util.h"
+#include "planners/plan.h"
+#include "common/util.h"
 
 OrderedTaskSequence generate_random_sequence(const std::vector<Robot> &robots,
                                              const uint num_tasks) {

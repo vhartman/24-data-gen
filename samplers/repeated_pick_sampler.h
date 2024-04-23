@@ -4,9 +4,9 @@
 
 #include <Kin/featureSymbols.h>
 
-#include "../plan.h"
-#include "../planners/prioritized_planner.h"
-#include "../util.h"
+#include "planners/plan.h"
+#include "planners/prioritized_planner.h"
+#include "common/util.h"
 
 class RepeatedPickSampler {
 public:

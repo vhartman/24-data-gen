@@ -1,6 +1,6 @@
 #pragma once
 #include <Core/array.h>
-#include "plan.h"
+#include "planners/plan.h"
 #include "../planners/prioritized_planner.h"
 
 double estimate_task_duration(const arr &start_pose, const arr &goal_pose,

@@ -1,3 +1,6 @@
+This codebase can be used for rearrangement planning for multiple robots, and does unsynchronized task and motion planning.
+The main use is generating data for learning algorithms for, e.g., muti goal motion planning, task planning.
+
 This repo started out as the codebase that I developed as part of [the paper "Towards computing low-makespan solutions for multi-arm multi-task planning problems"](https://vhartmann.com/robplan-low-makespan/).
 Compared to the state in the paper, the stippling is currently not available, but it is much faster, and handovers and other primitives are available.
 
@@ -13,7 +16,7 @@ The following command runs a random search on the default (random) environment.
 ./x.exe -mode random_search
 ```
 
-The follwing command rnus a random search on a user-specified scenario and exports the images, and displays some solutions.
+The follwing command runs a random search on a user-specified scenario and exports the images, and displays some solutions.
 ```
 ./x.exe -pnp true -mode random_search -seed 879 -robot_env 'in/envs/three_opposite_gripper.json' -env 'in/objects/four_obj.json' -display true -export_images true
 ```
@@ -38,6 +41,14 @@ There are many flags to specify behaviour. Some of them are
 | out_path | Specifies the output path |
 
 Please refer to `main.cpp` for all of them.
+
+# How it works & what can it do
+
+### Motion planning
+
+### Keyframe generation
+
+### Task planning
 
 # Citation
 If you use this codebase in your research, please cite the paper where the codebase is from as
