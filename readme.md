@@ -29,14 +29,22 @@ which would in this case result in the following video:
 
 ![Robot Video](./example/example.gif)
 
+The same also works for mixed-robot-teams with the robot-scenario here:
+```
+./x.exe -pnp true -mode random_search -robot_path 'in/envs/three_opposite_mixed.json' -obj_path 'in/objects/three_obj.json' -display true -export_images true -verbosity 5
+```
+
+![Robot Video](./example/example_mixed.gif)
+
+
 #### Flags
 There are many flags to specify behaviour. Some of them are
 
 | flag | meaning |
 |---|---|
-| mode | What mode to run. Should likely be `random_search`. `show_env` can be used to display the environment. `compute_keyframes` can be used to compute keyframes. |
-| robot_env | Specified the path to the file for the robot layout |
-| env | Specifies the path to the file of the environment layout |
+| mode | What mode to run. Should likely be `random_search`. `show_env` can be used to display the environment. `compute_keyframes` can be used to compute keyframes only. |
+| robot_path | Specified the path to the file for the robot layout |
+| obj_path | Specifies the path to the file of the environment layout |
 | sequence_path | Specifies the sequence to plan for |
 | out_path | Specifies the output path |
 
@@ -44,11 +52,18 @@ Please refer to `main.cpp` for all of them.
 
 # How it works & what can it do
 
-### Motion planning
+### Task planning
+Task planning is done by sequencing primitives, and searching over possible sequences.
+This sequence is then used to prioritize motion planning.
 
 ### Keyframe generation
+The keyframes are the points in time where mode switches happen, e.g., where a robot picks something up, or places something on the table.
+We compute the poses in which the robots should be by specifying constraints, and running an optimizer to find a solution.
 
-### Task planning
+Keyframes are precomputed, and are used to inform the task planner which primitives are (in)feasible.
+
+### Motion planning
+We are using a variant of ST-RRT* for prioritized motion planning.
 
 # Citation
 If you use this codebase in your research, please cite the paper where the codebase is from as

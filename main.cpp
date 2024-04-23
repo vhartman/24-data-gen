@@ -36,7 +36,7 @@
 #include "searchers/sequencing.h"
 
 #include "planners/plan.h"
-#include "planners/path_util.h"
+#include "planners/postprocessing.h"
 #include "planners/optimal_planner.h"
 #include "planners/planner.h"
 #include "planners/prioritized_planner.h"
@@ -388,14 +388,14 @@ int main(int argc, char **argv) {
   const rai::String gripper =
       rai::getParameter<rai::String>("gripper", "two_finger"); // which gripper
 
-  const rai::String env =
-      rai::getParameter<rai::String>("env", "random"); // environment
+  const rai::String obj_path =
+      rai::getParameter<rai::String>("obj_path", "random"); // environment
 
   const uint num_objects_for_env =
       rai::getParameter<double>("objects", 5); // number of objects
 
-  const rai::String robot_env =
-      rai::getParameter<rai::String>("robot_env", "./in/envs/two_opposite.json"); // environment
+  const rai::String robot_path =
+      rai::getParameter<rai::String>("robot_path", "./in/envs/two_opposite.json"); // environment
 
   const rai::String sequence_path =
       rai::getParameter<rai::String>("sequence_path", "./in/sequences/test.json"); // environment
@@ -511,22 +511,22 @@ int main(int argc, char **argv) {
   }
 
   rai::Configuration C;
-  auto robots = make_robot_environment_from_config(C, robot_env.p);
+  auto robots = make_robot_environment_from_config(C, robot_path.p);
 
-  if (env == "random"){
+  if (obj_path == "random"){
     random_objects(C, num_objects_for_env);
   }
-  else if (env == "line"){
+  else if (obj_path == "line"){
     line(C, num_objects_for_env);
   }
-  else if (env == "shuffled_line"){
+  else if (obj_path == "shuffled_line"){
     shuffled_line(C, num_objects_for_env, 1.5, false);
   }
-  else if (env == "big_objs"){
+  else if (obj_path == "big_objs"){
     big_objs(C, num_objects_for_env);
   }
   else{
-    add_objects_from_config(C, env.p);
+    add_objects_from_config(C, obj_path.p);
   }
 
   int num_objects = 0;

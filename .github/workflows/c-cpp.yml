@@ -44,9 +44,9 @@ jobs:
                     echo "Generic planning"
                     ./x.exe -mode benchmark_planning -verbosity 5 > ./out/dual_arm_planning.txt
                     tail -n 2 ./out/dual_arm_planning.txt
-          - name: Archive keyframe computation results
+          - name: Archive benchmark results
             uses: actions/upload-artifact@v4
             with:
-              name: Keyframes
+              name: benchmark_logs
               path: |
                 out

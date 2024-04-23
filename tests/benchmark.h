@@ -90,8 +90,6 @@ void benchmark_single_arm_pick_and_place_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        // std::cout << "goal rot: " << alpha << std::endl;
-
         break;
       }
     }
@@ -120,8 +118,6 @@ void benchmark_single_arm_pick_and_place_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-
-        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -241,8 +237,6 @@ void benchmark_dual_arm_handover_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        // std::cout << "goal rot: " << alpha << std::endl;
-
         break;
       }
     }
@@ -271,8 +265,6 @@ void benchmark_dual_arm_handover_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-
-        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -389,8 +381,6 @@ void benchmark_dual_arm_pick_pick_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-        // std::cout << "goal rot: " << alpha << std::endl;
-
         break;
       }
     }
@@ -419,8 +409,6 @@ void benchmark_dual_arm_pick_pick_success_rate(
       ConfigurationProblem cp(C);
       const auto res = cp.query({}, false);
       if (res->isFeasible) {
-
-        // std::cout << "goal rot: " << alpha << std::endl;
         break;
       }
     }
@@ -523,6 +511,10 @@ void benchmark_dual_arm_multi_pick_planning() {
       double width = rnd.uni(0.03, 0.04);
       double depth = rnd.uni(0.08, 0.1);
 
+      // double width = rnd.uni(0.05, 0.2);
+      // double depth = rnd.uni(0.08, 0.2);
+      double height = rnd.uni(0.05, 0.05);
+
       auto obj = C[STRING("obj" << j + 1)];
       obj->setShape(rai::ST_box, {depth, width, 0.05, 0.01});
       obj->setContact(1);
@@ -540,15 +532,13 @@ void benchmark_dual_arm_multi_pick_planning() {
           continue;
         }
 
-        obj->setPosition({r1_base_pos(0) + x, r1_base_pos(1) + y, 0.61});
+        obj->setPosition({r1_base_pos(0) + x, r1_base_pos(1) + y, 0.605 + height/2});
         obj->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
 
         // check if something is in collision
         ConfigurationProblem cp(C);
         const auto res = cp.query({}, false);
         if (res->isFeasible) {
-          std::cout << "goal rot: " << alpha << std::endl;
-
           break;
         }
       }
@@ -569,7 +559,7 @@ void benchmark_dual_arm_multi_pick_planning() {
           continue;
         }
 
-        goal->setPosition({r2_base_pos(0) + x, r2_base_pos(1) + y, 0.61});
+        goal->setPosition({r2_base_pos(0) + x, r2_base_pos(1) + y, 0.605 + height/2});
         goal->setRelativeQuaternion({cos(alpha / 2), 0, 0, sin(alpha / 2)});
 
         // goal->setColor({col(0), col(1), col(2), 0.5});
@@ -578,8 +568,6 @@ void benchmark_dual_arm_multi_pick_planning() {
         ConfigurationProblem cp(C);
         const auto res = cp.query({}, false);
         if (res->isFeasible) {
-
-          std::cout << "goal rot: " << alpha << std::endl;
           break;
         }
       }
@@ -719,8 +707,6 @@ void benchmark_dual_arm_planning(const uint N = 50) {
         ConfigurationProblem cp(C);
         const auto res = cp.query({}, false);
         if (res->isFeasible) {
-          std::cout << "goal rot: " << alpha << std::endl;
-
           break;
         }
       }
@@ -761,8 +747,6 @@ void benchmark_dual_arm_planning(const uint N = 50) {
         ConfigurationProblem cp(C);
         const auto res = cp.query({}, false);
         if (res->isFeasible) {
-
-          std::cout << "goal rot: " << alpha << std::endl;
           break;
         }
       }

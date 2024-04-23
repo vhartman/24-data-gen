@@ -60,21 +60,27 @@ make_robot_environment_from_config(rai::Configuration &C,
     std::string robot = item.value()["type"];
     rai::Frame *a;
     EndEffectorType ee;
+    RobotType robot_type;
     if (robot == "ur5_gripper") {
       a = C.addFile("./in/robots/ur5.g");
       ee = EndEffectorType::two_finger;
+      robot_type = RobotType::ur5;
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_vacuum.g");
       ee = EndEffectorType::vacuum;
+      robot_type = RobotType::ur5;
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_pen.g");
       ee = EndEffectorType::vacuum;
+      robot_type = RobotType::ur5;
     } else if (robot == "franka"){
       a = C.addFile("./in/robots/franka.g");
       ee = EndEffectorType::two_finger;
+      robot_type = RobotType::panda;
     } else if (robot == "kuka"){
       a = C.addFile("./in/robots/kuka.g");
       ee = EndEffectorType::two_finger;
+      robot_type = RobotType::kuka;
     }
     else{
       spdlog::error("Invalid robot type");
@@ -129,7 +135,7 @@ make_robot_environment_from_config(rai::Configuration &C,
       spdlog::error("Seeting up configuration: Robot {} is in collision.", cnt);
     }
 
-    robots.push_back(Robot(prefix.p, RobotType::ur5, vmax));
+    robots.push_back(Robot(prefix.p, robot_type, vmax));
     robots.back().home_pose = home_pose;
     robots.back().ee_type = ee;
 
@@ -241,7 +247,7 @@ tub_lab_setting(rai::Configuration &C) {
     const rai::String agentBase = STRING(prefix << "base");
     C[agentBase]->setRelativePosition(basePos(i));
 
-    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
 
@@ -289,7 +295,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
     state(3) += 0.25;
     C.setJointState(state);
 
-    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
   }
@@ -329,7 +335,7 @@ opposite_robot_configuration(rai::Configuration &C){
     // state(3) += 0.25;
     C.setJointState(state);
 
-    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();    
     robots.back().ee_type = EndEffectorType::two_finger;
   }
@@ -355,7 +361,7 @@ side_by_side_robot_configuration(rai::Configuration &C){
     const rai::String agentBase = STRING(prefix << "base");
     C[agentBase]->setRelativePosition(basePos(i));
 
-    robots.push_back(Robot(prefix.p, RobotType::pandas, 0.05));
+    robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
   }

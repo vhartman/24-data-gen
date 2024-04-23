@@ -14,7 +14,7 @@
 #include <Geo/fclInterface.h>
 
 #include "plan.h"
-#include "path_util.h"
+#include "postprocessing.h"
 
 #include "common/util.h"
 #include "common/env_util.h"

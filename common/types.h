@@ -26,7 +26,7 @@ struct Task {
   PrimitiveType type;
 };
 
-enum class RobotType { ur5, kuka, pandas };
+enum class RobotType { ur5, kuka, panda };
 enum class EndEffectorType { two_finger, vacuum, pen };
 class Robot {
 public:
