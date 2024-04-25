@@ -1,0 +1,14 @@
+{
+	"robots": [
+		{
+			"base_pos": [-0.4, -0.3, 0.0],
+			"base_quat": [1.0, 0.0, 0.0, 1.0],
+			"type": "ur5_gripper"
+		},
+		{
+			"base_pos": [0.4, -0.3, 0.0],
+			"base_quat": [1.0, 0.0, 0.0, 1.0],
+			"type": "ur5_gripper"
+		}
+	]
+}

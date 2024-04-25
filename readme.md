@@ -36,6 +36,12 @@ The same also works for mixed-robot-teams with the robot-scenario here:
 
 ![Robot Video](./example/example_mixed.gif)
 
+Or for different scenes:
+```
+./x.exe -pnp true -mode random_search -robot_path 'in/envs/two.json' -obj_path 'in/objects/three_obj_shelf.json' -attempt_komo false -display true -export_images true -scene_path 'in/scenes/floor.g' -obstacle_path 'in/obstacles/shelf.json' 
+```
+
+![Robot Video](./example/example_shelf.gif)
 
 #### Flags
 There are many flags to specify behaviour. Some of them are
