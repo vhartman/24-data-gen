@@ -18,7 +18,7 @@ The following command runs a random search on the default (random) environment.
 
 The follwing command runs a random search on a user-specified scenario and exports the images, and displays some solutions.
 ```
-./x.exe -pnp true -mode random_search -seed 879 -robot_env 'in/envs/three_opposite_gripper.json' -env 'in/objects/four_obj.json' -display true -export_images true
+./x.exe -pnp true -mode random_search -seed 879 -robot_path 'in/envs/three_opposite_gripper.json' -obj_path 'in/objects/four_obj.json' -display true -export_images true
 ```
 
 The images that are stored can be made into a video with 

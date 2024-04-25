@@ -73,7 +73,7 @@ public:
     const auto pen_tip = STRING(r.prefix << "pen_tip");
 
     const double r1_z_rot =
-        C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
+        C[STRING(r << "base")]->get_X().rot.getEulerRPY()(2);
 
     const double r1_obj_angle =
         std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
@@ -167,9 +167,11 @@ public:
       // respectively
 
       uint r1_cnt = 0;
+      const std::string base_joint_name = get_base_joint_name(r.type);
+
       for (const auto aj : komo.pathConfig.activeJoints) {
         const uint ind = aj->qIndex;
-        if (aj->frame->name.contains("shoulder_pan_joint") &&
+        if (aj->frame->name.contains(base_joint_name.c_str()) &&
             aj->frame->name.contains(r.prefix.c_str())) {
           // komo.x(ind) = cnt + j;
           if (r1_cnt == 0) {

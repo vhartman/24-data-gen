@@ -35,8 +35,13 @@ void setRobotJointState() {}
 
 std::vector<Robot>
 make_robot_environment_from_config(rai::Configuration &C,
-                                   const std::string &config_file_path) {
-  C.addFile("./in/robots/floor.g");
+                                   const std::string &config_file_path,
+                                   const std::string &base_scene_path = "./in/scenes/floor.g") {
+  if (base_scene_path.size() == 0) {
+    C.addFile("./in/scenes/floor.g");
+  } else {
+    C.addFile(base_scene_path.c_str());
+  }
 
   std::ifstream ifs(config_file_path);
   json jf = json::parse(ifs);
@@ -56,6 +61,14 @@ make_robot_environment_from_config(rai::Configuration &C,
     arr base_quat;
     ss << item.value()["base_quat"];
     base_quat.read(ss);
+
+    std::string parent;
+    if (item.value().contains("parent")) {
+      parent = item.value()["parent"];
+    }
+    else{
+      parent = "table";
+    }
 
     std::string robot = item.value()["type"];
     rai::Frame *a;
@@ -88,14 +101,14 @@ make_robot_environment_from_config(rai::Configuration &C,
     }
 
     C.reconfigureRoot(a, true);
-    a->linkFrom(C["table"]);
+    a->linkFrom(C[parent.c_str()]);
 
     const rai::String prefix = STRING('a' << cnt << '_');
     a->prefixSubtree(prefix);
 
     const rai::String agentBase = STRING(prefix << "base");
     C[agentBase]->setRelativePosition(base_pos);
-    C[agentBase]->setQuaternion(base_quat);
+    C[agentBase]->setRelativeQuaternion(base_quat);
 
     // check if home_pose is set, otherwise use default
     setActive(C, std::string(prefix.p));
@@ -179,7 +192,15 @@ void add_objects_from_config(rai::Configuration &C,
     arr goal_quat;
     goal_quat.read(ss);
 
-    auto *obj = C.addFrame(STRING("obj" << cnt + 1), "table");
+    std::string parent;
+    if (item.value().contains("parent")) {
+      parent = item.value()["parent"];
+    }
+    else{
+      parent = "table";
+    }
+
+    auto *obj = C.addFrame(STRING("obj" << cnt + 1), parent.c_str());
 
     // randomize color
     arr col(3);
@@ -218,6 +239,73 @@ void add_objects_from_config(rai::Configuration &C,
 
   C.stepFcl();
 }
+
+void add_obstacles_from_config(rai::Configuration &C,
+                               const std::string &config_file_path) {
+  if (config_file_path.size() == 0) {
+    return;
+  }
+
+  std::ifstream ifs(config_file_path);
+  json jf = json::parse(ifs);
+
+  std::stringstream ss;
+
+  uint cnt = 0;
+  for (const auto &item : jf["obstacles"].items()) {
+    ss.clear();
+    ss << item.value()["size"];
+    arr size;
+    size.read(ss);
+
+    std::string shape;
+    shape = item.value()["shape"];
+
+    ss.clear();
+    ss << item.value()["pos"];
+    arr base_pos;
+    base_pos.read(ss);
+
+    ss.clear();
+    ss << item.value()["quat"];
+    arr base_quat;
+    base_quat.read(ss);
+
+    std::string name;
+    if (item.value().contains("name")) {
+      name = item.value()["name"];
+    }
+    else{
+      name = "obs_" + std::to_string(cnt);
+    }
+
+    std::string parent;
+    if (item.value().contains("parent")) {
+      parent = item.value()["parent"];
+    }
+    else{
+      parent = "table";
+    }
+
+    auto *obj = C.addFrame(name.c_str(), parent.c_str());
+
+    rai::ShapeType shape_type;
+    if (shape == "box"){shape_type= rai::ST_box;}
+    else if (shape == "sphere"){shape_type= rai::ST_sphere;}
+    else if (shape == "capsule"){shape_type= rai::ST_capsule;}
+    else{
+      std::cout << "SHAPE NOT DEFINED" << std::endl;
+    }
+
+    obj->setShape(shape_type, size);
+    obj->setContact(1);
+    obj->setRelativePosition(base_pos);
+    obj->setRelativeQuaternion(base_quat);
+  }
+
+  // C.watch(true);
+}
+
 // TODO: fill this in
 bool check_configuration_feasibility(const rai::Configuration & C){
   return true;
@@ -230,7 +318,7 @@ tub_lab_setting(rai::Configuration &C) {
   base->setPosition({0., 0., .5});
   base->setContact(0.);
 
-  C.addFile("./in/robots/table.g");
+  C.addFile("./in/scenes/table.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
 
@@ -263,7 +351,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
   base->setPosition({0., 0., .5});
   base->setContact(0.);
 
-  C.addFile("./in/robots/table.g");
+  C.addFile("./in/scenes/table.g");
 
   arrA basePos = {
       {-.5, -.35, 0.00}, {.5, -.35, 0.0}, {-.5, .55, 0.}, {.5, .55, 0.0}};
@@ -305,7 +393,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
 
 std::vector<Robot>
 opposite_robot_configuration(rai::Configuration &C){
-  C.addFile("./in/robots/floor.g");
+  C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.5, -.1, 0.00}, {.5, .1, 0.0}, {.0, .6, 0.15}};
 
@@ -345,7 +433,7 @@ opposite_robot_configuration(rai::Configuration &C){
 
 std::vector<Robot>
 side_by_side_robot_configuration(rai::Configuration &C){
-  C.addFile("./in/robots/floor.g");
+  C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
 
@@ -414,7 +502,7 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 
 std::vector<Robot>
 single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/robots/floor.g");
+  C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}};
 
@@ -427,7 +515,7 @@ single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=
 
 std::vector<Robot>
 two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/robots/floor.g");
+  C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}};
 
@@ -441,7 +529,7 @@ two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=tru
 
 std::vector<Robot>
 opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
-  C.addFile("./in/robots/floor.g");
+  C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
 

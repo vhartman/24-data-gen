@@ -58,8 +58,8 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   const auto r1_pen_tip = STRING(r1 << "pen_tip");
   const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
-  const double r1_z_rot = C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
-  const double r2_z_rot = C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
+  const double r1_z_rot = C[STRING(r1 << "base")]->get_X().rot.getEulerRPY()(2);
+  const double r2_z_rot = C[STRING(r2 << "base")]->get_X().rot.getEulerRPY()(2);
 
   const double r1_obj_angle =
       std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
@@ -158,11 +158,14 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
 
     komo.run_prepare(0.0001, false);
 
+    const std::string r1_base_joint_name = get_base_joint_name(r1.type);
+    const std::string r2_base_joint_name = get_base_joint_name(r2.type);
+
     uint r1_cnt = 0;
     uint r2_cnt = 0;
     for (const auto aj : komo.pathConfig.activeJoints) {
       const uint ind = aj->qIndex;
-      if (aj->frame->name.contains("shoulder_pan_joint") &&
+      if (aj->frame->name.contains(r1_base_joint_name.c_str()) &&
           aj->frame->name.contains(r1.prefix.c_str())) {
         // komo.x(ind) = cnt + j;
         if (r1_cnt == 0) {
@@ -176,7 +179,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
         ++r1_cnt;
       }
 
-      if (aj->frame->name.contains("shoulder_pan_joint") &&
+      if (aj->frame->name.contains(r2_base_joint_name.c_str()) &&
           aj->frame->name.contains(r2.prefix.c_str())) {
         // komo.x(ind) = cnt + j;
         if (r2_cnt == 1) {
@@ -345,9 +348,9 @@ public:
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
     const double r1_z_rot =
-        C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
+        C[STRING(r1 << "base")]->get_X().rot.getEulerRPY()(2);
     const double r2_z_rot =
-        C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
+        C[STRING(r2 << "base")]->get_X().rot.getEulerRPY()(2);
 
     const double r1_obj_angle =
         std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
@@ -468,11 +471,14 @@ public:
 
       komo.run_prepare(0.0001, false);
 
+      const std::string r1_base_joint_name = get_base_joint_name(r1.type);
+      const std::string r2_base_joint_name = get_base_joint_name(r2.type);
+
       uint r1_cnt = 0;
       uint r2_cnt = 0;
       for (const auto aj : komo.pathConfig.activeJoints) {
         const uint ind = aj->qIndex;
-        if (aj->frame->name.contains("shoulder_pan_joint") &&
+        if (aj->frame->name.contains(r1_base_joint_name.c_str()) &&
             aj->frame->name.contains(r1.prefix.c_str())) {
           // komo.x(ind) = cnt + j;
           if (r1_cnt == 0) {
@@ -486,7 +492,7 @@ public:
           ++r1_cnt;
         }
 
-        if (aj->frame->name.contains("shoulder_pan_joint") &&
+        if (aj->frame->name.contains(r2_base_joint_name.c_str()) &&
             aj->frame->name.contains(r2.prefix.c_str())) {
           // komo.x(ind) = cnt + j;
           if (r2_cnt == 1) {

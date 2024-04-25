@@ -187,11 +187,14 @@ public:
     for (uint j = 0; j < max_attempts; ++j) {
       komo.run_prepare(0.00001, false);
 
+      const std::string r1_base_joint_name = get_base_joint_name(r1.type);
+      const std::string r2_base_joint_name = get_base_joint_name(r2.type);
+
       uint r1_cnt = 0;
       uint r2_cnt = 0;
       for (const auto aj : komo.pathConfig.activeJoints) {
         const uint ind = aj->qIndex;
-        if (aj->frame->name.contains("shoulder_pan_joint") &&
+        if (aj->frame->name.contains(r1_base_joint_name.c_str()) &&
             aj->frame->name.contains(r1.prefix.c_str())) {
           // komo.x(ind) = cnt + j;
           if (r1_cnt == 0) {
@@ -205,7 +208,7 @@ public:
           ++r1_cnt;
         }
 
-        if (aj->frame->name.contains("shoulder_pan_joint") &&
+        if (aj->frame->name.contains(r2_base_joint_name.c_str()) &&
             aj->frame->name.contains(r2.prefix.c_str())) {
           // komo.x(ind) = cnt + j;
           if (r2_cnt == 2) {

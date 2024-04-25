@@ -388,17 +388,23 @@ int main(int argc, char **argv) {
   const rai::String gripper =
       rai::getParameter<rai::String>("gripper", "two_finger"); // which gripper
 
+  const rai::String scene_path =
+      rai::getParameter<rai::String>("scene_path", "./in/scenes/floor.g"); // base_scene
+
+  const rai::String obstacle_path =
+    rai::getParameter<rai::String>("obstacle_path", ""); // obstacles
+
   const rai::String obj_path =
-      rai::getParameter<rai::String>("obj_path", "random"); // environment
+      rai::getParameter<rai::String>("obj_path", "random"); // objects
 
   const uint num_objects_for_env =
       rai::getParameter<double>("objects", 5); // number of objects
 
   const rai::String robot_path =
-      rai::getParameter<rai::String>("robot_path", "./in/envs/two_opposite.json"); // environment
+      rai::getParameter<rai::String>("robot_path", "./in/envs/two_opposite.json"); // robot placement and pose
 
   const rai::String sequence_path =
-      rai::getParameter<rai::String>("sequence_path", "./in/sequences/test.json"); // environment
+      rai::getParameter<rai::String>("sequence_path", "./in/sequences/test.json"); // sequence
 
   const rai::String output_path =
       rai::getParameter<rai::String>("output_path", "./out/");
@@ -511,7 +517,8 @@ int main(int argc, char **argv) {
   }
 
   rai::Configuration C;
-  auto robots = make_robot_environment_from_config(C, robot_path.p);
+  const auto robots = make_robot_environment_from_config(C, robot_path.p, scene_path.p);
+  add_obstacles_from_config(C, obstacle_path.p);
 
   if (obj_path == "random"){
     random_objects(C, num_objects_for_env);

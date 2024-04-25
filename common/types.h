@@ -27,6 +27,17 @@ struct Task {
 };
 
 enum class RobotType { ur5, kuka, panda };
+
+std::string get_base_joint_name(const RobotType rt){
+  if (rt == RobotType::ur5) {
+    return "shoulder_pan_joint";
+  } else if (rt == RobotType::panda) {
+    return "panda_joint1";
+  }
+  // kuka
+  return "iiwa_joint_1";
+}
+
 enum class EndEffectorType { two_finger, vacuum, pen };
 class Robot {
 public:
