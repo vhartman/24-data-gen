@@ -43,22 +43,45 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
     }
 
     rtp.task.object = std::stoi(object);
-    if (primitive == "handover") {
-      rtp.task.type = PrimitiveType::handover;
-    } else if (primitive == "pick") {
-      rtp.task.type = PrimitiveType::pick;
-    } else if (primitive == "pickpick1") {
-      rtp.task.type = PrimitiveType::pick_pick_1;
-    } else if (primitive == "pickpick2") {
-      rtp.task.type = PrimitiveType::pick_pick_2;
-    } else {
-      spdlog::error("No task specified.");
-    }
+    rtp.task.type = string_to_primitive_type(primitive);
 
     seq.push_back(rtp);
   }
 
   return seq;
+}
+
+json ordered_sequence_to_json(OrderedTaskSequence seq) {
+  // pass
+  json data;
+  json tasks;
+
+  for (const auto &s : seq) {
+    json task;
+    task["primitive"] = primitive_type_to_string(s.task.type);
+    task["object"] = s.task.object;
+
+    std::vector<std::string> prefixes;
+    for (const auto &r: s.robots){
+      prefixes.push_back(r.prefix);
+    }
+
+    task["robots"] = prefixes;
+
+    tasks.push_back(task);
+  }
+  
+  data["tasks"] = tasks;
+
+  return data;
+}
+
+std::string ordered_sequence_to_str(OrderedTaskSequence seq) {
+  std::stringstream ss;
+  for (const auto &s : seq) {
+    ss << "(" << s.serialize() << ")";
+  }
+  return ss.str();
 }
 
 struct ComputeStatistics {
@@ -390,9 +413,13 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   {
     std::ofstream f;
     f.open(folder + "sequence.txt", std::ios_base::trunc);
-    for (const auto &s : seq) {
-      f << "(" << s.serialize() << ")";
-    }
+    f << ordered_sequence_to_str(seq);
+  }
+
+  {
+    std::ofstream f;
+    f.open(folder + "sequence.json", std::ios_base::trunc);
+    f << ordered_sequence_to_json(seq);
   }
 
   {

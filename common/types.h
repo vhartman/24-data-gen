@@ -21,6 +21,23 @@ std::string primitive_type_to_string(PrimitiveType t){
   return "TYPE NOT DEFINED";
 }
 
+PrimitiveType string_to_primitive_type(const std::string &str){
+  if (str == "handover") {
+    return PrimitiveType::handover;
+  } else if (str == "pick") {
+    return PrimitiveType::pick;
+  } else if (str == "pickpick1") {
+    return PrimitiveType::pick_pick_1;
+  } else if (str == "pickpick2") {
+    return PrimitiveType::pick_pick_2;
+  } else {
+    spdlog::error("No task specified.");
+  }
+
+  // how to handle this? no idea.
+  return PrimitiveType::handover;
+}
+
 struct Task {
   unsigned int object;
   PrimitiveType type;
