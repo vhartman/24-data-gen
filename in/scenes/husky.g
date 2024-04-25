@@ -1,7 +1,7 @@
 World 	{  X:<[0, 0, 0, 1, 0, 0, 0]> }                         
 
 Include: '../../../rai-robotModels/husky/husky.g'
-Edit base_link {X:<[0, -1, 0.15, 0.707, 0, 0, 0.707]>}
+Edit base_link {X:<[0, -1.1, 0.15, 0.707, 0, 0, 0.707]>}
 
 #Prefix: "a0_"
 #Include: '../robots/ur5.g'
@@ -12,7 +12,7 @@ Edit base_link {X:<[0, -1, 0.15, 0.707, 0, 0, 0.707]>}
 #Edit a1_base (right_arm_bulkhead_joint) { Q:[0 0 .05] }
 
 table_base (World) {
-    Q:[0 0 .7]
+    Q:[0 0 .45]
     shape:marker, size:[.03],
 }
 table (table_base){
