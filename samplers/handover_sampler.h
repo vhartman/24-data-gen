@@ -38,6 +38,9 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
   const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
 
+  const auto link_to_frame = STRING("table");
+
+
   KOMO komo;
   // komo.verbose = 5;
   komo.verbose = 0;
@@ -81,7 +84,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   komo.setSkeleton(S);
 
   const double offset = 0.1;
-  komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
+  komo.addObjective({2., 2.}, FS_distance, {link_to_frame, obj}, OT_ineq, {1e0},
                     {-offset});
 
   // komo.addObjective({1., 1.}, FS_aboveBox, {obj, r1_pen_tip}, OT_ineq, {1e2},
@@ -311,6 +314,8 @@ public:
     const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
     const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
 
+    const auto link_to_frame = STRING("table");
+
     // TODO: solve subproblems to check for feasibility.
     // For now: hardcode the radius of the ur5
     if (euclideanDistance(obj_pos, r1_pos) > 1. ||
@@ -374,7 +379,7 @@ public:
     komo.setSkeleton(S);
 
     const double offset = 0.1;
-    komo.addObjective({2., 2.}, FS_distance, {"table", obj}, OT_ineq, {1e0},
+    komo.addObjective({2., 2.}, FS_distance, {link_to_frame, obj}, OT_ineq, {1e0},
                       {-offset});
 
     // komo.addObjective({1., 1.}, FS_aboveBox, {obj, r1_pen_tip}, OT_ineq,

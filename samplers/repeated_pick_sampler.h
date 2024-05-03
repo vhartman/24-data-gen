@@ -4,9 +4,11 @@
 
 #include <Kin/featureSymbols.h>
 
+#include "common/util.h"
 #include "planners/plan.h"
 #include "planners/prioritized_planner.h"
-#include "common/util.h"
+
+bool solve_problem_without_collision() {}
 
 class RepeatedPickSampler {
 public:
@@ -24,67 +26,19 @@ public:
   rai::Configuration C;
   OptOptions options;
 
-  std::vector<arr> sample(const Robot r1, const Robot r2, const rai::String obj,
-                          const rai::String goal) {
-    setActive(C, std::vector<Robot>{r1, r2});
-    std::unordered_map<Robot, FrameL> robot_frames;
-    for (const auto &r : {r1, r2}) {
-      robot_frames[r] = get_robot_joints(C, r);
-    }
-
-    ConfigurationProblem cp(C);
-
-    const arr obj_pos = C[obj]->getPosition();
-    const arr goal_pos = C[goal]->getPosition();
-
-    const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
-    const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
-
-    // TODO: solve subproblems to check for feasibility.
-    // For now: hardcode the radius of the ur5
-    if (euclideanDistance(obj_pos, r1_pos) > 1. ||
-        euclideanDistance(goal_pos, r2_pos) > 1. ||
-        euclideanDistance(r1_pos, r2_pos) > 1. * 2) {
-      spdlog::info("Skipping pickpick keyframe copmutation for obj {} and "
-                   "robots {}, {}",
-                   obj.p, r1.prefix, r2.prefix);
-      return {};
-    }
-
-    KOMO komo;
-    komo.verbose = 0;
-    komo.setModel(C, true);
-    // komo.animateOptimization = 5;
-
-    komo.setDiscreteOpt(4);
-
-    komo.add_collision(true, .05, 1e1);
-    komo.add_jointLimits(true, 0., 1e1);
+  void setup_problem(KOMO &komo, const Robot &r1, const Robot &r2,
+                     const rai::String &obj, const rai::String &goal) {
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
-    const double r1_z_rot =
-        C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
-    const double r2_z_rot =
-        C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
-
-    const double r1_obj_angle =
-        std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
-    const double r1_r2_angle =
-        std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0)) - r1_z_rot;
-    const double r2_r1_angle =
-        std::atan2(r1_pos(1) - r2_pos(1), r1_pos(0) - r2_pos(0)) - r2_z_rot;
-    const double r2_goal_angle =
-        std::atan2(goal_pos(1) - r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
-
+    const auto link_to_frame = STRING("table");
     Skeleton S = {
         {1., 2., SY_touch, {r1_pen_tip, obj}},
         {1., 2, SY_stable, {r1_pen_tip, obj}},
-        // {2., 3., SY_stable, {r2_pen_tip, obj}},
 
         // {2., 3., SY_touch, {obj, "table"}},
-        {2., 3., SY_stable, {"table", obj}},
+        {2., 3., SY_stable, {link_to_frame, obj}},
 
         {3., 4., SY_stable, {r2_pen_tip, obj}},
 
@@ -95,10 +49,10 @@ public:
     komo.setSkeleton(S);
 
     // constraints for placing the object
-    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {-1e1},
-                      {-0.04});
-    komo.addObjective({2., 3.}, FS_distance, {"table", obj}, OT_ineq, {1e1},
-                      {0.05});
+    komo.addObjective({2., 3.}, FS_distance, {link_to_frame, obj}, OT_ineq,
+                      {-1e1}, {-0.04});
+    komo.addObjective({2., 3.}, FS_distance, {link_to_frame, obj}, OT_ineq,
+                      {1e1}, {0.05});
 
     // constraints for picking the object
     komo.addObjective({1., 2.}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,
@@ -106,7 +60,8 @@ public:
     komo.addObjective({3., 4.}, FS_insideBox, {r2_pen_tip, obj}, OT_ineq,
                       {5e1});
 
-    // komo.addObjective({3., 3.}, FS_positionDiff, {STRING(r1<<"base"), STRING(obj)},
+    // komo.addObjective({3., 3.}, FS_positionDiff, {STRING(r1<<"base"),
+    // STRING(obj)},
     //                   OT_sos, {1e0});
     // komo.addObjective({3., 3.}, FS_positionDiff,
     //                   {STRING(r2 << "base"), STRING(obj)}, OT_sos, {1e0});
@@ -127,13 +82,13 @@ public:
     // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
     //                   OT_ineq, {1e1}, {margin, margin, margin});
 
-    komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, r1_pen_tip}, OT_sos,
+    komo.addObjective({1., 2.}, FS_scalarProductZZ, {obj, r1_pen_tip}, OT_sos,
                       {1e1}, {-1.});
 
-    komo.addObjective({3., 3.}, FS_scalarProductZZ, {obj, r2_pen_tip}, OT_sos,
+    komo.addObjective({3., 4.}, FS_scalarProductZZ, {obj, r2_pen_tip}, OT_sos,
                       {1e1}, {-1.});
 
-    komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, "table"}, OT_eq,
+    komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
                       {1e1}, {1.});
 
     // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
@@ -182,6 +137,96 @@ public:
                           OT_sos, {1e1}, NoArr); // world.q, prec);
       }
     }
+  }
+
+  std::vector<arr> sample(const Robot &r1, const Robot &r2,
+                          const rai::String &obj, const rai::String &goal) {
+    setActive(C, std::vector<Robot>{r1, r2});
+    std::unordered_map<Robot, FrameL> robot_frames;
+    for (const auto &r : {r1, r2}) {
+      robot_frames[r] = get_robot_joints(C, r);
+    }
+
+    ConfigurationProblem cp(C);
+
+    const arr obj_pos = C[obj]->getPosition();
+    const arr goal_pos = C[goal]->getPosition();
+
+    const arr r1_pos = C[STRING(r1 << "base")]->getPosition();
+    const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
+
+    // For now: hardcode the radius of the ur5
+    const double ws_1 = get_workspace_from_robot_type(r1.type);
+    const double ws_2 = get_workspace_from_robot_type(r2.type);
+
+    if (euclideanDistance(obj_pos, r1_pos) > ws_1 ||
+        euclideanDistance(goal_pos, r2_pos) > ws_2 ||
+        euclideanDistance(r1_pos, r2_pos) > ws_1 + ws_2) {
+      spdlog::info("Skipping pickpick keyframe computation for obj {} and "
+                   "robots {}, {} due to worspace limits",
+                   obj.p, r1.prefix, r2.prefix);
+      return {};
+    }
+
+    // TODO: solve subproblems to check for feasibility.
+    // {
+    //   KOMO komo;
+    //   komo.verbose = 0;
+    //   komo.setModel(C, true);
+    //   // komo.animateOptimization = 5;
+
+    //   komo.setDiscreteOpt(4);
+
+    //   setup_problem(komo, r1, r2, obj, goal);
+    //   komo.run_prepare(0.00001, false);
+    //   komo.run(options);
+
+    //   // komo.pathConfig.watch(true);
+
+    //   const double ineq = komo.getReport(false).get<double>("ineq");
+    //   const double eq = komo.getReport(false).get<double>("eq");
+
+    //   if (ineq > 1 || eq > 1) {
+    //     // std::cout << ineq << " " << eq << std::endl;
+    //     spdlog::info("Skipping pickpick keyframe copmutation for obj {} and "
+    //                  "robots {}, {} since subproblem is infeasible",
+    //                  obj.p, r1.prefix, r2.prefix);
+    //     // komo.pathConfig.watch(true);
+    //     return {};
+    //   }
+    // }
+
+    KOMO komo;
+    komo.verbose = 0;
+    komo.setModel(C, true);
+    // komo.animateOptimization = 5;
+
+    komo.setDiscreteOpt(4);
+
+    komo.add_collision(true, .05, 1e1);
+    komo.add_jointLimits(true, 0., 1e1);
+
+    // add constraints and costs for alignment
+    setup_problem(komo, r1, r2, obj, goal);
+
+    const auto r1_pen_tip = STRING(r1 << "pen_tip");
+    const auto r2_pen_tip = STRING(r2 << "pen_tip");
+
+    const auto link_to_frame = STRING("table");
+
+    const double r1_z_rot =
+        C[STRING(r1 << "base")]->get_Q().rot.getEulerRPY()(2);
+    const double r2_z_rot =
+        C[STRING(r2 << "base")]->get_Q().rot.getEulerRPY()(2);
+
+    const double r1_obj_angle =
+        std::atan2(obj_pos(1) - r1_pos(1), obj_pos(0) - r1_pos(0)) - r1_z_rot;
+    const double r1_r2_angle =
+        std::atan2(r2_pos(1) - r1_pos(1), r2_pos(0) - r1_pos(0)) - r1_z_rot;
+    const double r2_r1_angle =
+        std::atan2(r1_pos(1) - r2_pos(1), r1_pos(0) - r2_pos(0)) - r2_z_rot;
+    const double r2_goal_angle =
+        std::atan2(goal_pos(1) - r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
 
     const uint max_attempts = 5;
     for (uint j = 0; j < max_attempts; ++j) {
@@ -233,11 +278,13 @@ public:
       uintA objID;
       objID.append(C[obj]->ID);
       // rai::Frame *obj2 =
-      //     komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 3 + objID)(0);
+      //     komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 3 +
+      //     objID)(0);
       // arr rndpos(2);
       // rndUniform(rndpos, -1, 1);
-      // obj2->setRelativePosition({rndpos(0), rndpos(1), C[obj]->getRelativePosition()(2)});
-      
+      // obj2->setRelativePosition({rndpos(0), rndpos(1),
+      // C[obj]->getRelativePosition()(2)});
+
       rai::Frame *obj3 =
           komo.pathConfig.getFrames(komo.pathConfig.frames.d1 * 4 + objID)(0);
       obj3->setPose(C[goal]->getPose());
@@ -294,7 +341,8 @@ public:
 
         C.setJointState(home);
 
-        return {pick_pose, place_pose, pick_2_pose, place_2_pose};}
+        return {pick_pose, place_pose, pick_2_pose, place_2_pose};
+      }
     }
 
     return {};
@@ -322,19 +370,6 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
 
-  std::unordered_map<Robot, FrameL> robot_frames;
-  for (const auto &r : robots) {
-    robot_frames[r] = get_robot_joints(C, r);
-  }
-
-  OptOptions options;
-  options.nonStrictSteps = 50;
-  options.damping = 1;
-
-  // options.stopIters = 500;
-  options.wolfe = 0.001;
-  // options.maxStep = 0.5;
-
   RobotTaskPoseMap rtpm;
 
   RepeatedPickSampler sampler(C);
@@ -350,7 +385,7 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
         const auto goal = STRING("goal" << i + 1);
         const auto sol = sampler.sample(r1, r2, obj, goal);
 
-        if (sol.size() > 0){
+        if (sol.size() > 0) {
           RobotTaskPair rtp_1;
           rtp_1.robots = {r1, r2};
           rtp_1.task = Task{.object = i, .type = PrimitiveType::pick_pick_1};

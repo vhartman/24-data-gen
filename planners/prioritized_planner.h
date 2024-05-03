@@ -20,18 +20,6 @@
 #include "common/env_util.h"
 #include "common/config.h"
 
-/*class PrioritizedSequencePlanner{
-  public: 
-    PrioritizedPlanner(const OrderedTaskSequence &seq){};
-
-    void plan();
-
-  private:
-    void compute_task();
-};
-
-*/
-
 struct PlannerOptions{
   bool early_stopping{false};
 };
@@ -44,6 +32,45 @@ struct PathPlannerOptions {
   bool shortcut{true};
   bool smooth{true};
 };
+
+rai::Array<rai::KinematicSwitch>
+switches_from_skeleton(const Skeleton &S, const rai::Configuration &C) {
+  intA switches = getSwitchesFromSkeleton(S, C);
+
+  rai::Array<rai::KinematicSwitch> ks;
+  for (uint i = 0; i < switches.d0; ++i) {
+    int k = switches(i, 1);
+    const double time = S(k).phase0;
+
+    char *from = S(k).frames(0);
+    char *to = S(k).frames.last();
+    rai::JointType type = rai::JT_rigid;
+
+    rai::KinematicSwitch tmp(rai::SW_joint, type, from, to, C, rai::SWInit_copy,
+                             0, NoTransformation, NoTransformation);
+    tmp.timeOfApplication = time;
+
+    ks.append(tmp);
+  }
+
+  return ks;
+}
+
+void set_to_mode(const Skeleton &S, rai::Configuration &C,
+                 const std::vector<arr> keyframes, const uint t) {
+  rai::Array<rai::KinematicSwitch> ks(switches_from_skeleton(S, C));
+
+  // iterate over all switches, and check if it is an active switch, if yes,
+  // apply it
+  for (uint j = 0; j < ks.d0; ++j) {
+    if (ks(j).timeOfApplication + 1 <= (int)t) {
+      // if(verbose_)std::cout << "Time of application " <<
+      // ks(j)->timeOfApplication << std::endl; if(verbose_)std::cout <<
+      // "Applying switch at time " << t << std::endl;
+      ks(j).apply(C.frames);
+    }
+  }
+}
 
 FrameL get_robot_frames(rai::Configuration &C, const Robot &robot) {
   FrameL frames;
@@ -927,12 +954,7 @@ class PrioritizedTaskPlanner {
             spdlog::info("New end time: {}", paths[r1].back().t(-1));
           }
 
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
+          rai::Animation A = make_animation_from_plan(paths);
 
           A.setToTime(CPlanner, prev_finishing_time);
 
@@ -1073,12 +1095,7 @@ class PrioritizedTaskPlanner {
           // std::cout << "A" << std::endl;
           // CPlanner.watch(true);
 
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
+          rai::Animation A = make_animation_from_plan(paths);
 
           const uint pick_end_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
           const uint other_end_time = (paths.count(r2) > 0) ? paths[r2].back().t(-1): 0;
@@ -1319,12 +1336,7 @@ class PrioritizedTaskPlanner {
           const uint exit_start_time = paths[r1].back().t(-1);
           const arr exit_path_start_pose = paths[r1].back().path[-1];
 
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
+          rai::Animation A = make_animation_from_plan(paths);
 
           if (false) {
             for (uint i = 0; i < A.getT(); ++i) {
@@ -1366,13 +1378,7 @@ class PrioritizedTaskPlanner {
           const uint start_time = paths[r2].back().t(-1);
           const arr start_pose = paths[r2].back().path[-1];
 
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
-
+          rai::Animation A = make_animation_from_plan(paths);
           TP.A = A;
 
           auto path =
@@ -1438,12 +1444,7 @@ class PrioritizedTaskPlanner {
           const uint exit_start_time = paths[r2].back().t(-1);
           const arr exit_path_start_pose = paths[r2].back().path[-1];
 
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
+          rai::Animation A = make_animation_from_plan(paths);
 
           TP.A = A;
 
@@ -1569,12 +1570,7 @@ class PrioritizedTaskPlanner {
           spdlog::info("Lower bound for planning at {}", time_lb);
 
           // make animation from path-parts
-          rai::Animation A;
-          for (const auto &p : paths) {
-            for (const auto &path : p.second) {
-              A.A.append(path.anim);
-            }
-          }
+          rai::Animation A = make_animation_from_plan(paths);
 
           // TP.query(start_pose, start_time);
 
@@ -1702,12 +1698,7 @@ class PrioritizedTaskPlanner {
         const uint exit_start_time = paths[robot].back().t(-1);
         const arr exit_path_start_pose = paths[robot].back().path[-1];
 
-        rai::Animation A;
-        for (const auto &p : paths) {
-          for (const auto &path : p.second) {
-            A.A.append(path.anim);
-          }
-        }
+        rai::Animation A = make_animation_from_plan(paths);
 
         TP.A = A;
 
@@ -1826,12 +1817,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     spdlog::info("Planning exit path for robot {} with start time {}", robot.prefix, p.second);
 
     // plan exit path for robot
-    rai::Animation A;
-    for (const auto &p2 : paths) {
-      for (const auto &path2 : p2.second) {
-        A.A.append(path2.anim);
-      }
-    }
+    rai::Animation A = make_animation_from_plan(paths);
 
     setActive(CPlanner, robot);
     TimedConfigurationProblem TP(CPlanner, A);
@@ -1919,12 +1905,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
   }
 
   if (false) {
-    rai::Animation A;
-    for (const auto &p : paths) {
-      for (const auto &path : p.second) {
-        A.A.append(path.anim);
-      }
-    }
+    rai::Animation A = make_animation_from_plan(paths);
 
     for (uint i = 0; i < A.getT(); ++i) {
       A.setToTime(CPlanner, i);

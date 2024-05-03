@@ -322,3 +322,17 @@ OrderedTaskSequence make_handover_sequence(const std::vector<Robot> &robots,
 
   return seq;
 }
+
+bool check_sequence_validity(const OrderedTaskSequence &seq,
+                             const RobotTaskPoseMap &rtpm) {
+  uint cnt = 0;
+  for (const auto &rtp : seq) {
+    if (rtpm.count(rtp) == 0) {
+      spdlog::warn("No task pose found for action {}", cnt);
+      return false;
+    }
+
+    ++cnt;
+  }
+  return true;
+}

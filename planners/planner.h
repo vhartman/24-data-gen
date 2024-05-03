@@ -1,5 +1,4 @@
-#ifndef PLANNER_H
-#define PLANNER_H
+#pragma once
 
 #include "plan.h"
 
@@ -32,6 +31,4 @@ class PartiallyOrderedPlanner: public Planner{
     PartiallyOrderedPlanner();
     void compute_plan();
 };
-*/
-
-#endif 
+*/ 

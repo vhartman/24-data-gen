@@ -6,17 +6,9 @@
 
 #include "common/env_util.h"
 #include "common/types.h"
+#include "test_util.h"
 
 #include <experimental/filesystem>
-
-void report_test_result(const std::string& text, const bool success){
-  if (success){
-     std::cout << "\033[1;32m" << text << "\033[0m" << std::endl;
-  }
-  else{
-     std::cout << "\033[1;31m" << text << "\033[0m" << std::endl;
-  }
-}
 
 bool check_plan_validity(rai::Configuration C, const std::vector<Robot> robots,
                          const Plan &plan,

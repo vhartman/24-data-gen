@@ -5,6 +5,18 @@
 #include <Core/array.h>
 
 enum class PrimitiveType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
+
+// enum class Action{none, pick, place, handover, go_to};
+// class ActionSequence{
+//   std::vector<std::vector<Action>> sequence;
+// };
+
+// std::vector<std::vector<Action>> primitive_to_sequence() {
+//   return {{Action::pick, Action::place}};
+//   return {{Action::pick, Action::handover}, {Action::none, Action::handover, Action::place}};
+//   // return {{Action::pick, Action::handover}, {Action::handover, Action::place}};
+// }
+
 std::string primitive_type_to_string(PrimitiveType t){
   if (t == PrimitiveType::go_to){
     return "go_to";
@@ -45,6 +57,36 @@ struct Task {
 
 enum class RobotType { ur5, kuka, panda };
 
+// we return a number that is higher than the indicated one to stay on the conservative side with our
+// early stopping.
+double get_workspace_from_robot_type(const RobotType t){
+if (t == RobotType::kuka){
+    return 1.; // from datasheet: 800mm
+  }
+  else if (t == RobotType::ur5){
+    return 1.; // from datasheet: 850mm
+  }
+  else if (t == RobotType::panda){
+    return 1.; // from datasheet: 855mm
+  }
+
+  return 0.;
+}
+
+std::string robot_type_to_string(RobotType t){
+  if (t == RobotType::kuka){
+    return "kuka";
+  }
+  else if (t == RobotType::ur5){
+    return "ur5";
+  }
+  else if (t == RobotType::panda){
+    return "panda";
+  }
+
+  return "NOT SPECIFIED ROBOT TYPE";
+}
+
 std::string get_base_joint_name(const RobotType rt){
   if (rt == RobotType::ur5) {
     return "shoulder_pan_joint";
@@ -56,6 +98,21 @@ std::string get_base_joint_name(const RobotType rt){
 }
 
 enum class EndEffectorType { two_finger, vacuum, pen };
+
+std::string ee_type_to_string(EndEffectorType t){
+  if (t == EndEffectorType::two_finger){
+    return "two_finger_gripper";
+  }
+  else if (t == EndEffectorType::vacuum){
+    return "vacuum";
+  }
+  else if (t == EndEffectorType::pen){
+    return "pen";
+  }
+
+  return "UNSPECIFIED EE";
+}
+
 class Robot {
 public:
   Robot(){};

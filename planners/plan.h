@@ -29,11 +29,12 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
   OrderedTaskSequence seq;
   for (const auto &item : jf["tasks"].items()) {
     const std::string primitive = item.value()["primitive"];
-    const std::string object = item.value()["object"];
+    const int object = item.value()["object"];
     const std::vector<std::string> robot_prefixes = item.value()["robots"];
 
     RobotTaskPair rtp;
     for (const auto &prefix: robot_prefixes){
+      // search for the robot with the correct prefix
       for (const auto &robot: robots){
         if (robot.prefix == prefix){
           rtp.robots.push_back(robot);
@@ -42,7 +43,7 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
       }
     }
 
-    rtp.task.object = std::stoi(object);
+    rtp.task.object = object;
     rtp.task.type = string_to_primitive_type(primitive);
 
     seq.push_back(rtp);
@@ -114,7 +115,10 @@ struct TaskPart {
   Robot r;
   uint task_index;
 
+  PrimitiveType primitive_type;
+  // action name
   std::string name;
+
   std::string algorithm;
 
   bool is_exit = false;
@@ -123,6 +127,33 @@ struct TaskPart {
 };
 
 typedef std::unordered_map<Robot, std::vector<TaskPart>> Plan;
+
+json get_plan_as_json(const Plan& plan) {
+  json data;
+
+  for (const auto &per_robot_plan : plan) {
+    const auto robot = per_robot_plan.first;
+    const auto tasks = per_robot_plan.second;
+
+    json tmp;
+    tmp["robot"] = robot.prefix;
+
+    for (const auto &task : tasks) {
+      json task_description;
+      task_description["name"] = task.name;
+      task_description["algorithm"] = task.algorithm;
+      task_description["object_index"] = task.task_index;
+      task_description["start"] = task.t(0);
+      task_description["end"] = task.t(-1);
+
+      tmp["tasks"].push_back(task_description);
+    }
+
+    data.push_back(tmp);
+  }
+
+  return data;
+}
 
 enum class PlanStatus { failed, aborted, success, unplanned };
 
@@ -147,6 +178,17 @@ get_makespan_from_plan(const Plan &plan) {
   return max_time;
 }
 
+rai::Animation make_animation_from_plan(const Plan &plan) {
+  rai::Animation A;
+  for (const auto &p : plan) {
+    for (const auto &path : p.second) {
+      A.A.append(path.anim);
+    }
+  }
+
+  return A;
+}
+
 arr get_robot_pose_at_time(const uint t, const Robot r,
                            const std::unordered_map<Robot, arr> &home_poses,
                            const Plan &plan) {
@@ -169,6 +211,88 @@ arr get_robot_pose_at_time(const uint t, const Robot r,
   return home_poses.at(r);
 }
 
+std::string get_action_at_time_for_robot(const Plan &plan, const Robot r, const uint t) {
+  if (plan.count(r) > 0) {
+    for (const auto &part : plan.at(r)) {
+      // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+      if (part.t(0) > t || part.t(-1) < t) {
+        continue;
+      }
+
+      return part.name;
+    }
+  }
+
+  return "none";
+}
+
+void set_full_configuration_to_time(rai::Configuration &C, const Plan plan, const uint t){
+  const double makespan = get_makespan_from_plan(plan);
+  // std::cout << t << std::endl;
+  for (const auto &tp : plan) {
+    const auto r = tp.first;
+    const auto parts = tp.second;
+
+    bool done = false;
+    for (const auto &part : parts) {
+      // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+      if (part.t(0) > t || part.t(-1) < t) {
+        continue;
+      }
+
+      for (uint i = 0; i < part.t.N - 1; ++i) {
+        if ((i == part.t.N - 1 && t == part.t(-1)) ||
+            (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+          setActive(C, r);
+          C.setJointState(part.path[i]);
+          // std::cout <<part.path[i] << std::endl;
+          done = true;
+
+          // set bin picking things
+          const auto task_index = part.task_index;
+          const auto obj_name = STRING("obj" << task_index + 1);
+
+          if (part.anim.frameNames.contains(obj_name)) {
+            const auto pose =
+                part.anim.X[uint(std::floor(t - part.anim.start))];
+            arr tmp(1, 7);
+            tmp[0] = pose[-1];
+            C.setFrameState(tmp, {C[obj_name]});
+          }
+          break;
+        }
+      }
+
+      if (done) {
+        break;
+      }
+    }
+  }
+}
+
+arr get_frame_pose_at_time(const rai::String &name, const Plan plan,
+                           rai::Configuration &C, const uint t) {
+  // set configuration to plan at time
+  set_full_configuration_to_time(C, plan, t);
+
+  // get pose and return it
+  arr pose(7);
+  pose = C[name]->getPose();
+  std::cout << name << " " << pose << std::endl;
+  return pose;
+}
+
+std::vector<arr> get_frame_trajectory(const rai::String &name, Plan plan,
+                                      rai::Configuration &C) {
+  const uint makespan = 0;
+  std::vector<arr> poses;
+  for (uint i = 0; i < makespan; ++i) {
+    const arr pose = get_frame_pose_at_time(name, plan, C, i);
+    poses.push_back(pose);
+  }
+  return poses;
+}
+
 Plan reoptimize_plan(rai::Configuration C,
                 const Plan &unscaled_plan,
                 const std::unordered_map<Robot, arr> &home_poses) {
@@ -184,12 +308,7 @@ Plan reoptimize_plan(rai::Configuration C,
 
   setActive(C, all_robots);
 
-  rai::Animation A;
-  for (const auto &p : unscaled_plan) {
-    for (const auto &path : p.second) {
-      A.A.append(path.anim);
-    }
-  }
+  rai::Animation A = make_animation_from_plan(unscaled_plan);
 
   setActive(C, all_robots);
 
@@ -376,6 +495,8 @@ Plan reoptimize_plan(rai::Configuration C,
   return optimized_plan;
 }
 
+json make_scene_data(){json data; return data;}
+
 void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
                  const std::unordered_map<Robot, arr> &home_poses, const Plan &plan,
                  const OrderedTaskSequence &seq, const std::string base_folder,
@@ -387,12 +508,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   const int res = system(STRING("mkdir -p " << folder).p);
   (void)res;
 
-  rai::Animation A;
-  for (const auto &p : plan) {
-    for (const auto &path : p.second) {
-      A.A.append(path.anim);
-    }
-  }
+  rai::Animation A = make_animation_from_plan(plan);
 
   // - add info
   // -- comp. time
@@ -421,6 +537,12 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     f.open(folder + "sequence.json", std::ios_base::trunc);
     f << ordered_sequence_to_json(seq);
   }
+
+  // {
+  //   std::ofstream f;
+  //   f.open(folder + "scene.urdf", std::ios_base::trunc);
+  //   C.writeURDF(f);
+  // }
 
   {
     std::ofstream f;
@@ -493,7 +615,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
 
     const double makespan = get_makespan_from_plan(plan);
-    std::cout << makespan << " " << A.getT() << std::endl;
     for (uint t = 0; t < A.getT(); ++t) {
       // std::cout << t << std::endl;
       for (const auto &tp : plan) {
@@ -576,28 +697,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   {
     std::ofstream f;
     f.open(folder + "plan.json", std::ios_base::trunc);
-    json data;
-
-    for (const auto &per_robot_plan : plan) {
-      const auto robot = per_robot_plan.first;
-      const auto tasks = per_robot_plan.second;
-
-      json tmp;
-      tmp["robot"] = robot.prefix;
-
-      for (const auto &task : tasks) {
-        json task_description;
-        task_description["name"] = task.name;
-        task_description["algorithm"]= task.algorithm;
-        task_description["object_index"] = task.task_index;
-        task_description["start"] = task.t(0);
-        task_description["end"] = task.t(-1);
-
-        tmp["tasks"].push_back(task_description);
-      }
-
-      data.push_back(tmp);
-    }
+    json data = get_plan_as_json(plan);
 
     f << data;
   }
@@ -643,6 +743,136 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
 
     f << path;
+  }
+
+  {
+    json all_robot_data;
+    // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
+    for (uint j = 0; j < robots.size(); ++j) {
+      json robot_data;
+      robot_data["name"] = robots[j].prefix;
+      robot_data["type"] =  robot_type_to_string(robots[j].type);
+      robot_data["ee_type"] = ee_type_to_string(robots[j].ee_type);
+
+      for (uint i = 0; i < A.getT(); ++i) {
+        spdlog::trace("exporting traj step {}", i);
+
+        spdlog::trace("symbol at time", i);
+        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
+        
+        spdlog::trace("symbol at time", i);
+        const rai::String ee_frame_name = STRING("" << robots[j].prefix << "pen_tip");
+        const arr ee_pose = get_frame_pose_at_time(ee_frame_name, plan, C, i);
+
+        spdlog::trace("symbol at time", i);
+        const std::string current_action = get_action_at_time_for_robot(plan, robots[j], i);
+        // const std::string current_primitive = get_primitive_at_time_for_robot(plan, robots[j], i);
+        // const std::string current_primitive = primitive_type_to_string(primitve);
+        // const std::string current_primitive = "pick";
+
+        json step_data;
+        step_data["joint_state"] = pose;
+        step_data["ee_pos"] = ee_pose({0,2});
+        step_data["ee_quat"] = ee_pose({3,6});
+
+        step_data["action"] = current_action;
+        // step_data["primitive"] = current_action;
+
+        robot_data["steps"].push_back(step_data);
+      }
+
+      all_robot_data.push_back(robot_data);
+    }
+
+    // all objs
+    std::map<rai::String, arr> objs;
+    for (const auto frame: C.frames){
+      if (frame->name.contains("obj")){
+        objs[frame->name] = arr(0, 7);
+      }
+    }
+
+    const double makespan = get_makespan_from_plan(plan);
+    for (uint t = 0; t < A.getT(); ++t) {
+      // std::cout << t << std::endl;
+      for (const auto &tp : plan) {
+        const auto r = tp.first;
+        const auto parts = tp.second;
+
+        bool done = false;
+        for (const auto &part : parts) {
+          // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+          if (part.t(0) > t || part.t(-1) < t) {
+            continue;
+          }
+
+          for (uint i = 0; i < part.t.N - 1; ++i) {
+            if ((i == part.t.N-1 && t == part.t(-1)) ||
+              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+              setActive(C, r);
+              C.setJointState(part.path[i]);
+              // std::cout <<part.path[i] << std::endl;
+              done = true;
+
+              // set bin picking things
+              const auto task_index = part.task_index;
+              const auto obj_name = STRING("obj" << task_index + 1);
+
+              if (part.anim.frameNames.contains(obj_name)) {
+                const auto pose =
+                    part.anim.X[uint(std::floor(t - part.anim.start))];
+                arr tmp(1, 7);
+                tmp[0] = pose[-1];
+                C.setFrameState(tmp, {C[obj_name]});
+              }
+              break;
+            }
+          }
+
+          if (done) {
+            break;
+          }
+        }
+      }
+
+      for (const auto &obj: objs){
+        objs[obj.first].append(C[obj.first]->getPose());
+      }
+    }
+    
+    json all_obj_data;
+    for (const auto &obj: objs){
+      json obj_data;
+      obj_data["name"] = obj.first;
+      for (uint i=0; i<obj.second.d0; ++i){
+        json step_data;
+        step_data["pos"] = obj.second[i]({0,2});
+        step_data["quat"] = obj.second[i]({3,6});
+        obj_data["steps"].push_back(step_data);
+      }
+
+      all_obj_data.push_back(obj_data);
+    }
+
+    json data;
+    data["robots"] = all_robot_data;
+    data["objs"] = all_obj_data;
+
+    data["metadata"]["makespan"] = makespan;
+    data["metadata"]["folder"] = folder;
+
+    data["metadata"]["num_robots"] = 0;   
+    data["metadata"]["num_objects"] = 0;
+
+    std::ofstream f;
+    f.open(folder + "trajectory.json", std::ios_base::trunc);
+    f << data;
+
+    std::ofstream os(folder + "compressed_trajectory.json", std::ios::out | std::ios::binary);
+    std::vector<uint8_t> output_vector;
+    json::to_cbor(data, output_vector);
+    os.write((char *) &output_vector.data()[0], output_vector.size());
+    os.close();
   }
 
   {

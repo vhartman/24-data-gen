@@ -3,7 +3,7 @@
         {
             "robots": ["a0_"],
             "primitive": "pick",
-            "object": "0"
+            "object": 0
         }
     ]
 }

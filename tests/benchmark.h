@@ -6,7 +6,12 @@
 #include "common/env_util.h"
 #include "common/types.h"
 
+#include "test_util.h" 
+
 #include <experimental/filesystem>
+
+// TODO:
+// merge env-creation from all methods here
 
 void benchmark_single_arm_pick_and_place_success_rate(
     const bool show = false, const bool export_images = false) {
@@ -21,7 +26,8 @@ void benchmark_single_arm_pick_and_place_success_rate(
   const arr base_pos = C["a0_base"]->getPosition();
 
   // add obstacles
-  for (uint j = 0; j < 5; ++j) {
+  const uint num_obstacles = 5;
+  for (uint j = 0; j < num_obstacles; ++j) {
     double width = rnd.uni(0.05, 0.2);
     double depth = rnd.uni(0.05, 0.2);
 
