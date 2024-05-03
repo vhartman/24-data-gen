@@ -85,6 +85,13 @@ std::string ordered_sequence_to_str(OrderedTaskSequence seq) {
   return ss.str();
 }
 
+template <> struct std::hash<OrderedTaskSequence> {
+  std::size_t operator()(OrderedTaskSequence const &seq) const {
+    std::hash<std::string> hasher;
+    return hasher(ordered_sequence_to_str(seq));
+  }
+};
+
 struct ComputeStatistics {
   double total_compute_time;
 

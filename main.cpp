@@ -327,6 +327,9 @@ int main(int argc, char **argv) {
   const bool randomize_mode_switch_duration =
       rai::getParameter<bool>("randomize_mode_switch_duration", false);
 
+  const bool avoid_repeated_evaluations =
+      rai::getParameter<bool>("avoid_repeated_evaluations", true);
+
   switch (verbosity) {
   case 0:
     spdlog::set_level(spdlog::level::off);

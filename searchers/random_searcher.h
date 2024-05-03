@@ -36,6 +36,8 @@ Plan plan_multiple_arms_random_search(
   Plan best_plan;
   double best_makespan = 1e6;
 
+  std::unordered_set<OrderedTaskSequence> all_sequences;
+
   for (uint i = 0; i < max_attempts; ++i) {
     // const auto seq = generate_random_sequence(robots, num_tasks);
 
@@ -49,6 +51,12 @@ Plan plan_multiple_arms_random_search(
     if (seq.size() == 0) {
       return Plan();
     }
+
+    // check if the sequence was already evaluated at some point
+    if (all_sequences.count(seq) > 0){
+      continue;
+    }
+    all_sequences.insert(seq);
 
     // const double lb = compute_lb_for_sequence(seq, rtpm, home_poses);
     // std::cout << "LB for sequence " << lb << std::endl;
