@@ -504,11 +504,36 @@ Plan reoptimize_plan(rai::Configuration C,
 
 json make_scene_data(){json data; return data;}
 
+void save_json_to_cbor_file(const json &data,
+                            const std::string &file_path) {
+  std::ofstream os(file_path, std::ios::out | std::ios::binary);
+  std::vector<uint8_t> output_vector;
+  json::to_cbor(data, output_vector);
+  os.write((char *)&output_vector.data()[0], output_vector.size());
+  os.close();
+}
+
+void save_json(const json &data, const std::string &file_path,
+               const bool compressed = false) {
+  spdlog::trace("Saving data to {}", file_path);
+  if (compressed) {
+    save_json_to_cbor_file(data, file_path);
+  } else {
+    std::ofstream f;
+    f.open(file_path, std::ios_base::trunc);
+    f << data;
+    f.close();
+  }
+}
+
 void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
-                 const std::unordered_map<Robot, arr> &home_poses, const Plan &plan,
-                 const OrderedTaskSequence &seq, const std::string base_folder,
-                 const uint iteration, const uint computation_time) {
+                 const std::unordered_map<Robot, arr> &home_poses,
+                 const Plan &plan, const OrderedTaskSequence &seq,
+                 const std::string base_folder, const uint iteration,
+                 const uint computation_time) {
   spdlog::info("exporting plan");
+  const bool write_compressed_json = global_params.compress_data;
+
   // make folder
   const std::string folder =
       global_params.output_path + base_folder + "/" + std::to_string(iteration) + "/";
@@ -540,9 +565,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 
   {
-    std::ofstream f;
-    f.open(folder + "sequence.json", std::ios_base::trunc);
-    f << ordered_sequence_to_json(seq);
+    const auto data = ordered_sequence_to_json(seq);
+    save_json(data, folder + "sequence.json", write_compressed_json);
   }
 
   // {
@@ -552,9 +576,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   // }
 
   {
-    std::ofstream f;
-    f.open(folder + "robot_pose.json", std::ios_base::trunc);
-    
     // robots
     json data;
     for (const auto &e: home_poses){
@@ -564,13 +585,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       data[robot_base.p] = C[robot_base]->getPose();
     }
 
-    f << data;
+    save_json(data, folder + "robot_pose.json", write_compressed_json);
   }
 
   {
-    std::ofstream f;
-    f.open(folder + "obj_initial_pose.json", std::ios_base::trunc);
-
     json data;
     for (const auto frame : C.frames) {
       if (frame->name.contains("obj")) {
@@ -578,13 +596,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
-    f << data;
+    save_json(data, folder + "obj_initial_pose.json", write_compressed_json);
   }
 
-{
-    std::ofstream f;
-    f.open(folder + "obj_sizes.json", std::ios_base::trunc);
-
+  {
     json data;
     for (const auto frame : C.frames) {
       if (frame->name.contains("obj")) {
@@ -592,13 +607,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
-    f << data;
+    save_json(data, folder + "obj_sizes.json", write_compressed_json);
   }
 
   {
-    std::ofstream f;
-    f.open(folder + "obj_goals.json", std::ios_base::trunc);
-    
     json data;
     // goals
     for (const auto frame: C.frames){
@@ -610,7 +622,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
-    f << data;
+    save_json(data, folder + "obj_goals.json", write_compressed_json);
   }
 
   {
@@ -669,9 +681,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
-    std::ofstream f;
-    f.open(folder + "obj_poses.json", std::ios_base::trunc);
-    
     json data;
     for (const auto &obj: objs){
       std::vector<arr> tmp;
@@ -679,7 +688,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       data[obj.first.p] = tmp;
     }
 
-    f << data;
+    save_json(data, folder + "obj_poses.json", write_compressed_json);
   }
 
   // -- plan
@@ -702,11 +711,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 
   {
-    std::ofstream f;
-    f.open(folder + "plan.json", std::ios_base::trunc);
     json data = get_plan_as_json(plan);
-
-    f << data;
+    save_json(data, folder + "plan.json", write_compressed_json);
   }
 
   // -- compute times
@@ -871,22 +877,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     data["metadata"]["num_robots"] = 0;   
     data["metadata"]["num_objects"] = 0;
 
-    std::ofstream f;
-    f.open(folder + "trajectory.json", std::ios_base::trunc);
-    f << data;
-
-    std::ofstream os(folder + "compressed_trajectory.json", std::ios::out | std::ios::binary);
-    std::vector<uint8_t> output_vector;
-    json::to_cbor(data, output_vector);
-    os.write((char *) &output_vector.data()[0], output_vector.size());
-    os.close();
+    save_json(data, folder + "trajectory.json", write_compressed_json);
   }
 
   {
-    std::ofstream f;
-    f.open(folder + "robot_controls.json", std::ios_base::trunc);
-    json data;
-
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
     std::unordered_map<Robot, std::vector<arr>> paths;
     for (uint i = 0; i < A.getT(); ++i) {
@@ -896,11 +890,12 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
+    json data;
     for (const auto &element: paths){
       data[element.first.prefix] = element.second;
     }
 
-    f << data;
+    save_json(data, folder + "robot_controls.json", write_compressed_json);
   }
 }
 

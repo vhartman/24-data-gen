@@ -330,6 +330,10 @@ int main(int argc, char **argv) {
   const bool avoid_repeated_evaluations =
       rai::getParameter<bool>("avoid_repeated_evaluations", true);
 
+  const bool compress_output =
+      rai::getParameter<bool>("compress_output", false);
+  global_params.compress_data = compress_output;
+
   switch (verbosity) {
   case 0:
     spdlog::set_level(spdlog::level::off);

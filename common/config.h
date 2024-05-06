@@ -6,7 +6,7 @@ namespace manip{
     bool allow_display = true;
 
     bool export_images = false;
-    bool compress_data = false; // does not do anything at the moment
+    bool compress_data = false;
 
     std::string output_path = "./out/";
   };
