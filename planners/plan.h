@@ -9,20 +9,22 @@
 
 #include <Core/array.h>
 
-#include "common/util.h"
+#include "common/config.h"
 #include "common/env_util.h"
 #include "common/types.h"
-#include "common/config.h"
+#include "common/util.h"
 
 using json = nlohmann::json;
 
 typedef std::vector<arr> TaskPoses;
-typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>> RobotTaskPoseMap;
+typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>>
+    RobotTaskPoseMap;
 
 typedef std::vector<RobotTaskPair> OrderedTaskSequence;
 typedef std::unordered_map<Robot, std::vector<Task>> UnorderedTaskSequence;
 
-OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector<Robot> robots) {
+OrderedTaskSequence load_sequence_from_json(const std::string &path,
+                                            std::vector<Robot> robots) {
   std::ifstream ifs(path);
   json jf = json::parse(ifs);
 
@@ -33,10 +35,10 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path, std::vector
     const std::vector<std::string> robot_prefixes = item.value()["robots"];
 
     RobotTaskPair rtp;
-    for (const auto &prefix: robot_prefixes){
+    for (const auto &prefix : robot_prefixes) {
       // search for the robot with the correct prefix
-      for (const auto &robot: robots){
-        if (robot.prefix == prefix){
+      for (const auto &robot : robots) {
+        if (robot.prefix == prefix) {
           rtp.robots.push_back(robot);
           break;
         }
@@ -63,7 +65,7 @@ json ordered_sequence_to_json(OrderedTaskSequence seq) {
     task["object"] = s.task.object;
 
     std::vector<std::string> prefixes;
-    for (const auto &r: s.robots){
+    for (const auto &r : s.robots) {
       prefixes.push_back(r.prefix);
     }
 
@@ -71,7 +73,7 @@ json ordered_sequence_to_json(OrderedTaskSequence seq) {
 
     tasks.push_back(task);
   }
-  
+
   data["tasks"] = tasks;
 
   return data;
@@ -135,7 +137,7 @@ struct TaskPart {
 
 typedef std::unordered_map<Robot, std::vector<TaskPart>> Plan;
 
-json get_plan_as_json(const Plan& plan) {
+json get_plan_as_json(const Plan &plan) {
   json data;
 
   for (const auto &per_robot_plan : plan) {
@@ -174,8 +176,7 @@ struct PlanResult {
   Plan plan;
 };
 
-double
-get_makespan_from_plan(const Plan &plan) {
+double get_makespan_from_plan(const Plan &plan) {
   double max_time = 0.;
   for (const auto &robot_plan : plan) {
     const auto last_subpath = robot_plan.second.back();
@@ -218,7 +219,8 @@ arr get_robot_pose_at_time(const uint t, const Robot &r,
   return home_poses.at(r);
 }
 
-std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r, const uint t) {
+std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r,
+                                         const uint t) {
   if (plan.count(r) > 0) {
     for (const auto &part : plan.at(r)) {
       // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
@@ -233,7 +235,8 @@ std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r, const
   return "none";
 }
 
-void set_full_configuration_to_time(rai::Configuration &C, const Plan &plan, const uint t){
+void set_full_configuration_to_time(rai::Configuration &C, const Plan &plan,
+                                    const uint t) {
   // std::cout << t << std::endl;
   for (const auto &tp : plan) {
     const auto r = tp.first;
@@ -316,10 +319,12 @@ std::vector<arr> get_frame_trajectory(const rai::String &name, const Plan &plan,
   return poses;
 }
 
-json make_scene_data(){json data; return data;}
+json make_scene_data() {
+  json data;
+  return data;
+}
 
-void save_json_to_cbor_file(const json &data,
-                            const std::string &file_path) {
+void save_json_to_cbor_file(const json &data, const std::string &file_path) {
   std::ofstream os(file_path, std::ios::out | std::ios::binary);
   std::vector<uint8_t> output_vector;
   json::to_cbor(data, output_vector);
@@ -347,10 +352,11 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
                  const uint computation_time) {
   spdlog::info("exporting plan");
   const bool write_compressed_json = global_params.compress_data;
+  const bool export_txt_files = global_params.export_txt_files;
 
   // make folder
-  const std::string folder =
-      global_params.output_path + base_folder + "/" + std::to_string(iteration) + "/";
+  const std::string folder = global_params.output_path + base_folder + "/" +
+                             std::to_string(iteration) + "/";
   const int res = system(STRING("mkdir -p " << folder).p);
   (void)res;
 
@@ -358,21 +364,21 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 
   // - add info
   // -- comp. time
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "comptime.txt", std::ios_base::trunc);
     f << computation_time / 1000.;
   }
 
   // -- makespan
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "makespan.txt", std::ios_base::trunc);
     f << A.getT();
   }
 
   // -- sequence
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "sequence.txt", std::ios_base::trunc);
     f << ordered_sequence_to_str(seq);
@@ -390,56 +396,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   // }
 
   {
-    // robots
-    json data;
-    for (const auto &e: home_poses){
-      const auto r = e.first;
-      const rai::String robot_base STRING(r << "base");
-
-      data[robot_base.p] = C[robot_base]->getPose();
-    }
-
-    save_json(data, folder + "robot_pose.json", write_compressed_json);
-  }
-
-  {
-    json data;
-    for (const auto frame : C.frames) {
-      if (frame->name.contains("obj")) {
-        data[frame->name.p] = frame->getPose().vec();
-      }
-    }
-
-    save_json(data, folder + "obj_initial_pose.json", write_compressed_json);
-  }
-
-  {
-    json data;
-    for (const auto frame : C.frames) {
-      if (frame->name.contains("obj")) {
-        data[frame->name.p] = frame->getShape().size;
-      }
-    }
-
-    save_json(data, folder + "obj_sizes.json", write_compressed_json);
-  }
-
-  {
-    json data;
-    // goals
-    for (const auto frame: C.frames){
-      if (frame->name.contains("goal") && !frame->name.contains("marker")){
-        json pose;
-        pose["Position"] = frame->getRelativePosition().vec();
-        pose["Quaternion"] = frame->getRelativeQuaternion().vec();
-        data[frame->name.p] = pose;
-      }
-    }
-
-    save_json(data, folder + "obj_goals.json", write_compressed_json);
-  }
-
-  {
+    json all_obj_data;
     std::vector<rai::String> obj_names;
     for (const auto frame : C.frames) {
       if (frame->name.contains("obj")) {
@@ -447,24 +404,45 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
-    std::unordered_map<std::string, std::vector<arr>> frame_poses;
-    for (uint t = 0; t < A.getT(); ++t) {
-      const auto poses = get_frame_pose_at_time(obj_names, plan, C, t);
-      for (const auto &name_pose : poses) {
-        frame_poses[name_pose.first].push_back(name_pose.second);
-      }
+    for (uint i = 0; i < obj_names.size(); ++i) {
+      json obj_data;
+
+      obj_data["size"] = C[obj_names[i]]->getShape().size;
+
+      const arr start_pose = C[obj_names[i]]->getPose();
+      obj_data["start"]["pos"] = start_pose({0, 2});
+      obj_data["start"]["quat"] = start_pose({3, 6});
+
+      rai::String goal_frame_name = STRING("goal" << i + 1);
+      const arr goal_pose = C[goal_frame_name]->getPose();
+      obj_data["goal"]["pos"] = goal_pose({0, 2});
+      obj_data["goal"]["quat"] = goal_pose({3, 6});
+
+      all_obj_data[obj_names[i].p] = obj_data;
     }
 
-    json data;
-    for (const auto &obj: obj_names){
-      data[std::string(obj.p)] = frame_poses[obj.p];
+    // robots
+    json all_robot_data;
+    for (const auto &e : home_poses) {
+      const auto r = e.first;
+      const rai::String robot_base STRING(r << "base");
+      const arr robot_base_pose = C[robot_base]->getPose();
+
+      json robot_data;
+      robot_data["base_pose"]["pos"] = robot_base_pose({0, 2});
+      robot_data["base_pose"]["quat"] = robot_base_pose({3, 6});
+
+      all_robot_data[r.prefix] = robot_data;
     }
 
-    save_json(data, folder + "obj_poses.json", write_compressed_json);
+    json all_data;
+    all_data["Objects"] = all_obj_data;
+    all_data["Robots"] = all_robot_data;
+    save_json(all_data, folder + "scene.json", write_compressed_json);
   }
 
   // -- plan
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "plan.txt", std::ios_base::trunc);
 
@@ -488,7 +466,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 
   // -- compute times
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "computation_times.txt", std::ios_base::trunc);
     for (const auto &per_robot_plan : plan) {
@@ -500,9 +478,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         f << task.name << "(" << task.algorithm << ")"
           << " " << task.task_index << ", " << task.stats.total_compute_time
           << ", " << task.stats.rrt_compute_time << ", "
-          << task.stats.rrt_plan_time << ", "
-          << task.stats.rrt_coll_time << ", "
-          << task.stats.rrt_nn_time << ", "
+          << task.stats.rrt_plan_time << ", " << task.stats.rrt_coll_time
+          << ", " << task.stats.rrt_nn_time << ", "
           << task.stats.rrt_smoothing_time << ", "
           << task.stats.rrt_shortcut_time << ", "
           << task.stats.komo_compute_time << "; ";
@@ -511,8 +488,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
   }
 
-  // -- actual path
-  {
+  if (export_txt_files) {
     std::ofstream f;
     f.open(folder + "robot_controls.txt", std::ios_base::trunc);
     arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
@@ -558,10 +534,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 
     json all_robot_data;
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    for (const auto &r: robots) {
+    for (const auto &r : robots) {
       json robot_data;
       robot_data["name"] = r.prefix;
-      robot_data["type"] =  robot_type_to_string(r.type);
+      robot_data["type"] = robot_type_to_string(r.type);
       robot_data["ee_type"] = ee_type_to_string(r.ee_type);
 
       for (uint t = 0; t < A.getT(); ++t) {
@@ -571,17 +547,19 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         spdlog::trace("pose at time {}", t);
         const arr pose = get_robot_pose_at_time(t, r, home_poses, plan)();
         step_data["joint_state"] = pose;
-        
+
         spdlog::trace("ee at time {}", t);
         const rai::String ee_frame_name = STRING("" << r.prefix << "pen_tip");
         const arr ee_pose = frame_poses[ee_frame_name.p][t]();
-        step_data["ee_pos"] = ee_pose({0,2});
-        step_data["ee_quat"] = ee_pose({3,6});
+        step_data["ee_pos"] = ee_pose({0, 2});
+        step_data["ee_quat"] = ee_pose({3, 6});
 
         spdlog::trace("action at time {}", t);
-        const std::string current_action = get_action_at_time_for_robot(plan, r, t);
-        // const std::string current_primitive = get_primitive_at_time_for_robot(plan, robots[j], i);
-        // const std::string current_primitive = primitive_type_to_string(primitve);
+        const std::string current_action =
+            get_action_at_time_for_robot(plan, r, t);
+        // const std::string current_primitive =
+        // get_primitive_at_time_for_robot(plan, robots[j], i); const
+        // std::string current_primitive = primitive_type_to_string(primitve);
         // const std::string current_primitive = "pick";
 
         step_data["action"] = current_action;
@@ -593,16 +571,16 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       all_robot_data.push_back(robot_data);
     }
 
-    // all objs    
+    // all objs
     json all_obj_data;
-    for (const auto &obj: obj_names){
+    for (const auto &obj : obj_names) {
       json obj_data;
       obj_data["name"] = obj;
       const auto poses = frame_poses[obj.p];
-      for (uint i=0; i<poses.size(); ++i){
+      for (uint i = 0; i < poses.size(); ++i) {
         json step_data;
-        step_data["pos"] = poses[i]({0,2});
-        step_data["quat"] = poses[i]({3,6});
+        step_data["pos"] = poses[i]({0, 2});
+        step_data["quat"] = poses[i]({3, 6});
         obj_data["steps"].push_back(step_data);
       }
 
@@ -616,33 +594,17 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     data["metadata"]["makespan"] = makespan;
     data["metadata"]["folder"] = folder;
 
-    data["metadata"]["num_robots"] = robots.size();   
+    data["metadata"]["num_robots"] = robots.size();
     data["metadata"]["num_objects"] = obj_names.size();
 
     save_json(data, folder + "trajectory.json", write_compressed_json);
   }
-
-  {
-    // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    std::unordered_map<Robot, std::vector<arr>> paths;
-    for (uint i = 0; i < A.getT(); ++i) {
-      for (uint j = 0; j < robots.size(); ++j) {
-        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
-        paths[robots[j]].push_back(pose);
-      }
-    }
-
-    json data;
-    for (const auto &element: paths){
-      data[element.first.prefix] = element.second;
-    }
-
-    save_json(data, folder + "robot_controls.json", write_compressed_json);
-  }
 }
 
-void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display = true, const std::string image_path = "") {
-  if (display == false && image_path == ""){
+void visualize_plan(rai::Configuration &C, const Plan &plan,
+                    const bool display = true,
+                    const std::string image_path = "") {
+  if (display == false && image_path == "") {
     return;
   }
 
@@ -657,8 +619,8 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display 
 
   // we can not simly use the animations that are in the path
   // since they do not contain all the frames.
-  // Thus, we hve to retrieve the correct part, find the right time, and then set the
-  // given configuration to this state.
+  // Thus, we hve to retrieve the correct part, find the right time, and then
+  // set the given configuration to this state.
   for (uint t = 0; t < makespan; ++t) {
     for (const auto &tp : plan) {
       const auto r = tp.first;
@@ -672,8 +634,8 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display 
         }
 
         for (uint i = 0; i < part.t.N; ++i) {
-          if ((i == part.t.N-1 && t == part.t(-1)) ||
-              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+          if ((i == part.t.N - 1 && t == part.t(-1)) ||
+              (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
             setActive(C, r);
             C.setJointState(part.path[i]);
             // std::cout <<part.path[i] << std::endl;
@@ -693,7 +655,7 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display 
             break;
           }
         }
-        
+
         if (done) {
           framePath[t] = C.getFrameState();
           break;
@@ -715,14 +677,13 @@ void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display 
   // if we do not set the duration to a short time for the case where we only
   // want to export images, it takes too long.
   double duration = 0.01 * makespan;
-  if (!display){
+  if (!display) {
     duration = 0.00001;
   }
 
   if (image_path != "") {
     Vf.playVideo(false, duration, image_path.c_str());
-  }
-  else {
+  } else {
     Vf.playVideo(false, duration);
   }
 

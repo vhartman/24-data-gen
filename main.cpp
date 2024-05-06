@@ -334,6 +334,10 @@ int main(int argc, char **argv) {
       rai::getParameter<bool>("compress_output", false);
   global_params.compress_data = compress_output;
 
+  const bool export_txt_files =
+      rai::getParameter<bool>("export_txt_files", false);
+  global_params.export_txt_files = export_txt_files;
+
   switch (verbosity) {
   case 0:
     spdlog::set_level(spdlog::level::off);
@@ -610,7 +614,8 @@ int main(int argc, char **argv) {
   spdlog::info("Computing pick and place poses");
 
   // merge both maps
-  RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(C, robots, use_picks, use_handovers, use_repeated_picks);
+  RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
+      C, robots, use_picks, use_handovers, use_repeated_picks);
   spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
   // initial test

@@ -7,6 +7,7 @@ namespace manip{
 
     bool export_images = false;
     bool compress_data = false;
+    bool export_txt_files = false;
 
     std::string output_path = "./out/";
   };
