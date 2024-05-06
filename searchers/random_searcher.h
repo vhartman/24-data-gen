@@ -10,7 +10,8 @@
 Plan plan_multiple_arms_random_search(
     rai::Configuration &C, const RobotTaskPoseMap &rtpm,
     const std::unordered_map<Robot, arr> &home_poses,
-    const uint max_attempts = 1000) {
+    const uint max_attempts = 1000,
+    const bool avoid_repeat_evaluations = false) {
   // make foldername for current run
   std::time_t t = std::time(nullptr);
   std::tm tm = *std::localtime(&t);
@@ -53,7 +54,7 @@ Plan plan_multiple_arms_random_search(
     }
 
     // check if the sequence was already evaluated at some point
-    if (all_sequences.count(seq) > 0){
+    if (avoid_repeat_evaluations && all_sequences.count(seq) > 0) {
       continue;
     }
     all_sequences.insert(seq);

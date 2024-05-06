@@ -633,7 +633,8 @@ int main(int argc, char **argv) {
   } else if (mode == "random_search") {
     // random search
     const auto plan = plan_multiple_arms_random_search(
-        C, robot_task_pose_mapping, home_poses, max_attempts);
+        C, robot_task_pose_mapping, home_poses, max_attempts,
+        avoid_repeated_evaluations);
   } else if (mode == "greedy_random_search") {
     // greedy random search
     const auto plan = plan_multiple_arms_greedy_random_search(
