@@ -196,7 +196,7 @@ rai::Animation make_animation_from_plan(const Plan &plan) {
   return A;
 }
 
-arr get_robot_pose_at_time(const uint t, const Robot r,
+arr get_robot_pose_at_time(const uint t, const Robot &r,
                            const std::unordered_map<Robot, arr> &home_poses,
                            const Plan &plan) {
   if (plan.count(r) > 0) {
@@ -218,7 +218,7 @@ arr get_robot_pose_at_time(const uint t, const Robot r,
   return home_poses.at(r);
 }
 
-std::string get_action_at_time_for_robot(const Plan &plan, const Robot r, const uint t) {
+std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r, const uint t) {
   if (plan.count(r) > 0) {
     for (const auto &part : plan.at(r)) {
       // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
@@ -233,8 +233,7 @@ std::string get_action_at_time_for_robot(const Plan &plan, const Robot r, const 
   return "none";
 }
 
-void set_full_configuration_to_time(rai::Configuration &C, const Plan plan, const uint t){
-  const double makespan = get_makespan_from_plan(plan);
+void set_full_configuration_to_time(rai::Configuration &C, const Plan &plan, const uint t){
   // std::cout << t << std::endl;
   for (const auto &tp : plan) {
     const auto r = tp.first;
@@ -277,7 +276,7 @@ void set_full_configuration_to_time(rai::Configuration &C, const Plan plan, cons
   }
 }
 
-arr get_frame_pose_at_time(const rai::String &name, const Plan plan,
+arr get_frame_pose_at_time(const rai::String &name, const Plan &plan,
                            rai::Configuration &C, const uint t) {
   // set configuration to plan at time
   set_full_configuration_to_time(C, plan, t);
@@ -291,7 +290,7 @@ arr get_frame_pose_at_time(const rai::String &name, const Plan plan,
 }
 
 std::unordered_map<std::string, arr>
-get_frame_pose_at_time(const std::vector<rai::String> &names, const Plan plan,
+get_frame_pose_at_time(const std::vector<rai::String> &names, const Plan &plan,
                        rai::Configuration &C, const uint t) {
   set_full_configuration_to_time(C, plan, t);
 
@@ -306,7 +305,7 @@ get_frame_pose_at_time(const std::vector<rai::String> &names, const Plan plan,
   return poses;
 }
 
-std::vector<arr> get_frame_trajectory(const rai::String &name, Plan plan,
+std::vector<arr> get_frame_trajectory(const rai::String &name, const Plan &plan,
                                       rai::Configuration &C) {
   const uint makespan = 0;
   std::vector<arr> poses;
@@ -441,66 +440,24 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
   }
 
   {
-    std::map<rai::String, arr> objs;
-    for (const auto frame: C.frames){
-      if (frame->name.contains("obj")){
-        objs[frame->name] = arr(0, 7);
+    std::vector<rai::String> obj_names;
+    for (const auto frame : C.frames) {
+      if (frame->name.contains("obj")) {
+        obj_names.push_back(frame->name);
       }
     }
 
-    const double makespan = get_makespan_from_plan(plan);
+    std::unordered_map<std::string, std::vector<arr>> frame_poses;
     for (uint t = 0; t < A.getT(); ++t) {
-      // std::cout << t << std::endl;
-      for (const auto &tp : plan) {
-        const auto r = tp.first;
-        const auto parts = tp.second;
-
-        bool done = false;
-        for (const auto &part : parts) {
-          // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-          if (part.t(0) > t || part.t(-1) < t) {
-            continue;
-          }
-
-          for (uint i = 0; i < part.t.N - 1; ++i) {
-            if ((i == part.t.N-1 && t == part.t(-1)) ||
-              (i < part.t.N-1 && (part.t(i) <= t && part.t(i + 1) > t))) {
-              setActive(C, r);
-              C.setJointState(part.path[i]);
-              // std::cout <<part.path[i] << std::endl;
-              done = true;
-
-              // set bin picking things
-              const auto task_index = part.task_index;
-              const auto obj_name = STRING("obj" << task_index + 1);
-
-              if (part.anim.frameNames.contains(obj_name)) {
-                const auto pose =
-                    part.anim.X[uint(std::floor(t - part.anim.start))];
-                arr tmp(1, 7);
-                tmp[0] = pose[-1];
-                C.setFrameState(tmp, {C[obj_name]});
-              }
-              break;
-            }
-          }
-
-          if (done) {
-            break;
-          }
-        }
-      }
-
-      for (const auto &obj: objs){
-        objs[obj.first].append(C[obj.first]->getPose());
+      const auto poses = get_frame_pose_at_time(obj_names, plan, C, t);
+      for (const auto &name_pose : poses) {
+        frame_poses[name_pose.first].push_back(name_pose.second);
       }
     }
 
     json data;
-    for (const auto &obj: objs){
-      std::vector<arr> tmp;
-      for (uint i=0; i<obj.second.d0; ++i) tmp.push_back(obj.second[i]);
-      data[obj.first.p] = tmp;
+    for (const auto &obj: obj_names){
+      data[std::string(obj.p)] = frame_poses[obj.p];
     }
 
     save_json(data, folder + "obj_poses.json", write_compressed_json);
@@ -600,6 +557,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
 
     json all_robot_data;
+    try {
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
     for (uint j = 0; j < robots.size(); ++j) {
       json robot_data;
@@ -607,26 +565,25 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       robot_data["type"] =  robot_type_to_string(robots[j].type);
       robot_data["ee_type"] = ee_type_to_string(robots[j].ee_type);
 
-      for (uint i = 0; i < A.getT(); ++i) {
-        spdlog::trace("exporting traj step {}", i);
+      for (uint t = 0; t < A.getT(); ++t) {
+        spdlog::trace("exporting traj step {}", t);
+        json step_data;
 
-        spdlog::trace("symbol at time {}", i);
-        const arr pose = get_robot_pose_at_time(i, robots[j], home_poses, plan);
+        spdlog::trace("pose at time {}", t);
+        const arr pose = get_robot_pose_at_time(t, robots[j], home_poses, plan)();
+        step_data["joint_state"] = pose;
         
-        spdlog::trace("symbol at time {}", i);
+        spdlog::trace("ee at time {}", t);
         const rai::String ee_frame_name = STRING("" << robots[j].prefix << "pen_tip");
-        const arr ee_pose = frame_poses[ee_frame_name.p][i];
+        const arr ee_pose = frame_poses[ee_frame_name.p][t]();
+        step_data["ee_pos"] = ee_pose({0,2});
+        step_data["ee_quat"] = ee_pose({3,6});
 
-        spdlog::trace("symbol at time {}", i);
-        const std::string current_action = get_action_at_time_for_robot(plan, robots[j], i);
+        spdlog::trace("action at time {}", t);
+        const std::string current_action = get_action_at_time_for_robot(plan, robots[j], t);
         // const std::string current_primitive = get_primitive_at_time_for_robot(plan, robots[j], i);
         // const std::string current_primitive = primitive_type_to_string(primitve);
         // const std::string current_primitive = "pick";
-
-        json step_data;
-        step_data["joint_state"] = pose;
-        step_data["ee_pos"] = ee_pose({0,2});
-        step_data["ee_quat"] = ee_pose({3,6});
 
         step_data["action"] = current_action;
         // step_data["primitive"] = current_action;
@@ -635,6 +592,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
 
       all_robot_data.push_back(robot_data);
+    }
+    }
+    catch(...){
+      spdlog::error("Exception");
     }
 
     // all objs    
