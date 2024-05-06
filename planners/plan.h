@@ -557,30 +557,29 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     }
 
     json all_robot_data;
-    try {
     // arr path(A.getT(), home_poses.at(robots[0]).d0 * robots.size());
-    for (uint j = 0; j < robots.size(); ++j) {
+    for (const auto &r: robots) {
       json robot_data;
-      robot_data["name"] = robots[j].prefix;
-      robot_data["type"] =  robot_type_to_string(robots[j].type);
-      robot_data["ee_type"] = ee_type_to_string(robots[j].ee_type);
+      robot_data["name"] = r.prefix;
+      robot_data["type"] =  robot_type_to_string(r.type);
+      robot_data["ee_type"] = ee_type_to_string(r.ee_type);
 
       for (uint t = 0; t < A.getT(); ++t) {
         spdlog::trace("exporting traj step {}", t);
         json step_data;
 
         spdlog::trace("pose at time {}", t);
-        const arr pose = get_robot_pose_at_time(t, robots[j], home_poses, plan)();
+        const arr pose = get_robot_pose_at_time(t, r, home_poses, plan)();
         step_data["joint_state"] = pose;
         
         spdlog::trace("ee at time {}", t);
-        const rai::String ee_frame_name = STRING("" << robots[j].prefix << "pen_tip");
+        const rai::String ee_frame_name = STRING("" << r.prefix << "pen_tip");
         const arr ee_pose = frame_poses[ee_frame_name.p][t]();
         step_data["ee_pos"] = ee_pose({0,2});
         step_data["ee_quat"] = ee_pose({3,6});
 
         spdlog::trace("action at time {}", t);
-        const std::string current_action = get_action_at_time_for_robot(plan, robots[j], t);
+        const std::string current_action = get_action_at_time_for_robot(plan, r, t);
         // const std::string current_primitive = get_primitive_at_time_for_robot(plan, robots[j], i);
         // const std::string current_primitive = primitive_type_to_string(primitve);
         // const std::string current_primitive = "pick";
@@ -592,10 +591,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
 
       all_robot_data.push_back(robot_data);
-    }
-    }
-    catch(...){
-      spdlog::error("Exception");
     }
 
     // all objs    
@@ -621,8 +616,8 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     data["metadata"]["makespan"] = makespan;
     data["metadata"]["folder"] = folder;
 
-    data["metadata"]["num_robots"] = 0;   
-    data["metadata"]["num_objects"] = 0;
+    data["metadata"]["num_robots"] = robots.size();   
+    data["metadata"]["num_objects"] = obj_names.size();
 
     save_json(data, folder + "trajectory.json", write_compressed_json);
   }
@@ -647,6 +642,10 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 }
 
 void visualize_plan(rai::Configuration &C, const Plan &plan, const bool display = true, const std::string image_path = "") {
+  if (display == false && image_path == ""){
+    return;
+  }
+
   spdlog::info("Showing plan");
 
   const double makespan = get_makespan_from_plan(plan);
