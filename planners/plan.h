@@ -404,40 +404,124 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
       }
     }
 
+    // objects to be moved
     for (uint i = 0; i < obj_names.size(); ++i) {
       json obj_data;
 
-      obj_data["size"] = C[obj_names[i]]->getShape().size;
+      const auto start_frame = C[obj_names[i]];
+      obj_data["size"] = start_frame->getShape().size;
 
-      const arr start_pose = C[obj_names[i]]->getPose();
-      obj_data["start"]["pos"] = start_pose({0, 2});
-      obj_data["start"]["quat"] = start_pose({3, 6});
+      const arr abs_start_pose = C[obj_names[i]]->getPose();
+      obj_data["start"]["abs_pos"] = abs_start_pose({0, 2});
+      obj_data["start"]["abs_quat"] = abs_start_pose({3, 6});
+
+      obj_data["start"]["pos"] = start_frame->getRelativePosition();
+      obj_data["start"]["quat"] = start_frame->getRelativeQuaternion();
+      obj_data["start"]["parent"] = start_frame->parent->name;
 
       rai::String goal_frame_name = STRING("goal" << i + 1);
-      const arr goal_pose = C[goal_frame_name]->getPose();
-      obj_data["goal"]["pos"] = goal_pose({0, 2});
-      obj_data["goal"]["quat"] = goal_pose({3, 6});
+      const auto goal_frame = C[goal_frame_name];
+
+      obj_data["goal"]["pos"] = goal_frame->getRelativePosition();
+      obj_data["goal"]["quat"] = goal_frame->getRelativeQuaternion();
+
+      const arr abs_goal_pose = C[goal_frame_name]->getPose();
+      obj_data["goal"]["abs_pos"] = abs_goal_pose({0, 2});
+      obj_data["goal"]["abs_quat"] = abs_goal_pose({3, 6});
+      obj_data["goal"]["parent"] = goal_frame->parent->name;
 
       all_obj_data[obj_names[i].p] = obj_data;
     }
 
     // robots
     json all_robot_data;
+    std::vector<std::string> robot_prefixes;
     for (const auto &e : home_poses) {
       const auto r = e.first;
+      robot_prefixes.push_back(r.prefix);
+
       const rai::String robot_base STRING(r << "base");
-      const arr robot_base_pose = C[robot_base]->getPose();
+      const auto robot_base_frame = C[robot_base];
 
       json robot_data;
-      robot_data["base_pose"]["pos"] = robot_base_pose({0, 2});
-      robot_data["base_pose"]["quat"] = robot_base_pose({3, 6});
+      robot_data["base_pose"]["pos"] = robot_base_frame->getRelativePosition();
+      robot_data["base_pose"]["quat"] = robot_base_frame->getRelativeQuaternion();
+      robot_data["parent"] = C[robot_base]->parent->name;
+
+      setActive(C, r);
+      robot_data["initial_pose"] = C.getJointState();
+      robot_data["home_pose"] = r.home_pose;
+      robot_data["type"] = r.type;
+      robot_data["end_effector_type"] = r.ee_type;
 
       all_robot_data[r.prefix] = robot_data;
+    }
+
+    // obstacles
+    json all_obstacle_data;
+    for (const auto f: C.frames){
+      if (f->name.contains("obj") || f->name.contains("goal")){
+        continue;
+      }
+
+      bool is_robot_frame = false;
+      for (const auto &robot_prefix : robot_prefixes) {
+        if (f->name.contains(robot_prefix.c_str())) {
+          is_robot_frame = true;
+          break;
+        }
+      }
+      if (is_robot_frame) {
+        continue;
+      }
+
+      std::cout << f->name << std::endl;
+
+      // export frame
+      json obstacle_data;
+
+      if (!!f->shape){
+        const auto shape_type = f->getShape().type();
+
+        obstacle_data["size"] = f->getShape().size;
+        if (shape_type == rai::ST_box || shape_type == rai::ST_ssBox){
+          obstacle_data["shape"] = "box";
+        }
+        else if (shape_type == rai::ST_sphere){
+          obstacle_data["shape"] = "sphere";
+        } else if (shape_type == rai::ST_capsule) {
+          obstacle_data["shape"] = "capsule";
+        } else if (shape_type == rai::ST_cylinder){
+          obstacle_data["shape"] = "cylinder";
+        } else if (shape_type == rai::ST_mesh) {
+          obstacle_data["shape"] = "mesh";
+          std::stringstream ss;
+          f->getShape().frame.ats["mesh"]->write(ss);
+          obstacle_data["mesh"] = ss.str();
+        }
+
+        obstacle_data["contact"] = f->getShape().cont;
+      }
+
+      obstacle_data["pose"]["pos"] = f->getRelativePosition();
+      obstacle_data["pose"]["quat"] = f->getRelativeQuaternion();
+
+      if (f->parent){
+        obstacle_data["pose"]["parent"] = f->parent->name;
+      }
+
+      const arr abs_pose = f->getPose();
+      obstacle_data["pose"]["abs_pos"] = abs_pose({0, 2});
+      obstacle_data["pose"]["abs_quat"] = abs_pose({3, 6});
+
+      all_obstacle_data[f->name.p] = obstacle_data;
     }
 
     json all_data;
     all_data["Objects"] = all_obj_data;
     all_data["Robots"] = all_robot_data;
+    all_data["Obstacles"] = all_obstacle_data;
+
     save_json(all_data, folder + "scene.json", write_compressed_json);
   }
 
