@@ -475,8 +475,6 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         continue;
       }
 
-      std::cout << f->name << std::endl;
-
       // export frame
       json obstacle_data;
 
