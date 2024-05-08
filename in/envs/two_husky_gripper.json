@@ -4,13 +4,13 @@
 			"parent": "left_arm_bulkhead_joint",
 			"base_pos": [0.0, -0.0, 0.0],
 			"base_quat": [1, 0.0, 0.0, 1],
-			"type": "ur5_vacuum"
+			"type": "ur5_gripper"
 		},
 		{
 			"parent": "right_arm_bulkhead_joint",
 			"base_pos": [0.0, 0.0, 0.0],
 			"base_quat": [0.707, 0.0, 0.0, 0.707],
-			"type": "ur5_vacuum"
+			"type": "ur5_gripper"
 		}
 	]
 }
