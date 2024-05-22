@@ -23,11 +23,8 @@ typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>>
 typedef std::vector<RobotTaskPair> OrderedTaskSequence;
 typedef std::unordered_map<Robot, std::vector<Task>> UnorderedTaskSequence;
 
-OrderedTaskSequence load_sequence_from_json(const std::string &path,
-                                            std::vector<Robot> robots) {
-  std::ifstream ifs(path);
-  json jf = json::parse(ifs);
-
+OrderedTaskSequence load_sequence_from_json(const json &jf,
+                                            const std::vector<Robot> &robots) {
   OrderedTaskSequence seq;
   for (const auto &item : jf["tasks"].items()) {
     const std::string primitive = item.value()["primitive"];
@@ -52,6 +49,24 @@ OrderedTaskSequence load_sequence_from_json(const std::string &path,
   }
 
   return seq;
+}
+
+std::vector<OrderedTaskSequence>
+load_sequences_from_file(const std::string &path,
+                        const std::vector<Robot> &robots) {
+
+  std::ifstream ifs(path);
+  json jf = json::parse(ifs);
+
+  if (jf.contains("sequences")) {
+    std::vector<OrderedTaskSequence> sequences;
+    for (const auto &json_seq : jf["sequences"]) {
+      sequences.push_back(load_sequence_from_json(json_seq, robots));
+    }
+    return sequences;
+  } else {
+    return {load_sequence_from_json(jf, robots)};
+  }
 }
 
 json ordered_sequence_to_json(OrderedTaskSequence seq) {

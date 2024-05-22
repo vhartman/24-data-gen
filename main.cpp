@@ -533,35 +533,42 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "plan_for_sequence") {
+    std::time_t t = std::time(nullptr);
+    std::tm tm = *std::localtime(&t);
+
+    std::stringstream buffer;
+    buffer << "sequence_plan_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
     // merge both maps
-    RobotTaskPoseMap rtpm = compute_keyframes(C, robots, use_picks, use_handovers, use_repeated_picks);
+    RobotTaskPoseMap rtpm = compute_keyframes(
+        C, robots, use_picks, use_handovers, use_repeated_picks);
 
     const std::string path = sequence_path.p;
-    const auto seq = load_sequence_from_json(path, robots);
+    const auto sequences = load_sequences_from_file(path, robots);
 
-    std::cout << ordered_sequence_to_str(seq) << std::endl;
+    uint seq_num = 0;
+    for (const auto &seq : sequences) {
+      std::cout << ordered_sequence_to_str(seq) << std::endl;
 
-    if (!check_sequence_validity(seq, rtpm)) {
-      spdlog::error("sequence invalid.");
-      return 0;
-    }
-    const PlanResult plan =
-        plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
-
-    if (plan.status == PlanStatus::success) {
-      std::time_t t = std::time(nullptr);
-      std::tm tm = *std::localtime(&t);
-
-      std::stringstream buffer;
-      buffer << "sequence_plan_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
-
-      export_plan(C, robots, home_poses, plan.plan, seq, buffer.str(), 0, 0);
-
-      if (display) {
-        visualize_plan(C, plan.plan);
+      if (!check_sequence_validity(seq, rtpm)) {
+        spdlog::error("sequence invalid.");
+        return 0;
       }
-    } else {
-      spdlog::warn("No solution found for given sequence.");
+      const PlanResult plan =
+          plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
+
+      if (plan.status == PlanStatus::success) {
+        export_plan(C, robots, home_poses, plan.plan, seq, buffer.str(),
+                    seq_num, 0);
+
+        if (display) {
+          visualize_plan(C, plan.plan);
+        }
+      } else {
+        spdlog::warn("No solution found for given sequence.");
+      }
+
+      ++seq_num;
     }
 
     return 0;

@@ -1,0 +1,7 @@
+{
+"sequences":[
+{"tasks":[{"object":2,"primitive":"pickpick1","robots":["a0_","a1_"]},{"object":0,"primitive":"pick","robots":["a0_"]},{"object":1,"primitive":"pick","robots":["a1_"]},{"object":2,"primitive":"pickpick2","robots":["a0_","a1_"]}]}
+,
+{"tasks":[{"object":2,"primitive":"pickpick1","robots":["a0_","a1_"]},{"object":0,"primitive":"pick","robots":["a0_"]},{"object":1,"primitive":"pick","robots":["a1_"]},{"object":2,"primitive":"pickpick2","robots":["a0_","a1_"]}]}
+]
+}
