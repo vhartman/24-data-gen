@@ -708,7 +708,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
 
     data["metadata"]["num_robots"] = robots.size();
     data["metadata"]["num_objects"] = obj_names.size();
-    data["metadata"]["compute_time"] = computation_time;
+    data["metadata"]["cumulative_compute_time"] = computation_time;
 
     save_json(data, folder + "metadata.json", write_compressed_json);
   }

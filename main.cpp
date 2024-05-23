@@ -543,6 +543,8 @@ int main(int argc, char **argv) {
     RobotTaskPoseMap rtpm = compute_keyframes(
         C, robots, use_picks, use_handovers, use_repeated_picks);
 
+    const auto start_time = std::chrono::high_resolution_clock::now();
+
     const std::string path = sequence_path.p;
     const auto sequences = load_sequences_from_file(path, robots);
 
@@ -554,12 +556,19 @@ int main(int argc, char **argv) {
         spdlog::error("sequence invalid.");
         return 0;
       }
+
       const PlanResult plan =
           plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
 
+      const auto end_time = std::chrono::high_resolution_clock::now();
+      const auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+                                                                start_time)
+              .count();
+
       if (plan.status == PlanStatus::success) {
         export_plan(C, robots, home_poses, plan.plan, seq, buffer.str(),
-                    seq_num, 0);
+                    seq_num, duration);
 
         if (display) {
           visualize_plan(C, plan.plan);
