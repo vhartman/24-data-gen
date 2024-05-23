@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 
+import json
+
 plt.style.use('./scripts/paper_2.mplstyle')
 default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -21,12 +23,18 @@ def load_folder(folder, time_offset = 0, iter_offset = 0):
     d = []
     for f in subfolders:
         if f.split('/')[-1] != "info":
-            if os.path.exists(f + "/makespan.txt"):
-                makespan = read_float_from_file(f + "/makespan.txt")
-                time = read_float_from_file(f + "/comptime.txt") + time_offset
-                iteration = int(f.split('/')[-1]) + iter_offset
+            if os.path.exists(f + "/metadata.json"):
+                # Reading a JSON file
+                with open(f + "/metadata.json", 'r') as file:
+                    data = json.load(file)["metadata"]
+                    makespan = data["makespan"]
+                    time = data["cumulative_compute_time"]
+                    # makespan = read_float_from_file(f + "/makespan.txt")
+                    # time = read_float_from_file(f + "/comptime.txt") + time_offset
+                
+                    iteration = int(f.split('/')[-1]) + iter_offset
 
-                d.append((time, makespan, iteration))
+                    d.append((time, makespan, iteration))
 
     d = sorted(d)
 
