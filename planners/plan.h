@@ -689,13 +689,28 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     data["robots"] = all_robot_data;
     data["objs"] = all_obj_data;
 
+    save_json(data, folder + "trajectory.json", write_compressed_json);
+  }
+
+  {
+    json data;
+
+    const double makespan = get_makespan_from_plan(plan);
+    std::vector<rai::String> obj_names;
+    for (const auto frame : C.frames) {
+      if (frame->name.contains("obj")) {
+        obj_names.push_back(frame->name);
+      }
+    }
+
     data["metadata"]["makespan"] = makespan;
     data["metadata"]["folder"] = folder;
 
     data["metadata"]["num_robots"] = robots.size();
     data["metadata"]["num_objects"] = obj_names.size();
+    data["metadata"]["compute_time"] = computation_time;
 
-    save_json(data, folder + "trajectory.json", write_compressed_json);
+    save_json(data, folder + "metadata.json", write_compressed_json);
   }
 }
 
