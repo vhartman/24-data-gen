@@ -609,20 +609,36 @@ int main(int argc, char **argv) {
       }
     }
 
-    const uint num_sequences = 100;
+    const uint num_attempts = 100;
 
     const std::string folder = global_params.output_path + buffer.str() + "/";
     const int res = system(STRING("mkdir -p " << folder).p);
     (void)res;
 
-    for (uint i = 0; i < num_sequences; ++i) {
+    std::unordered_set<OrderedTaskSequence> all_sequences;
+
+    json sequences;
+
+    uint cnt = 0;
+    for (uint i = 0; i < num_attempts; ++i) {
       const auto seq = generate_random_valid_sequence(robots, num_tasks, robot_task_pose_mapping);
 
+      // check if the sequence was already evaluated at some point
+      if (avoid_repeated_evaluations && all_sequences.count(seq) > 0) {
+        continue;
+      }
+      all_sequences.insert(seq);
+
       // export sequence
-      std::ofstream f;
-      f.open(folder + "sequence_" + std::to_string(i) + ".json", std::ios_base::trunc);
-      f << ordered_sequence_to_json(seq);
+      const auto data = ordered_sequence_to_json(seq);
+      sequences["sequences"].push_back(data);
+
+      // save_json(data, folder + "sequence_" + std::to_string(cnt) + ".json", global_params.compress_data);
+
+      ++cnt;
     }
+    
+    save_json(sequences, folder + "sequences.json", global_params.compress_data);
 
     return 0;
   }
