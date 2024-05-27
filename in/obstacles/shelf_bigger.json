@@ -1,0 +1,44 @@
+{
+	"obstacles": [
+		{
+			"shape": "box",
+			"name": "base",
+			"parent": "table",
+			"size": [1.2, 0.3, 0.05],
+			"pos": [0, 0.5, 0.1],
+			"quat": [1, 0 , 0.0, 0]
+		},
+		{
+			"shape": "box",
+			"name": "level1",
+			"parent": "base",
+			"size": [1.2, 0.3, 0.05],
+			"pos": [0, 0.0, 0.4],
+			"quat": [1, 0 , 0.0, 0]
+		},
+		{
+			"shape": "box",
+			"name": "level2",
+			"parent": "base",
+			"size": [1.2, 0.3, 0.05],
+			"pos": [0, 0.0, 0.8],
+			"quat": [1, 0 , 0.0, 0]
+		},
+		{
+			"shape": "box",
+			"name": "divider",
+			"parent": "base",
+			"size": [0.05, 0.2, 0.9],
+			"pos": [0.2, 0.0, 0.4],
+			"quat": [1, 0 , 0.0, 0]
+		},
+		{
+			"shape": "box",
+			"name": "divider2",
+			"parent": "base",
+			"size": [0.05, 0.2, 0.9],
+			"pos": [-0.2, 0.0, 0.4],
+			"quat": [1, 0 , 0.0, 0]
+		}
+	]
+}
