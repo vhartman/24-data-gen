@@ -738,8 +738,28 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   return tp;
 }
 
-// TODO: remove prefix from here
+// policy should have other inputs:
+// policy(start_pos, end_pos, robot, mode)
+void run_waiting_policy(TaskPart &path, const uint lower = 5, const uint upper = 15){
+  // TODO: fix distribution
+  const uint wait_time = rand() % (upper - lower) + lower;
+    for (uint i=0; i<wait_time; ++i){
+      path.path.append(path.path[-1]);
+      path.t.append(path.t(-1) + 1);
+    }
+}
 
+// TODO:
+// - needs a way to represent constraints
+// - collection of objectives?
+// - mode represents constraints?
+TaskPart plan_in_animation_constrained(){
+  // run komo planner with constraints
+  return {};
+}
+
+// TODO: remove prefix from here
+// TODO: add mode-argument
 // robust 'time-optimal' planning method
 TaskPart plan_in_animation(TimedConfigurationProblem &TP,
                            const uint t0, const arr &q0, const arr &q1,
@@ -764,6 +784,13 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
 
   TaskPart rrt_path = plan_in_animation_rrt(TP, t0, q0, q1, time_lb, r);
   rrt_path.algorithm = "rrt";
+
+  // add waiting times for grabbing
+  // TODO: sample from actual ststistical model
+  // TODO: should be a policy that does the final movement
+  if (global_params.randomize_mod_switch_durations && !exit_path && rrt_path.t.d0 > 0){
+    run_waiting_policy(rrt_path);
+  }
 
   // TP.C.fcl()->stopEarly = false;
 

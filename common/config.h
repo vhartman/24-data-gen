@@ -10,6 +10,8 @@ namespace manip{
     bool export_txt_files = false;
 
     std::string output_path = "./out/";
+
+    bool randomize_mod_switch_durations = false;
   };
 };
 

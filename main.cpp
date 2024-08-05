@@ -326,6 +326,7 @@ int main(int argc, char **argv) {
 
   const bool randomize_mode_switch_duration =
       rai::getParameter<bool>("randomize_mode_switch_duration", false);
+  global_params.randomize_mod_switch_durations = randomize_mode_switch_duration;
 
   const bool avoid_repeated_evaluations =
       rai::getParameter<bool>("avoid_repeated_evaluations", true);
