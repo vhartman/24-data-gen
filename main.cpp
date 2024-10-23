@@ -12,7 +12,6 @@
 #include <KOMO/komo.h>
 #include <Kin/F_operators.h>
 #include <Kin/F_pose.h>
-#include <Kin/F_qFeatures.h>
 #include <Kin/featureSymbols.h>
 #include <Kin/kin.h>
 
@@ -33,8 +32,8 @@
 #include "searchers/annealing_searcher.h"
 #include "searchers/greedy_random_searcher.h"
 #include "searchers/random_searcher.h"
-#include "searchers/squeaky_wheel_searcher.h"
 #include "searchers/sequencing.h"
+#include "searchers/squeaky_wheel_searcher.h"
 
 #include "planners/optimal_planner.h"
 #include "planners/plan.h"
@@ -396,28 +395,9 @@ int main(int argc, char **argv) {
     run_all_test_problems_from_folder("./in/test_problems/");
     return 0;
   }
-
-  if (mode == "two_finger_keyframes_test" || mode == "run_all_tests") {
-    single_arm_two_finger_keyframe_test(display);
-    two_arms_two_finger_keyframe_test(display);
-    three_arms_two_finger_keyframe_test(display);
-
-    if (mode != "run_all_tests") {
-      return 0;
-    }
-  }
-
-  if (mode == "two_finger_handover_keyframes_test" || mode == "run_all_tests") {
-    two_arm_two_finger_handover_keyframe_test(display);
-    three_arm_two_finger_handover_keyframe_test(display);
-
-    if (mode != "run_all_tests") {
-      return 0;
-    }
-  }
-
+  
   if (mode == "two_finger_planning_test" || mode == "run_all_tests") {
-    single_arm_two_finger_planning_test(display);
+    // single_arm_two_finger_planning_test(display);
     two_arm_two_finger_planning_test(display);
     three_arm_two_finger_planning_test(display);
 
@@ -459,6 +439,28 @@ int main(int argc, char **argv) {
 
   if (mode == "show_env") {
     C.watch(true);
+    return 0;
+  }
+
+  if (mode == "show_env_and_move_manipulators") {
+    C.watch(true);
+
+    for (const auto &r : robots) {
+      setActive(C, r);
+      auto q = C.getJointState();
+
+      for (uint i = 0; i < q.d0; ++i) {
+        for (uint j=0; j<100; ++j) {
+          // TODO: do this nicer with the limits
+          q(i) += sin(j*3.1415/100*2);
+          C.setJointState(q);
+
+          C.watch(false);
+          rai::wait(0.01);
+        }
+      }
+    }
+
     return 0;
   }
 
@@ -585,7 +587,8 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "compute_keyframes") {
-    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(C, robots, use_picks, use_handovers, use_repeated_picks);
+    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
+        C, robots, use_picks, use_handovers, use_repeated_picks);
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
     // TODO: export?
@@ -601,7 +604,8 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << "sequence_generation_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
-    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(C, robots, use_picks, use_handovers, use_repeated_picks);
+    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
+        C, robots, use_picks, use_handovers, use_repeated_picks);
 
     int num_tasks = 0;
     for (auto f : C.frames) {
@@ -622,7 +626,8 @@ int main(int argc, char **argv) {
 
     uint cnt = 0;
     for (uint i = 0; i < num_attempts; ++i) {
-      const auto seq = generate_random_valid_sequence(robots, num_tasks, robot_task_pose_mapping);
+      const auto seq = generate_random_valid_sequence(robots, num_tasks,
+                                                      robot_task_pose_mapping);
 
       // check if the sequence was already evaluated at some point
       if (avoid_repeated_evaluations && all_sequences.count(seq) > 0) {
@@ -634,12 +639,14 @@ int main(int argc, char **argv) {
       const auto data = ordered_sequence_to_json(seq);
       sequences["sequences"].push_back(data);
 
-      // save_json(data, folder + "sequence_" + std::to_string(cnt) + ".json", global_params.compress_data);
+      // save_json(data, folder + "sequence_" + std::to_string(cnt) + ".json",
+      // global_params.compress_data);
 
       ++cnt;
     }
-    
-    save_json(sequences, folder + "sequences.json", global_params.compress_data);
+
+    save_json(sequences, folder + "sequences.json",
+              global_params.compress_data);
 
     return 0;
   }
