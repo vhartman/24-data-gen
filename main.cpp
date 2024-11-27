@@ -238,21 +238,22 @@ RobotTaskPoseMap compute_keyframes(rai::Configuration &C,
                                    const std::vector<Robot> &robots,
                                    const bool use_picks = true,
                                    const bool use_handovers = true,
-                                   const bool use_repeated_picks = true) {
+                                   const bool use_repeated_picks = true,
+                                   const bool attempt_all_grasp_directions=false) {
   RobotTaskPoseMap robot_task_pose_mapping;
 
   if (use_picks) {
     RobotTaskPoseMap pick_rtpm =
-        compute_all_pick_and_place_positions(C, robots);
+        compute_all_pick_and_place_positions(C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
   }
   if (use_handovers) {
-    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(handover_rtpm.begin(), handover_rtpm.end());
   }
   if (use_repeated_picks) {
     RobotTaskPoseMap pick_pick_rtpm =
-        compute_all_pick_and_place_with_intermediate_pose(C, robots);
+        compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(pick_pick_rtpm.begin(),
                                    pick_pick_rtpm.end());
   }
@@ -453,7 +454,7 @@ int main(int argc, char **argv) {
       rai::getParameter<rai::String>("output_path", "./out/");
   global_params.output_path = std::string(output_path.p);
 
-  const bool attempt_all_grasp_dirctions = rai::getParameter<bool>("attempt_all_grasp_dirctions", false);
+  const bool attempt_all_grasp_directions = rai::getParameter<bool>("attempt_all_grasp_directions", false);
 
   const bool use_picks = rai::getParameter<bool>("use_simple_picks", true);
 
@@ -621,13 +622,13 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "repeated_pick") {
-    compute_all_pick_and_place_with_intermediate_pose(C, robots);
+    compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
     return 0;
   }
 
   if (mode == "repeated_pick_planning") {
     const auto rtpm =
-        compute_all_pick_and_place_with_intermediate_pose(C, robots);
+        compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
     const auto test_sequence_for_repeated_manip =
         make_pick_pick_seq(robots, num_objects, rtpm);
 
@@ -655,9 +656,9 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "handover_test") {
-    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots);
+    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
     RobotTaskPoseMap pick_rtpm =
-        compute_all_pick_and_place_positions(C, robots);
+        compute_all_pick_and_place_positions(C, robots, attempt_all_grasp_directions);
 
     // merge both maps
     RobotTaskPoseMap rtpm;
@@ -689,9 +690,8 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << "sequence_plan_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
-    // merge both maps
     RobotTaskPoseMap rtpm = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks);
+        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -735,7 +735,7 @@ int main(int argc, char **argv) {
 
   if (mode == "compute_keyframes") {
     RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks);
+        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
     // TODO: export?
@@ -753,7 +753,7 @@ int main(int argc, char **argv) {
     buffer << "sequence_generation_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
     RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks);
+        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
 
     int num_tasks = 0;
     for (auto f : C.frames) {
@@ -803,7 +803,7 @@ int main(int argc, char **argv) {
 
   // merge both maps
   RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-      C, robots, use_picks, use_handovers, use_repeated_picks);
+      C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
   spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
   // initial test

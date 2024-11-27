@@ -4,9 +4,9 @@
 
 #include <Kin/featureSymbols.h>
 
+#include "common/util.h"
 #include "planners/plan.h"
 #include "planners/prioritized_planner.h"
-#include "common/util.h"
 
 #include "samplers/pick_constraints.h"
 
@@ -38,13 +38,13 @@ public:
   //   return sample(robots, obj);
   // }
 
-  void add_place_contraint_and_objectives(){
-
-  }
+  void add_place_contraint_and_objectives() {}
 
   // enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
 
-  TaskPoses sample(const Robot r, const rai::String obj, const rai::String goal, const PickDirection pick_direction=PickDirection::NegZ, const bool sample_only_place=false) {
+  TaskPoses sample(const Robot r, const rai::String obj, const rai::String goal,
+                   const PickDirection pick_direction = PickDirection::NegZ,
+                   const bool sample_only_place = false) {
     spdlog::info("Attempting to compute keyframes for robot {} and object {}",
                  r.prefix, obj.p);
 
@@ -71,7 +71,9 @@ public:
     // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
     uint total_phases = 2;
-    if (sample_only_place){total_phases = 1;}
+    if (sample_only_place) {
+      total_phases = 1;
+    }
 
     komo.setDiscreteOpt(total_phases);
     // komo.animateOptimization = 3;
@@ -94,20 +96,22 @@ public:
     double pick_phase = 1;
     double place_phase = 2;
 
-    if (sample_only_place){
+    if (sample_only_place) {
       place_phase = 1;
     }
 
     Skeleton S;
-    if (!sample_only_place) S.append({pick_phase, place_phase, SY_stable, {pen_tip, obj}});
+    if (!sample_only_place)
+      S.append({pick_phase, place_phase, SY_stable, {pen_tip, obj}});
     S.append({place_phase, place_phase, SY_poseEq, {obj, goal}});
     //   {1., 1., SY_touch, {pen_tip, obj}},
     // {2., -1, SY_positionEq, {obj, goal}},
 
     komo.setSkeleton(S);
 
-    if (!sample_only_place){
-      add_pick_constraints(komo, pick_phase, pick_phase, pen_tip, r.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
+    if (!sample_only_place) {
+      add_pick_constraints(komo, pick_phase, pick_phase, pen_tip, r.ee_type,
+                           obj, pick_direction, C[obj]->shape->size);
     }
 
     if (true) {
@@ -231,9 +235,9 @@ public:
   }
 };
 
-RobotTaskPoseMap
-compute_all_pick_and_place_positions(rai::Configuration C,
-                                     const std::vector<Robot> &robots) {
+RobotTaskPoseMap compute_all_pick_and_place_positions(
+    rai::Configuration C, const std::vector<Robot> &robots,
+    const bool attempt_all_directions = false) {
   RobotTaskPoseMap rtpm;
 
   uint num_objects = 0;
@@ -244,6 +248,13 @@ compute_all_pick_and_place_positions(rai::Configuration C,
   }
 
   delete_unnecessary_frames(C);
+
+  std::vector<PickDirection> directions = {PickDirection::NegZ};
+  if (attempt_all_directions) {
+    directions = {PickDirection::NegZ, PickDirection::NegX,
+                  PickDirection::NegY, PickDirection::PosZ,
+                  PickDirection::PosX, PickDirection::PosY};
+  }
 
   const auto pairs = get_cant_collide_pairs(C);
   C.fcl()->deactivatePairs(pairs);
@@ -256,16 +267,19 @@ compute_all_pick_and_place_positions(rai::Configuration C,
     for (uint i = 0; i < num_objects; ++i) {
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
-      
-      const auto sol = sampler.sample(r, obj, goal);
 
-      if (sol.size() > 0) {
-        RobotTaskPair rtp;
-        rtp.robots = {r};
-        rtp.task = Task{.object = i, .type = PrimitiveType::pick};
-        rtpm[rtp].push_back({sol[0], sol[1]});
-      } else {
-        spdlog::info("Did not find a solution");
+      for (const auto dir: directions){
+        const auto sol = sampler.sample(r, obj, goal, dir);
+
+        if (sol.size() > 0) {
+          RobotTaskPair rtp;
+          rtp.robots = {r};
+          rtp.task = Task{.object = i, .type = PrimitiveType::pick};
+          rtpm[rtp].push_back({sol[0], sol[1]});
+          break;
+        } else {
+          spdlog::info("Did not find a solution");
+        }
       }
     }
   }

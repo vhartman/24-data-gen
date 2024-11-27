@@ -6,9 +6,9 @@
 
 #include <Kin/F_collisions.h>
 
+#include "common/util.h"
 #include "planners/plan.h"
 #include "planners/prioritized_planner.h"
-#include "common/util.h"
 
 #include "samplers/pick_constraints.h"
 
@@ -41,7 +41,6 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   const arr r2_pos = C[STRING(r2 << "base")]->getPosition();
 
   const auto link_to_frame = STRING("table");
-
 
   KOMO komo;
   // komo.verbose = 5;
@@ -196,7 +195,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
     }
 
     komo.pathConfig.setJointState(komo.x);
-    
+
     // TODO: replace
     for (const auto f : komo.pathConfig.frames) {
       if (f->name == obj) {
@@ -284,7 +283,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
 
 class HandoverSampler {
 public:
-  HandoverSampler(rai::Configuration &_C): C(_C) {
+  HandoverSampler(rai::Configuration &_C) : C(_C) {
     delete_unnecessary_frames(C);
     const auto pairs = get_cant_collide_pairs(C);
     C.fcl()->deactivatePairs(pairs);
@@ -298,8 +297,11 @@ public:
   rai::Configuration C;
   OptOptions options;
 
-  std::vector<arr> sample(const Robot r1, const Robot r2, const rai::String obj,
-                          const rai::String goal, const PickDirection pick_direction_1=PickDirection::NegZ, const PickDirection pick_direction_2=PickDirection::NegZ) {
+  std::vector<arr>
+  sample(const Robot r1, const Robot r2, const rai::String obj,
+         const rai::String goal,
+         const PickDirection pick_direction_1 = PickDirection::NegZ,
+         const PickDirection pick_direction_2 = PickDirection::NegZ) {
     spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
                  r2.prefix, obj.p);
 
@@ -326,7 +328,8 @@ public:
       spdlog::info("Skipping handover keyframe copmutation for obj {} and "
                    "robots {}, {}",
                    obj.p, r1.prefix, r2.prefix);
-      spdlog::info("distance: r1-obj {}, r2-goal {}, r1-r2 {}", euclideanDistance(obj_pos, r1_pos),
+      spdlog::info("distance: r1-obj {}, r2-goal {}, r1-r2 {}",
+                   euclideanDistance(obj_pos, r1_pos),
                    euclideanDistance(goal_pos, r2_pos),
                    euclideanDistance(r1_pos, r2_pos));
       return {};
@@ -385,15 +388,18 @@ public:
     komo.setSkeleton(S);
 
     const double offset = 0.1;
-    komo.addObjective({2., 2.}, FS_distance, {link_to_frame, obj}, OT_ineq, {1e0},
-                      {-offset});
+    komo.addObjective({2., 2.}, FS_distance, {link_to_frame, obj}, OT_ineq,
+                      {1e0}, {-offset});
 
     // komo.addObjective({1., 1.}, FS_aboveBox, {obj, r1_pen_tip}, OT_ineq,
     // {1e2}, {0.0, 0.0, 0.0, 0.0}); komo.addObjective({2., 2.}, FS_aboveBox,
     // {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-    add_pick_constraints(komo, pick_phase, pick_phase, r1_pen_tip, r1.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
-    add_pick_constraints(komo, handover_phase, handover_phase, r2_pen_tip, r2.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
+    add_pick_constraints(komo, pick_phase, pick_phase, r1_pen_tip, r1.ee_type,
+                         obj, pick_direction_1, C[obj]->shape->size);
+    add_pick_constraints(komo, handover_phase, handover_phase, r2_pen_tip,
+                         r2.ee_type, obj, pick_direction_2,
+                         C[obj]->shape->size);
 
     // homing
     if (true) {
@@ -612,12 +618,25 @@ std::vector<arr> compute_handover_pose(rai::Configuration C, Robot r1, Robot r2,
 
 RobotTaskPoseMap
 compute_all_handover_poses(rai::Configuration C,
-                       const std::vector<Robot> &robots) {
+                           const std::vector<Robot> &robots,
+                           const bool attempt_all_directions = false) {
   uint num_objects = 0;
   for (auto f : C.frames) {
     if (f->name.contains("obj")) {
       num_objects += 1;
     }
+  }
+
+  std::vector<std::pair<PickDirection, PickDirection>> directions;
+  if (attempt_all_directions){
+    for (int i=5; i>=0; --i){
+      for (int j=5; j>=0; --j){
+        directions.push_back(std::make_pair(PickDirection(i), PickDirection(j)));
+      }
+    }
+  }
+  else{
+    directions = {std::make_pair(PickDirection::NegZ, PickDirection::NegZ)};
   }
 
   delete_unnecessary_frames(C);
@@ -630,7 +649,9 @@ compute_all_handover_poses(rai::Configuration C,
   for (const auto &r1 : robots) {
     for (const auto &r2 : robots) {
 
-      if (r1 == r2){continue;}
+      if (r1 == r2) {
+        continue;
+      }
 
       setActive(C, std::vector<Robot>{r1, r2});
 
@@ -641,20 +662,24 @@ compute_all_handover_poses(rai::Configuration C,
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
-        const auto sol = sampler.sample(r1, r2, obj, goal);
+        for (const auto &dirs: directions){
 
-        // const auto sol = compute_handover_pose(C, r1, r2, obj, goal);
+          const auto sol = sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second);
 
-        if (sol.size() > 0){
-          RobotTaskPair rtp;
-          rtp.robots = {r1, r2};
-          rtp.task = Task{.object=i, .type=PrimitiveType::handover};
+          // const auto sol = compute_handover_pose(C, r1, r2, obj, goal);
 
-          rtpm[rtp].push_back(sol);
-        }
+          if (sol.size() > 0) {
+            RobotTaskPair rtp;
+            rtp.robots = {r1, r2};
+            rtp.task = Task{.object = i, .type = PrimitiveType::handover};
 
-        else {
-          spdlog::info("Could not find a solution.");
+            rtpm[rtp].push_back(sol);
+            break;
+          }
+
+          else {
+            spdlog::info("Could not find a solution.");
+          }
         }
       }
     }

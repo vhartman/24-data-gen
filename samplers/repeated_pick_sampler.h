@@ -28,8 +28,12 @@ public:
   rai::Configuration C;
   OptOptions options;
 
-  void setup_problem(KOMO &komo, const Robot &r1, const Robot &r2,
-                     const rai::String &obj, const rai::String &goal) {
+  void
+  setup_problem(KOMO &komo, const Robot &r1, const Robot &r2,
+                const rai::String &obj, const rai::String &goal,
+                const PickDirection pick_direction_1 = PickDirection::NegZ,
+                const PickDirection intermediate_dir = PickDirection::NegZ,
+                const PickDirection pick_direction_2 = PickDirection::NegZ) {
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
@@ -51,8 +55,10 @@ public:
 
     komo.setSkeleton(S);
 
-    add_pick_constraints(komo, 1., 2., r1_pen_tip, r1.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
-    add_pick_constraints(komo, 3., 4., r2_pen_tip, r2.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
+    add_pick_constraints(komo, 1., 2., r1_pen_tip, r1.ee_type, obj,
+                         pick_direction_1, C[obj]->shape->size);
+    add_pick_constraints(komo, 3., 4., r2_pen_tip, r2.ee_type, obj,
+                         pick_direction_2, C[obj]->shape->size);
 
     // constraints for placing the object
     komo.addObjective({2., 3.}, FS_distance, {link_to_frame, obj}, OT_ineq,
@@ -60,8 +66,29 @@ public:
     komo.addObjective({2., 3.}, FS_distance, {link_to_frame, obj}, OT_ineq,
                       {1e1}, {0.05});
 
-    komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
-                      {1e1}, {1.});
+    const double dir_weight = 5e1;
+    if (intermediate_dir == PickDirection::NegZ) {
+      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {-1.});
+    } else if (intermediate_dir == PickDirection::PosZ) {
+      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {1.});
+    } else if (intermediate_dir == PickDirection::NegX) {
+      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {-1.});
+    } else if (intermediate_dir == PickDirection::PosX) {
+      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {1.});
+    } else if (intermediate_dir == PickDirection::NegY) {
+      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {-1.});
+    } else if (intermediate_dir == PickDirection::PosY) {
+      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame}, OT_eq,
+                    {dir_weight}, {1.});
+    }
+
+    // komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
+    //                   {1e1}, {1.});
 
     // homing
     if (true) {
@@ -80,8 +107,11 @@ public:
     }
   }
 
-  std::vector<arr> sample(const Robot &r1, const Robot &r2,
-                          const rai::String &obj, const rai::String &goal, const PickDirection pd1=PickDirection::NegZ, const PickDirection intermediate_direction=PickDirection::NegZ, const PickDirection pd2=PickDirection::NegZ) {
+  std::vector<arr>
+  sample(const Robot &r1, const Robot &r2, const rai::String &obj,
+         const rai::String &goal, const PickDirection pd1 = PickDirection::NegZ,
+         const PickDirection intermediate_direction = PickDirection::NegZ,
+         const PickDirection pd2 = PickDirection::NegZ) {
     setActive(C, std::vector<Robot>{r1, r2});
     std::unordered_map<Robot, FrameL> robot_frames;
     for (const auto &r : {r1, r2}) {
@@ -148,7 +178,7 @@ public:
     komo.add_jointLimits(true, 0., 1e1);
 
     // add constraints and costs for alignment
-    setup_problem(komo, r1, r2, obj, goal);
+    setup_problem(komo, r1, r2, obj, goal, pd1, intermediate_direction, pd2);
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
@@ -299,12 +329,27 @@ compute_pick_and_place_with_intermediate_pose(rai::Configuration C, Robot r1,
 }
 
 RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
-    rai::Configuration C, const std::vector<Robot> &robots) {
+    rai::Configuration C, const std::vector<Robot> &robots,
+    const bool attempt_all_directions = false) {
   uint num_objects = 0;
   for (auto f : C.frames) {
     if (f->name.contains("obj")) {
       num_objects += 1;
     }
+  }
+
+  std::vector<std::tuple<PickDirection, PickDirection, PickDirection>> directions;
+  if (attempt_all_directions){
+    for (int i=5; i>=0; --i){
+      for (int j=0; j<=5; ++j){
+        for (int k=5; k>=0; --k){
+          directions.push_back(std::make_tuple(PickDirection(i), PickDirection(j), PickDirection(k)));
+        }
+      }
+    }
+  }
+  else{
+    directions = {std::make_tuple(PickDirection::NegZ, PickDirection::PosZ, PickDirection::NegZ)};
   }
 
   delete_unnecessary_frames(C);
@@ -324,18 +369,24 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
       for (uint i = 0; i < num_objects; ++i) {
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
-        const auto sol = sampler.sample(r1, r2, obj, goal);
 
-        if (sol.size() > 0) {
-          RobotTaskPair rtp_1;
-          rtp_1.robots = {r1, r2};
-          rtp_1.task = Task{.object = i, .type = PrimitiveType::pick_pick_1};
-          rtpm[rtp_1].push_back({sol[0], sol[1]});
+        for (const auto &d: directions){
 
-          RobotTaskPair rtp_2;
-          rtp_2.robots = {r1, r2};
-          rtp_2.task = Task{.object = i, .type = PrimitiveType::pick_pick_2};
-          rtpm[rtp_2].push_back({sol[2], sol[3]});
+          const auto sol = sampler.sample(r1, r2, obj, goal, std::get<0>(d), std::get<1>(d), std::get<2>(d));
+
+          if (sol.size() > 0) {
+            // std::cout << to_string(std::get<0>(d)) << " " << to_string(std::get<1>(d)) << " " << to_string(std::get<2>(d)) << std::endl;
+            RobotTaskPair rtp_1;
+            rtp_1.robots = {r1, r2};
+            rtp_1.task = Task{.object = i, .type = PrimitiveType::pick_pick_1};
+            rtpm[rtp_1].push_back({sol[0], sol[1]});
+
+            RobotTaskPair rtp_2;
+            rtp_2.robots = {r1, r2};
+            rtp_2.task = Task{.object = i, .type = PrimitiveType::pick_pick_2};
+            rtpm[rtp_2].push_back({sol[2], sol[3]});
+            break;
+          }
         }
       }
     }

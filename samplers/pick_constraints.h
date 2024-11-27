@@ -11,6 +11,18 @@
 // TODO: should likely make this shared
 enum class PickDirection { PosX, NegX, PosY, NegY, PosZ, NegZ };
 
+std::string to_string(PickDirection direction) {
+    switch (direction) {
+        case PickDirection::PosX: return "PosX";
+        case PickDirection::NegX: return "NegX";
+        case PickDirection::PosY: return "PosY";
+        case PickDirection::NegY: return "NegY";
+        case PickDirection::PosZ: return "PosZ";
+        case PickDirection::NegZ: return "NegZ";
+        default: throw std::invalid_argument("Unknown enum value");
+    }
+}
+
 void add_pick_constraints(KOMO &komo, const double start, const int end,
                           const rai::String &ee, const EndEffectorType ee_type, const rai::String &obj,
                           const PickDirection dir, const arr obj_size) {
