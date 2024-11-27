@@ -38,10 +38,6 @@ public:
   //   return sample(robots, obj);
   // }
 
-  void add_pick_constraint_and_objectives(Skeleton &S, KOMO &komo, const uint pick_phase){
-
-  }
-
   void add_place_contraint_and_objectives(){
 
   }
@@ -110,76 +106,9 @@ public:
 
     komo.setSkeleton(S);
 
-    //   komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
-    //   OT_eq,
-    //                     {1e2}, point);
-    //   komo.addObjective({1., 1.}, FS_distance,
-    //                     {STRING(prefix << "pen_tip"), STRING(obj)}, OT_sos,
-    //                     {1e1});
-    // komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
-    //                   OT_sos, {1e-1});
-
     if (!sample_only_place){
       add_pick_constraints(komo, pick_phase, pick_phase, pen_tip, r.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
-
-      // komo.addObjective({pick_phase, pick_phase}, FS_positionDiff, {pen_tip, obj}, OT_sos, {1e0});
-
-      // komo.addObjective({pick_phase, pick_phase}, FS_insideBox, {pen_tip, obj}, OT_ineq, {5e1});
-
-      // if (pick_direction == PickDirection::NegZ){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {-1.});
-      // } else if (pick_direction == PickDirection::PosZ){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {1.});
-      // }
-      // else if (pick_direction == PickDirection::NegX){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {-1.});
-      // } else if (pick_direction == PickDirection::PosX){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {1.});
-      // }
-      // else if (pick_direction == PickDirection::NegY){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductYZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {-1.});
-      // } else if (pick_direction == PickDirection::PosY){
-      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductYZ, {obj, pen_tip}, OT_sos,
-      //                     {1e1}, {1.});
-      // }
-
-      // // only add the 'alignment' constaint if the end effector is a
-      // // two-finger-gripper
-      // if (r.ee_type == EndEffectorType::two_finger) {
-      //   if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
-      //     // x longer than y
-      //     spdlog::info("Trying to grab along x-axis");
-      //     komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
-      //                       {1e1}, {0.});
-      //   } else {
-      //     spdlog::info("Trying to grab along y-axis");
-      //     komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXX, {obj, pen_tip}, OT_eq,
-      //                       {1e1}, {0.});
-      //   }
-      // }
     }
-
-    //   const double margin = 0.05;
-    //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
-    //                     OT_ineq, {-1e1}, {-margin, -margin, -margin});
-
-    //   komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
-    //                     OT_ineq, {1e1}, {margin, margin, margin});
-
-    //   komo.addObjective({1.}, FS_vectorZ, {pen_tip},
-    //                     OT_sos, {1e0}, {0., 0., -1.});
-
-    // komo.addObjective({1.}, FS_position, {STRING(prefix << "pen_tip")},
-    // OT_sos, {1e0}, C[obj]->getPosition());
-
-    // komo.addObjective({1.}, FS_vectorZ, {STRING(prefix << "pen")}, OT_sos,
-    // {1e1}, {0., 0., -1.}); komo.addObjective({1.}, FS_vectorZDiff,
-    // {STRING(prefix << "pen"), "world"}, OT_ineq, {1e1}, {0., 0., -0.9});
 
     if (true) {
       for (const auto &base_name : {r.prefix}) {

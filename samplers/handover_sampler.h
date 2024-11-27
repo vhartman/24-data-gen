@@ -10,6 +10,8 @@
 #include "planners/prioritized_planner.h"
 #include "common/util.h"
 
+#include "samplers/pick_constraints.h"
+
 // TODO: unify the two things
 // - reduce code duplication of actual solver and subproblem
 std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
@@ -293,10 +295,6 @@ public:
     options.wolfe = 0.01;
   };
 
-  // TODO: copied from pick_and_place sampler
-  // TODO: should likely make this shared
-  enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
-
   rai::Configuration C;
   OptOptions options;
 
@@ -394,67 +392,8 @@ public:
     // {1e2}, {0.0, 0.0, 0.0, 0.0}); komo.addObjective({2., 2.}, FS_aboveBox,
     // {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-    komo.addObjective({pick_phase, pick_phase}, FS_positionDiff, {r1_pen_tip, obj}, OT_sos,
-                      {1e0});
-    komo.addObjective({handover_phase, handover_phase}, FS_positionDiff, {r2_pen_tip, obj}, OT_sos,
-                      {1e0});
-
-    komo.addObjective({pick_phase, pick_phase}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,
-                      {5e1});
-    komo.addObjective({handover_phase, handover_phase}, FS_insideBox, {r2_pen_tip, obj}, OT_ineq,
-                      {5e1});
-
-    // const double margin = 0.1;
-    // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
-    //                   OT_ineq, {-1e1}, {-margin, -margin, -margin});
-
-    // komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, STRING(obj)},
-    //             OT_ineq, {1e1}, {margin, margin, margin});
-
-    // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
-    //                   OT_ineq, {-1e1}, {-margin, -margin, -margin});
-
-    // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
-    //                   OT_ineq, {1e1}, {margin, margin, margin});
-
-    // TODO: implement pick direction
-    komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, r1_pen_tip}, OT_sos,
-                      {1e1}, {-1.});
-
-    komo.addObjective({handover_phase, handover_phase}, FS_scalarProductZZ, {obj, r2_pen_tip}, OT_sos,
-                      {1e1}, {-1.});
-
-    // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
-    //                   OT_sos, {1e0}, {1.});
-
-    // komo.addObjective({2.}, FS_scalarProductYX, {obj, r2_pen_tip},
-    //                   OT_sos, {1e0}, {1.});
-
-    // identify long axis
-    if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
-      // x longer than y
-      spdlog::info("Trying to grab along x-axis");
-      if (r1.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXY, {obj, r1_pen_tip},
-                          OT_eq, {1e1}, {0.});
-      }
-
-      if (r2.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({handover_phase, handover_phase}, FS_scalarProductXY, {obj, r2_pen_tip},
-                          OT_eq, {1e1}, {0.});
-      }
-    } else {
-      spdlog::info("Trying to grab along y-axis");
-      if (r1.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXX, {obj, r1_pen_tip},
-                          OT_eq, {1e1}, {0.});
-      }
-
-      if (r2.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({handover_phase, handover_phase}, FS_scalarProductXX, {obj, r2_pen_tip},
-                          OT_eq, {1e1}, {0.});
-      }
-    }
+    add_pick_constraints(komo, pick_phase, pick_phase, r1_pen_tip, r1.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
+    add_pick_constraints(komo, handover_phase, handover_phase, r2_pen_tip, r2.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
 
     // homing
     if (true) {

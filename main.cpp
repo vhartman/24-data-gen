@@ -453,6 +453,8 @@ int main(int argc, char **argv) {
       rai::getParameter<rai::String>("output_path", "./out/");
   global_params.output_path = std::string(output_path.p);
 
+  const bool attempt_all_grasp_dirctions = rai::getParameter<bool>("attempt_all_grasp_dirctions", false);
+
   const bool use_picks = rai::getParameter<bool>("use_simple_picks", true);
 
   const bool use_handovers = rai::getParameter<bool>("use_handovers", true);
