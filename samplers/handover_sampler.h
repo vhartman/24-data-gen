@@ -293,11 +293,15 @@ public:
     options.wolfe = 0.01;
   };
 
+  // TODO: copied from pick_and_place sampler
+  // TODO: should likely make this shared
+  enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
+
   rai::Configuration C;
   OptOptions options;
 
   std::vector<arr> sample(const Robot r1, const Robot r2, const rai::String obj,
-                          const rai::String goal) {
+                          const rai::String goal, const PickDirection pick_direction_1=PickDirection::NegZ, const PickDirection pick_direction_2=PickDirection::NegZ) {
     spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
                  r2.prefix, obj.p);
 
@@ -366,6 +370,10 @@ public:
     const double r2_goal_angle =
         std::atan2(goal_pos(1) - r2_pos(1), goal_pos(0) - r2_pos(0)) - r2_z_rot;
 
+    const uint pick_phase = 1;
+    const uint handover_phase = 2;
+    const uint place_phase = 3;
+
     Skeleton S = {
         // {1., 2., SY_touch, {r1_pen_tip, obj}},
         {1., 2, SY_stable, {r1_pen_tip, obj}},
@@ -386,14 +394,14 @@ public:
     // {1e2}, {0.0, 0.0, 0.0, 0.0}); komo.addObjective({2., 2.}, FS_aboveBox,
     // {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-    komo.addObjective({1., 1.}, FS_positionDiff, {r1_pen_tip, obj}, OT_sos,
+    komo.addObjective({pick_phase, pick_phase}, FS_positionDiff, {r1_pen_tip, obj}, OT_sos,
                       {1e0});
-    komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, obj}, OT_sos,
+    komo.addObjective({handover_phase, handover_phase}, FS_positionDiff, {r2_pen_tip, obj}, OT_sos,
                       {1e0});
 
-    komo.addObjective({1., 1.}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,
+    komo.addObjective({pick_phase, pick_phase}, FS_insideBox, {r1_pen_tip, obj}, OT_ineq,
                       {5e1});
-    komo.addObjective({2., 2.}, FS_insideBox, {r2_pen_tip, obj}, OT_ineq,
+    komo.addObjective({handover_phase, handover_phase}, FS_insideBox, {r2_pen_tip, obj}, OT_ineq,
                       {5e1});
 
     // const double margin = 0.1;
@@ -409,10 +417,11 @@ public:
     // komo.addObjective({2., 2.}, FS_positionDiff, {r2_pen_tip, STRING(obj)},
     //                   OT_ineq, {1e1}, {margin, margin, margin});
 
-    komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, r1_pen_tip}, OT_sos,
+    // TODO: implement pick direction
+    komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, r1_pen_tip}, OT_sos,
                       {1e1}, {-1.});
 
-    komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, r2_pen_tip}, OT_sos,
+    komo.addObjective({handover_phase, handover_phase}, FS_scalarProductZZ, {obj, r2_pen_tip}, OT_sos,
                       {1e1}, {-1.});
 
     // komo.addObjective({1.}, FS_scalarProductYX, {obj, r1_pen_tip},
@@ -426,23 +435,23 @@ public:
       // x longer than y
       spdlog::info("Trying to grab along x-axis");
       if (r1.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, r1_pen_tip},
+        komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXY, {obj, r1_pen_tip},
                           OT_eq, {1e1}, {0.});
       }
 
       if (r2.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({2., 2.}, FS_scalarProductXY, {obj, r2_pen_tip},
+        komo.addObjective({handover_phase, handover_phase}, FS_scalarProductXY, {obj, r2_pen_tip},
                           OT_eq, {1e1}, {0.});
       }
     } else {
       spdlog::info("Trying to grab along y-axis");
       if (r1.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, r1_pen_tip},
+        komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXX, {obj, r1_pen_tip},
                           OT_eq, {1e1}, {0.});
       }
 
       if (r2.ee_type == EndEffectorType::two_finger) {
-        komo.addObjective({2., 2.}, FS_scalarProductXX, {obj, r2_pen_tip},
+        komo.addObjective({handover_phase, handover_phase}, FS_scalarProductXX, {obj, r2_pen_tip},
                           OT_eq, {1e1}, {0.});
       }
     }

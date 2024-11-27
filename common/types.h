@@ -6,9 +6,14 @@
 
 enum class PrimitiveType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
 
-// enum class Action{none, pick, place, handover, go_to};
-// class ActionSequence{
-//   std::vector<std::vector<Action>> sequence;
+// enum class ActionType { none, pick, place, handover, go_to };
+// class ActionSequence {
+//   // TODO: this doe currently not work, since we need a dependency graph to
+//   // represent the action sequence of multiple robots in one primitve
+//   std::vector<std::vector<ActionType>> sequence;
+//   std::vector<Robot> robots;
+//   std::vector<rai::String>
+//       frames; // the involved frames (usually the object name)
 // };
 
 // std::vector<std::vector<Action>> primitive_to_sequence() {

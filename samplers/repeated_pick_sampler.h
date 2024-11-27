@@ -26,6 +26,10 @@ public:
   rai::Configuration C;
   OptOptions options;
 
+  // TODO: copied from pick_and_place sampler
+  // TODO: should likely make this shared
+  enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
+
   void setup_problem(KOMO &komo, const Robot &r1, const Robot &r2,
                      const rai::String &obj, const rai::String &goal) {
 
@@ -33,6 +37,7 @@ public:
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
 
     const auto link_to_frame = STRING("table");
+
     Skeleton S = {
         {1., 2., SY_touch, {r1_pen_tip, obj}},
         {1., 2, SY_stable, {r1_pen_tip, obj}},
@@ -140,7 +145,7 @@ public:
   }
 
   std::vector<arr> sample(const Robot &r1, const Robot &r2,
-                          const rai::String &obj, const rai::String &goal) {
+                          const rai::String &obj, const rai::String &goal, const PickDirection pd1=PickDirection::NegZ, const PickDirection intermediate_direction=PickDirection::NegZ, const PickDirection pd2=PickDirection::NegZ) {
     setActive(C, std::vector<Robot>{r1, r2});
     std::unordered_map<Robot, FrameL> robot_frames;
     for (const auto &r : {r1, r2}) {

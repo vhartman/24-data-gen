@@ -1447,7 +1447,7 @@ class PrioritizedTaskPlanner {
           }
         }
 
-        // link to floorr
+        // link to floor
         {            
           setActive(CPlanner, r2);
           CPlanner.setJointState(paths[r2].back().path[-1]);

@@ -6,7 +6,7 @@
 #include "types.h"
 #include <PlanningSubroutines/ConfigurationProblem.h>
 
-using json = nlohmann::json;
+using json = nlohmann::ordered_json;
 
 void setActive(rai::Configuration &C,
                const std::vector<std::string> &prefixes) {
@@ -34,17 +34,14 @@ void setActive(rai::Configuration &C, const std::vector<Robot> &robots){
 void setRobotJointState() {}
 
 std::vector<Robot>
-make_robot_environment_from_config(rai::Configuration &C,
-                                   const std::string &config_file_path,
+make_robot_environment_from_json(rai::Configuration &C,
+                                   json jf,
                                    const std::string &base_scene_path = "./in/scenes/floor.g") {
   if (base_scene_path.size() == 0) {
     C.addFile("./in/scenes/floor.g");
   } else {
     C.addFile(base_scene_path.c_str());
   }
-
-  std::ifstream ifs(config_file_path);
-  json jf = json::parse(ifs);
 
   uint cnt = 0;
   std::stringstream ss;
@@ -158,11 +155,17 @@ make_robot_environment_from_config(rai::Configuration &C,
   return robots;
 }
 
-void add_objects_from_config(rai::Configuration &C,
-                             const std::string &config_file_path) {
+std::vector<Robot> make_robot_environment_from_config(
+    rai::Configuration &C, const std::string &config_file_path,
+    const std::string &base_scene_path = "./in/scenes/floor.g") {
+  
   std::ifstream ifs(config_file_path);
   json jf = json::parse(ifs);
 
+  return make_robot_environment_from_json(C, jf, base_scene_path);
+}
+
+void add_objects_from_json(rai::Configuration &C, json jf) {
   uint cnt = 0;
   std::stringstream ss;
 
@@ -195,8 +198,7 @@ void add_objects_from_config(rai::Configuration &C,
     std::string parent;
     if (item.value().contains("parent")) {
       parent = item.value()["parent"];
-    }
-    else{
+    } else {
       parent = "table";
     }
 
@@ -230,8 +232,9 @@ void add_objects_from_config(rai::Configuration &C,
     // check if something is in collision
     ConfigurationProblem cp(C);
     const auto res = cp.query({}, false);
-    if (!res->isFeasible){
-      spdlog::error("Initial configuration not feasible. Obj {} is in collision.", cnt);
+    if (!res->isFeasible) {
+      spdlog::error(
+          "Initial configuration not feasible. Obj {} is in collision.", cnt);
     }
 
     ++cnt;
@@ -240,15 +243,14 @@ void add_objects_from_config(rai::Configuration &C,
   C.stepFcl();
 }
 
-void add_obstacles_from_config(rai::Configuration &C,
-                               const std::string &config_file_path) {
-  if (config_file_path.size() == 0) {
-    return;
-  }
-
+void add_objects_from_config(rai::Configuration &C,
+                             const std::string &config_file_path) {
   std::ifstream ifs(config_file_path);
   json jf = json::parse(ifs);
+  add_objects_from_json(C, jf);
+}
 
+void add_obstacles_from_json(rai::Configuration &C, json jf) {
   std::stringstream ss;
 
   uint cnt = 0;
@@ -304,6 +306,17 @@ void add_obstacles_from_config(rai::Configuration &C,
   }
 
   // C.watch(true);
+}
+
+void add_obstacles_from_config(rai::Configuration &C,
+                               const std::string &config_file_path) {
+  if (config_file_path.size() == 0) {
+    return;
+  }
+
+  std::ifstream ifs(config_file_path);
+  json jf = json::parse(ifs);
+  add_obstacles_from_json(C, jf);
 }
 
 // TODO: fill this in

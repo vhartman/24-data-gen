@@ -8,6 +8,8 @@
 #include "planners/prioritized_planner.h"
 #include "common/util.h"
 
+#include "samplers/pick_constraints.h"
+
 class PickAndPlaceSampler {
 public:
   rai::Configuration C;
@@ -36,7 +38,17 @@ public:
   //   return sample(robots, obj);
   // }
 
-  TaskPoses sample(Robot r, const rai::String obj, const rai::String goal) {
+  void add_pick_constraint_and_objectives(Skeleton &S, KOMO &komo, const uint pick_phase){
+
+  }
+
+  void add_place_contraint_and_objectives(){
+
+  }
+
+  // enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
+
+  TaskPoses sample(const Robot r, const rai::String obj, const rai::String goal, const PickDirection pick_direction=PickDirection::NegZ, const bool sample_only_place=false) {
     spdlog::info("Attempting to compute keyframes for robot {} and object {}",
                  r.prefix, obj.p);
 
@@ -62,7 +74,10 @@ public:
     komo.setModel(C, true);
     // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
-    komo.setDiscreteOpt(2);
+    uint total_phases = 2;
+    if (sample_only_place){total_phases = 1;}
+
+    komo.setDiscreteOpt(total_phases);
     // komo.animateOptimization = 3;
 
     // komo.world.stepSwift();
@@ -80,12 +95,18 @@ public:
     const double r1_goal_angle =
         std::atan2(goal_pos(1) - r1_pos(1), goal_pos(0) - r1_pos(0)) - r1_z_rot;
 
-    Skeleton S = {
-        //   {1., 1., SY_touch, {pen_tip, obj}},
-        {1., 2, SY_stable, {pen_tip, obj}},
-        {2., 2, SY_poseEq, {obj, goal}},
-        // {2., -1, SY_positionEq, {obj, goal}},
-    };
+    double pick_phase = 1;
+    double place_phase = 2;
+
+    if (sample_only_place){
+      place_phase = 1;
+    }
+
+    Skeleton S;
+    if (!sample_only_place) S.append({pick_phase, place_phase, SY_stable, {pen_tip, obj}});
+    S.append({place_phase, place_phase, SY_poseEq, {obj, goal}});
+    //   {1., 1., SY_touch, {pen_tip, obj}},
+    // {2., -1, SY_positionEq, {obj, goal}},
 
     komo.setSkeleton(S);
 
@@ -98,26 +119,49 @@ public:
     // komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, STRING(obj)},
     //                   OT_sos, {1e-1});
 
-    komo.addObjective({1., 1.}, FS_positionDiff, {pen_tip, obj}, OT_sos, {1e0});
+    if (!sample_only_place){
+      add_pick_constraints(komo, pick_phase, pick_phase, pen_tip, r.ee_type, obj, PickDirection::NegZ, C[obj]->shape->size);
 
-    komo.addObjective({1., 1.}, FS_insideBox, {pen_tip, obj}, OT_ineq, {5e1});
+      // komo.addObjective({pick_phase, pick_phase}, FS_positionDiff, {pen_tip, obj}, OT_sos, {1e0});
 
-    komo.addObjective({1., 1.}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
-                      {1e1}, {-1.});
+      // komo.addObjective({pick_phase, pick_phase}, FS_insideBox, {pen_tip, obj}, OT_ineq, {5e1});
 
-    // only add the 'alignment' constaint if the end effector is a
-    // two-finger-gripper
-    if (r.ee_type == EndEffectorType::two_finger) {
-      if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
-        // x longer than y
-        spdlog::info("Trying to grab along x-axis");
-        komo.addObjective({1., 1.}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
-                          {1e1}, {0.});
-      } else {
-        spdlog::info("Trying to grab along y-axis");
-        komo.addObjective({1., 1.}, FS_scalarProductXX, {obj, pen_tip}, OT_eq,
-                          {1e1}, {0.});
-      }
+      // if (pick_direction == PickDirection::NegZ){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {-1.});
+      // } else if (pick_direction == PickDirection::PosZ){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductZZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {1.});
+      // }
+      // else if (pick_direction == PickDirection::NegX){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {-1.});
+      // } else if (pick_direction == PickDirection::PosX){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {1.});
+      // }
+      // else if (pick_direction == PickDirection::NegY){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductYZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {-1.});
+      // } else if (pick_direction == PickDirection::PosY){
+      //   komo.addObjective({pick_phase, pick_phase}, FS_scalarProductYZ, {obj, pen_tip}, OT_sos,
+      //                     {1e1}, {1.});
+      // }
+
+      // // only add the 'alignment' constaint if the end effector is a
+      // // two-finger-gripper
+      // if (r.ee_type == EndEffectorType::two_finger) {
+      //   if (C[obj]->shape->size(0) > C[obj]->shape->size(1)) {
+      //     // x longer than y
+      //     spdlog::info("Trying to grab along x-axis");
+      //     komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXY, {obj, pen_tip}, OT_eq,
+      //                       {1e1}, {0.});
+      //   } else {
+      //     spdlog::info("Trying to grab along y-axis");
+      //     komo.addObjective({pick_phase, pick_phase}, FS_scalarProductXX, {obj, pen_tip}, OT_eq,
+      //                       {1e1}, {0.});
+      //   }
+      // }
     }
 
     //   const double margin = 0.05;
@@ -211,7 +255,7 @@ public:
       ConfigurationProblem cp2(C);
       const auto res1 = cp2.query(q0);
       {
-        // link object to other robot
+        // link object to robot
         auto from = cp2.C[pen_tip];
         auto to = cp2.C[obj];
         to->unLink();

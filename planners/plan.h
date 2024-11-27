@@ -14,7 +14,7 @@
 #include "common/types.h"
 #include "common/util.h"
 
-using json = nlohmann::json;
+using json = nlohmann::ordered_json;
 
 typedef std::vector<arr> TaskPoses;
 typedef std::unordered_map<RobotTaskPair, std::vector<TaskPoses>>
@@ -335,6 +335,8 @@ std::vector<arr> get_frame_trajectory(const rai::String &name, const Plan &plan,
 }
 
 json make_scene_data(rai::Configuration C, const std::vector<Robot> &robots) {
+  C.sortFrames();
+  
   json data;
 
   json all_obj_data;
@@ -431,6 +433,8 @@ json make_scene_data(rai::Configuration C, const std::vector<Robot> &robots) {
         obstacle_data["shape"] = "capsule";
       } else if (shape_type == rai::ST_cylinder) {
         obstacle_data["shape"] = "cylinder";
+      } else if (shape_type == rai::ST_marker) {
+        obstacle_data["shape"] = "marker";
       } else if (shape_type == rai::ST_mesh) {
         obstacle_data["shape"] = "mesh";
         std::stringstream ss;
@@ -652,6 +656,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         step_data["ee_pos"] = ee_pose({0, 2});
         step_data["ee_quat"] = ee_pose({3, 6});
 
+        // TODO: export action parameters
         spdlog::trace("action at time {}", t);
         const std::string current_action =
             get_action_at_time_for_robot(plan, r, t);

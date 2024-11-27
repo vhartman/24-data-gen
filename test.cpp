@@ -297,3 +297,7 @@ GTEST_TEST(PLANNING_TEST, SingleArmTest){
     visualize_plan(C, plan_result.plan);
   }
 }
+
+GTEST_TEST(UTIL_TEST, SetAndLinkToPhaseTest){
+  // TODO
+}

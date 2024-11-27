@@ -260,6 +260,145 @@ RobotTaskPoseMap compute_keyframes(rai::Configuration &C,
   return robot_task_pose_mapping;
 }
 
+void export_keyframes() {}
+
+void set_to_mode_for_primitive(rai::Configuration &C, RobotTaskPair rtp,
+                               TaskPoses poses, const uint phase) {
+  if (rtp.task.type == PrimitiveType::handover){
+    for (uint i=0; i<phase; ++i){
+      const auto pose = poses[i];
+
+      // set all robots to their home-pose
+      for (const auto &r: rtp.robots){
+        setActive(C, r);
+        C.setJointState(r.home_pose);
+      }
+
+      if (i==0){
+        setActive(C, rtp.robots[0]);
+        C.setJointState(pose);
+
+        const auto pen_tip = STRING(rtp.robots[0] << "pen_tip");
+        const auto obj = STRING("obj" << rtp.task.object + 1);
+
+        auto from = C[pen_tip];
+        auto to = C[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+      }
+      else if (i==1){
+        setActive(C, rtp.robots);
+        C.setJointState(pose);
+
+        const auto pen_tip = STRING(rtp.robots[1] << "pen_tip");
+        const auto obj = STRING("obj" << rtp.task.object + 1);
+
+        auto from = C[pen_tip];
+        auto to = C[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+      } else if (i == 2) {
+        setActive(C, rtp.robots[1]);
+        C.setJointState(pose);
+
+        const auto obj = STRING("obj" << rtp.task.object + 1);
+
+        auto from = C["table_base"];
+        auto to = C[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+      }
+
+      // C.watch(true);
+    }
+  } else if (rtp.task.type == PrimitiveType::pick) {
+    for (uint i = 0; i < phase; ++i) {
+      const auto pose = poses[i];
+
+      // set all robots to their home-pose
+      for (const auto &r : rtp.robots) {
+        setActive(C, r);
+        C.setJointState(r.home_pose);
+      }
+
+      if (i == 0) {
+        setActive(C, rtp.robots[0]);
+        C.setJointState(pose);
+
+        const auto pen_tip = STRING(rtp.robots[0] << "pen_tip");
+        const auto obj = STRING("obj" << rtp.task.object + 1);
+
+        auto from = C[pen_tip];
+        auto to = C[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+      } else if (i == 1) {
+        setActive(C, rtp.robots[0]);
+        C.setJointState(pose);
+
+        const auto obj = STRING("obj" << rtp.task.object + 1);
+
+        auto from = C["table_base"];
+        auto to = C[obj];
+
+        to->unLink();
+
+        // create a new joint
+        to->linkFrom(from, true);
+      }
+    }
+  }
+}
+
+void export_scene_at_keyframes(
+    rai::Configuration &C, const std::vector<Robot> &robots,
+    const RobotTaskPoseMap &robot_task_pose_mapping) {
+  std::time_t t = std::time(nullptr);
+  std::tm tm = *std::localtime(&t);
+
+  std::stringstream buffer;
+  buffer << "keyframe_generation_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+  const std::string folder = global_params.output_path + buffer.str() + "/";
+  const int res = system(STRING("mkdir -p " << folder).p);
+  (void)res;
+
+  uint cnt = 0;
+  for (const auto &robot_task_pair : robot_task_pose_mapping) {
+    const RobotTaskPair rtp = robot_task_pair.first;
+    const TaskPoses poses = robot_task_pair.second[0];
+
+    for (uint i = 0; i < poses.size(); ++i) {
+      const auto pose = poses[i];
+      std::cout << pose << std::endl;
+
+      rai::Configuration c_copy = C;
+
+      set_to_mode_for_primitive(c_copy, rtp, poses, i+1);
+      c_copy.watch(true);
+
+      // export json description of scene
+      const auto data = make_scene_data(c_copy, robots);
+
+      save_json(data, folder + "scene" + std::to_string(cnt) + ".json",
+                global_params.compress_data);
+      ++cnt;
+    }
+  }
+}
+
 // TODO:
 // - constrained motion planning
 
@@ -395,7 +534,7 @@ int main(int argc, char **argv) {
     run_all_test_problems_from_folder("./in/test_problems/");
     return 0;
   }
-  
+
   if (mode == "two_finger_planning_test" || mode == "run_all_tests") {
     // single_arm_two_finger_planning_test(display);
     two_arm_two_finger_planning_test(display);
@@ -414,20 +553,26 @@ int main(int argc, char **argv) {
   }
 
   rai::Configuration C;
-  const auto robots =
-      make_robot_environment_from_config(C, robot_path.p, scene_path.p);
-  add_obstacles_from_config(C, obstacle_path.p);
+  std::vector<Robot> robots;
 
-  if (obj_path == "random") {
-    random_objects(C, num_objects_for_env);
-  } else if (obj_path == "line") {
-    line(C, num_objects_for_env);
-  } else if (obj_path == "shuffled_line") {
-    shuffled_line(C, num_objects_for_env, 1.5, false);
-  } else if (obj_path == "big_objs") {
-    big_objs(C, num_objects_for_env);
+  if (false){
+    // TODO: implement, make sure that not both things can be active
+    // robots = make_env_from_file(C, full_scene_path.p);
   } else {
-    add_objects_from_config(C, obj_path.p);
+    robots = make_robot_environment_from_config(C, robot_path.p, scene_path.p);
+    add_obstacles_from_config(C, obstacle_path.p);
+
+    if (obj_path == "random") {
+      random_objects(C, num_objects_for_env);
+    } else if (obj_path == "line") {
+      line(C, num_objects_for_env);
+    } else if (obj_path == "shuffled_line") {
+      shuffled_line(C, num_objects_for_env, 1.5, false);
+    } else if (obj_path == "big_objs") {
+      big_objs(C, num_objects_for_env);
+    } else {
+      add_objects_from_config(C, obj_path.p);
+    }
   }
 
   int num_objects = 0;
@@ -592,6 +737,7 @@ int main(int argc, char **argv) {
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
     // TODO: export?
+    export_scene_at_keyframes(C, robots, robot_task_pose_mapping);
 
     return 0;
   }

@@ -7,6 +7,7 @@
 #include <Geo/fclInterface.h>
 
 #include <PlanningSubroutines/ConfigurationProblem.h>
+#include <Kin/F_qFeatures.h>
 
 #include "common/util.h"
 #include "common/config.h"

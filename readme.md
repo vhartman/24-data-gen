@@ -56,6 +56,108 @@ There are many flags to specify behaviour. Some of them are
 
 Please refer to `main.cpp` for all of them.
 
+## Output
+
+We take inspiration from the droid dataset. The data we export is 
+
+```
+out
+ | - [run_id]
+      | - img
+          | - [img_id].ppm
+      | - trajectory.json
+      | - sequence.json
+      | - symbolic_plan.json
+      | - scene.urdf
+```
+
+The format of the sequence and the trajectory is decribed below:
+
+<details>
+  <summary>
+    sequence.json format
+  </summary>
+
+  ```
+{
+  "tasks": [
+    {
+      "object": 2,
+      "primitive": "pick",
+      "robots": [
+        "a1_"
+      ]
+    },
+    {
+      "object": 1,
+      "primitive": "pick",
+      "robots": [
+        "a1_"
+      ]
+    },
+    {
+      "object": 0,
+      "primitive": "handover",
+      "robots": [
+        "a0_",
+        "a1_"
+      ]
+    }
+  ]
+}
+```
+
+</details>
+
+<details>
+  <summary>
+    trajectory.json format
+  </summary>
+
+  ```
+{
+  "robots": [{
+    "name": ...
+    "steps": [
+      joint_state: ...
+      symbolic_state: ...
+      ee_pose: []
+    ] 
+  }]
+  "objs": [{
+    "name": ...
+    "steps":[{
+      position: []
+      quaternion: []
+    }]
+  }]
+}
+```
+
+</details>
+
+<details>
+  <summary>
+    symbolic_plan.json format
+  </summary>
+
+  ```
+{
+  "robots": [{
+    "name": ...
+    "primitive": [
+      type: ...
+      start: ...
+      end: ...
+    ] 
+  }]
+}
+```
+
+</details>
+
+‎
+
 # How it works & what can it do
 
 ### Task planning
