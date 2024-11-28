@@ -21,22 +21,23 @@ void setActive(rai::Configuration &C, const std::string &prefix) {
   setActive(C, std::vector<std::string>{prefix});
 }
 
-void setActive(rai::Configuration &C, const Robot &r){
+void setActive(rai::Configuration &C, const Robot &r) {
   setActive(C, r.prefix);
 }
 
-void setActive(rai::Configuration &C, const std::vector<Robot> &robots){
+void setActive(rai::Configuration &C, const std::vector<Robot> &robots) {
   std::vector<std::string> robot_prefixes;
-  for (auto r: robots){robot_prefixes.push_back(r.prefix);}
+  for (auto r : robots) {
+    robot_prefixes.push_back(r.prefix);
+  }
   setActive(C, robot_prefixes);
 }
 
 void setRobotJointState() {}
 
-std::vector<Robot>
-make_robot_environment_from_json(rai::Configuration &C,
-                                   json jf,
-                                   const std::string &base_scene_path = "./in/scenes/floor.g") {
+std::vector<Robot> make_robot_environment_from_json(
+    rai::Configuration &C, json jf,
+    const std::string &base_scene_path = "./in/scenes/floor.g") {
   if (base_scene_path.size() == 0) {
     C.addFile("./in/scenes/floor.g");
   } else {
@@ -62,8 +63,7 @@ make_robot_environment_from_json(rai::Configuration &C,
     std::string parent;
     if (item.value().contains("parent")) {
       parent = item.value()["parent"];
-    }
-    else{
+    } else {
       parent = "table";
     }
 
@@ -83,16 +83,15 @@ make_robot_environment_from_json(rai::Configuration &C,
       a = C.addFile("./in/robots/ur5_pen.g");
       ee = EndEffectorType::vacuum;
       robot_type = RobotType::ur5;
-    } else if (robot == "franka"){
+    } else if (robot == "franka") {
       a = C.addFile("./in/robots/franka.g");
       ee = EndEffectorType::two_finger;
       robot_type = RobotType::panda;
-    } else if (robot == "kuka"){
+    } else if (robot == "kuka") {
       a = C.addFile("./in/robots/kuka.g");
       ee = EndEffectorType::two_finger;
       robot_type = RobotType::kuka;
-    }
-    else{
+    } else {
       spdlog::error("Invalid robot type");
       return {};
     }
@@ -141,7 +140,7 @@ make_robot_environment_from_json(rai::Configuration &C,
     cp.activeOnly = true;
     const auto feasible = cp.query({}, false)->isFeasible;
 
-    if (!feasible){
+    if (!feasible) {
       spdlog::error("Seeting up configuration: Robot {} is in collision.", cnt);
     }
 
@@ -158,7 +157,7 @@ make_robot_environment_from_json(rai::Configuration &C,
 std::vector<Robot> make_robot_environment_from_config(
     rai::Configuration &C, const std::string &config_file_path,
     const std::string &base_scene_path = "./in/scenes/floor.g") {
-  
+
   std::ifstream ifs(config_file_path);
   json jf = json::parse(ifs);
 
@@ -276,26 +275,27 @@ void add_obstacles_from_json(rai::Configuration &C, json jf) {
     std::string name;
     if (item.value().contains("name")) {
       name = item.value()["name"];
-    }
-    else{
+    } else {
       name = "obs_" + std::to_string(cnt);
     }
 
     std::string parent;
     if (item.value().contains("parent")) {
       parent = item.value()["parent"];
-    }
-    else{
+    } else {
       parent = "table";
     }
 
     auto *obj = C.addFrame(name.c_str(), parent.c_str());
 
     rai::ShapeType shape_type;
-    if (shape == "box"){shape_type= rai::ST_box;}
-    else if (shape == "sphere"){shape_type= rai::ST_sphere;}
-    else if (shape == "capsule"){shape_type= rai::ST_capsule;}
-    else{
+    if (shape == "box") {
+      shape_type = rai::ST_box;
+    } else if (shape == "sphere") {
+      shape_type = rai::ST_sphere;
+    } else if (shape == "capsule") {
+      shape_type = rai::ST_capsule;
+    } else {
       std::cout << "SHAPE NOT DEFINED" << std::endl;
     }
 
@@ -320,12 +320,11 @@ void add_obstacles_from_config(rai::Configuration &C,
 }
 
 // TODO: fill this in
-bool check_configuration_feasibility(const rai::Configuration & C){
+bool check_configuration_feasibility(const rai::Configuration &C) {
   return true;
 }
 
-std::vector<Robot>
-tub_lab_setting(rai::Configuration &C) {
+std::vector<Robot> tub_lab_setting(rai::Configuration &C) {
   auto *base = C.addFrame("world", "");
   base->setShape(rai::ST_marker, {0.001});
   base->setPosition({0., 0., .5});
@@ -351,14 +350,12 @@ tub_lab_setting(rai::Configuration &C) {
     robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
-
   }
 
   return robots;
 }
 
-std::vector<Robot>
-more_robots(rai::Configuration &C, const uint n = 2) {
+std::vector<Robot> more_robots(rai::Configuration &C, const uint n = 2) {
   auto *base = C.addFrame("world", "");
   base->setShape(rai::ST_marker, {0.001});
   base->setPosition({0., 0., .5});
@@ -404,8 +401,7 @@ more_robots(rai::Configuration &C, const uint n = 2) {
   return robots;
 }
 
-std::vector<Robot>
-opposite_robot_configuration(rai::Configuration &C){
+std::vector<Robot> opposite_robot_configuration(rai::Configuration &C) {
   C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.5, -.1, 0.00}, {.5, .1, 0.0}, {.0, .6, 0.15}};
@@ -437,15 +433,14 @@ opposite_robot_configuration(rai::Configuration &C){
     C.setJointState(state);
 
     robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
-    robots.back().home_pose = C.getJointState();    
+    robots.back().home_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
   }
 
   return robots;
 }
 
-std::vector<Robot>
-side_by_side_robot_configuration(rai::Configuration &C){
+std::vector<Robot> side_by_side_robot_configuration(rai::Configuration &C) {
   C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.15}};
@@ -514,34 +509,34 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 }
 
 std::vector<Robot>
-single_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+single_robot_configuration(rai::Configuration &C,
+                           const bool two_finger_gripper = true) {
   C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}};
 
-    const arrA baseQuat = {
-      {1, 0, 0, 1}
-  };
+  const arrA baseQuat = {{1, 0, 0, 1}};
 
-  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat, two_finger_gripper);
+  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat,
+                                                    two_finger_gripper);
 }
 
 std::vector<Robot>
-two_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+two_robot_configuration(rai::Configuration &C,
+                        const bool two_finger_gripper = true) {
   C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}};
 
-    const arrA baseQuat = {
-      {1, 0, 0, 1},
-      {1, 0, 0, 1}
-  };
+  const arrA baseQuat = {{1, 0, 0, 1}, {1, 0, 0, 1}};
 
-  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat, two_finger_gripper);
+  return make_configuration_from_base_pose_and_quat(C, basePos, baseQuat,
+                                                    two_finger_gripper);
 }
 
 std::vector<Robot>
-opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_gripper=true){
+opposite_three_robot_configuration(rai::Configuration &C,
+                                   const bool two_finger_gripper = true) {
   C.addFile("./in/scenes/floor.g");
 
   const arrA basePos = {{-.4, -.3, 0.00}, {.4, -.3, 0.0}, {.0, .6, 0.0}};
@@ -556,9 +551,10 @@ opposite_three_robot_configuration(rai::Configuration &C, const bool two_finger_
                                                     two_finger_gripper);
 }
 
-void random_objects(rai::Configuration &C, const uint N, const double width=.5){  
-  for (uint i=0; i<N; ++i){
-    auto *obj = C.addFrame(STRING("obj"<<i+1), "table");
+void random_objects(rai::Configuration &C, const uint N,
+                    const double width = .5) {
+  for (uint i = 0; i < N; ++i) {
+    auto *obj = C.addFrame(STRING("obj" << i + 1), "table");
 
     arr shape(2);
     rndUniform(shape, 0.02, 0.04);
@@ -568,7 +564,7 @@ void random_objects(rai::Configuration &C, const uint N, const double width=.5){
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
 
-    while(true){
+    while (true) {
       arr rnd(2);
       rndUniform(rnd, 0, 1);
       rnd(0) = (rnd(0) - 0.5) * width;
@@ -577,19 +573,19 @@ void random_objects(rai::Configuration &C, const uint N, const double width=.5){
       obj->setPosition({rnd(0), rnd(1), 0.66});
 
       ConfigurationProblem cp(C);
-      if (cp.query({}, false)->isFeasible){
+      if (cp.query({}, false)->isFeasible) {
         break;
-      } 
+      }
     }
 
-    auto *goal = C.addFrame(STRING("goal"<<i+1), "table");
+    auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
 
     goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
-    
-    while(true){
+
+    while (true) {
       arr rnd(2);
       rndUniform(rnd, 0, 1);
       // rnd(0) = (rnd(0) - 0.5) * 0.5;
@@ -601,16 +597,111 @@ void random_objects(rai::Configuration &C, const uint N, const double width=.5){
       goal->setPosition({rnd(0), rnd(1), 0.66});
 
       ConfigurationProblem cp(C);
-      if (cp.query({}, false)->isFeasible){
+      if (cp.query({}, false)->isFeasible) {
         break;
-      } 
+      }
     }
 
     goal->setContact(1.);
   }
 
-  for (auto f: C.frames){
-    if (f->name.contains("goal")){
+  for (auto f : C.frames) {
+    if (f->name.contains("goal")) {
+      f->setContact(0);
+    }
+  }
+}
+
+arr get_random_axis_aligned_orientation() {
+  arr rnd_orientation(1);
+  rndInteger(rnd_orientation, 0, 6);
+
+  arr orientation(4);
+
+  switch (int(rnd_orientation(0))) {
+  case 0:
+    orientation = {1, 0, 0, 0};
+    break; // Identity rotation (z -> +z)
+  case 1:
+    orientation = {0, 0, 0, 1};
+    break; // 180° rotation about x-axis (z -> -z)
+  case 2:
+    orientation = {0, 0.7071, 0, 0.7071};
+    break; // 90° rotation about y-axis (z -> +x)
+  case 3:
+    orientation = {0, -0.7071, 0, 0.7071};
+    break; // -90° rotation about y-axis (z -> -x)
+  case 4:
+    orientation = {0.7071, 0, 0, 0.7071};
+    break; // 90° rotation about x-axis (z -> +y)
+  case 5:
+    orientation = {0.7071, 0, 0, -0.7071};
+    break; // -90° rotation about x-axis (z -> -y)
+
+  default:
+    orientation = {1, 0, 0, 0}; // Fallback (identity)
+  }
+
+  return orientation;
+}
+
+void cubes_with_random_rotation(rai::Configuration &C, const uint N,
+                                const double width = .5) {
+  for (uint i = 0; i < N; ++i) {
+    auto *obj = C.addFrame(STRING("obj" << i + 1), "table");
+
+    const arr shape = {0.1, 0.1, 0.1};
+
+    obj->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
+    obj->setContact(1.);
+    obj->setJoint(rai::JT_rigid);
+
+    while (true) {
+      arr rnd(2);
+      rndUniform(rnd, 0, 1);
+      rnd(0) = (rnd(0) - 0.5) * width;
+      rnd(1) = (rnd(1) - 0.3) * 0.7;
+
+      obj->setPosition({rnd(0), rnd(1), 0.66});
+
+      obj->setQuaternion(get_random_axis_aligned_orientation());
+
+      ConfigurationProblem cp(C);
+      if (cp.query({}, false)->isFeasible) {
+        break;
+      }
+    }
+
+    auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
+
+    goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
+    goal->setContact(1.);
+    goal->setColor({0, 0, 0, 0.5});
+    goal->setJoint(rai::JT_rigid);
+
+    while (true) {
+      arr rnd(2);
+      rndUniform(rnd, 0, 1);
+      // rnd(0) = (rnd(0) - 0.5) * 0.5;
+      // rnd(1) = (rnd(1) - 0.3) * 0.5;
+
+      rnd(0) = (rnd(0) - 0.5) * width;
+      rnd(1) = (rnd(1) - 0.3) * 1;
+
+      goal->setPosition({rnd(0), rnd(1), 0.66});
+      goal->setQuaternion(get_random_axis_aligned_orientation());
+
+      ConfigurationProblem cp(C);
+      if (cp.query({}, false)->isFeasible) {
+        break;
+      }
+    }
+
+    goal->setContact(1.);
+  }
+
+  for (auto f : C.frames) {
+    if (f->name.contains("goal")) {
       f->setContact(0);
     }
   }
@@ -647,8 +738,8 @@ void line(rai::Configuration &C, const uint N, const double width = 2.) {
   }
 }
 
-void shuffled_line(rai::Configuration &C, const uint N,
-                   const double width = 2., const bool random_size=true) {
+void shuffled_line(rai::Configuration &C, const uint N, const double width = 2.,
+                   const bool random_size = true) {
   const double heigth_offset = 0.6 - 0.05 + 0.05 / 2 + 0.001;
   const double height = 0.06;
 
@@ -667,7 +758,7 @@ void shuffled_line(rai::Configuration &C, const uint N,
     rndUniform(shape, 0.02, 0.06);
     shape(1) *= 2;
 
-    if (!random_size){
+    if (!random_size) {
       shape(0) = 0.04;
       shape(1) = 0.2;
     }
@@ -677,7 +768,7 @@ void shuffled_line(rai::Configuration &C, const uint N,
     obj->setJoint(rai::JT_rigid);
     obj->setPosition(
         {width / (N - 1) * i - width / 2, 0.3, height / 2 + heigth_offset});
-        obj->setQuaternion( {1, 0, 0, 1});
+    obj->setQuaternion({1, 0, 0, 1});
 
     auto *marker = C.addFrame("goal_marker", obj->name);
     marker->setShape(rai::ST_marker, {0.1});
@@ -702,10 +793,10 @@ void shuffled_line(rai::Configuration &C, const uint N,
   }
 }
 
-void big_objs(rai::Configuration &C, const uint N){  
+void big_objs(rai::Configuration &C, const uint N) {
   const double width = 2.;
   const double heigth_offset = 0.6 - 0.05 + 0.05 / 2;
-  
+
   std::vector<uint> tmp;
   for (uint q = 0; q < N; ++q) {
     tmp.push_back(q);
@@ -714,8 +805,8 @@ void big_objs(rai::Configuration &C, const uint N){
   // Shuffle the vector
   std::random_shuffle(tmp.begin(), tmp.end());
 
-  for (uint i=0; i<N; ++i){
-    auto *obj = C.addFrame(STRING("obj"<<i+1), "table");
+  for (uint i = 0; i < N; ++i) {
+    auto *obj = C.addFrame(STRING("obj" << i + 1), "table");
 
     arr shape(2);
     rndUniform(shape, 0.04, 0.1);
@@ -728,21 +819,23 @@ void big_objs(rai::Configuration &C, const uint N){
     obj->setShape(rai::ST_box, {shape(0), shape(1), height, 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
-    obj->setPosition({width / (N-1) * i - 1, 0.3, height / 2 + heigth_offset});
+    obj->setPosition(
+        {width / (N - 1) * i - 1, 0.3, height / 2 + heigth_offset});
 
-    auto *goal = C.addFrame(STRING("goal"<<i+1), "table");
+    auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
 
     goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
-    goal->setPosition({width / (N-1) * tmp[i] - 1, 0., height / 2 + heigth_offset});
+    goal->setPosition(
+        {width / (N - 1) * tmp[i] - 1, 0., height / 2 + heigth_offset});
 
     goal->setContact(1.);
   }
 
-  for (auto f: C.frames){
-    if (f->name.contains("goal")){
+  for (auto f : C.frames) {
+    if (f->name.contains("goal")) {
       f->setContact(0);
     }
   }
@@ -787,7 +880,8 @@ void pick_and_place(rai::Configuration &C) {
   // C.watch(true);
 }
 
-std::unordered_map<Robot, arr> get_robot_home_poses(const std::vector<Robot> &robots) {
+std::unordered_map<Robot, arr>
+get_robot_home_poses(const std::vector<Robot> &robots) {
   std::unordered_map<Robot, arr> poses;
   for (const auto &r : robots) {
     poses[r] = r.home_pose;

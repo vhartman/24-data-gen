@@ -2,9 +2,9 @@
 
 #include "spdlog/spdlog.h"
 
-#include <Kin/featureSymbols.h>
-#include <Kin/F_qFeatures.h>
 #include <Geo/fclInterface.h>
+#include <Kin/F_qFeatures.h>
+#include <Kin/featureSymbols.h>
 
 #include "common/util.h"
 #include "planners/plan.h"
@@ -334,7 +334,8 @@ std::vector<arr> compute_pick_and_place_with_intermediate_pose(
 
 RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
     rai::Configuration C, const std::vector<Robot> &robots,
-    const bool attempt_all_directions = false) {
+    const bool attempt_all_directions = false,
+    const bool allow_repeated_handling = false) {
   uint num_objects = 0;
   for (auto f : C.frames) {
     if (f->name.contains("obj")) {
@@ -368,9 +369,9 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
 
   for (const auto &r1 : robots) {
     for (const auto &r2 : robots) {
-      if (r1 == r2) {
-        continue;
-      }
+      // if (r1 == r2 && !allow_repeated_handling) {
+      //   continue;
+      // }
 
       for (uint i = 0; i < num_objects; ++i) {
         const auto obj = STRING("obj" << i + 1);
