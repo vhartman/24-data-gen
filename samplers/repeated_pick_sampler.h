@@ -3,6 +3,8 @@
 #include "spdlog/spdlog.h"
 
 #include <Kin/featureSymbols.h>
+#include <Kin/F_qFeatures.h>
+#include <Geo/fclInterface.h>
 
 #include "common/util.h"
 #include "planners/plan.h"
@@ -32,7 +34,7 @@ public:
   setup_problem(KOMO &komo, const Robot &r1, const Robot &r2,
                 const rai::String &obj, const rai::String &goal,
                 const PickDirection pick_direction_1 = PickDirection::NegZ,
-                const PickDirection intermediate_dir = PickDirection::NegZ,
+                const PickDirection intermediate_dir = PickDirection::PosZ,
                 const PickDirection pick_direction_2 = PickDirection::NegZ) {
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
@@ -68,26 +70,27 @@ public:
 
     const double dir_weight = 5e1;
     if (intermediate_dir == PickDirection::NegZ) {
-      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {-1.});
+      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {-1.});
     } else if (intermediate_dir == PickDirection::PosZ) {
-      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {1.});
+      komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {1.});
     } else if (intermediate_dir == PickDirection::NegX) {
-      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {-1.});
+      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {-1.});
     } else if (intermediate_dir == PickDirection::PosX) {
-      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {1.});
+      komo.addObjective({2., 2.}, FS_scalarProductXZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {1.});
     } else if (intermediate_dir == PickDirection::NegY) {
-      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {-1.});
+      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {-1.});
     } else if (intermediate_dir == PickDirection::PosY) {
-      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame}, OT_eq,
-                    {dir_weight}, {1.});
+      komo.addObjective({2., 2.}, FS_scalarProductYZ, {obj, link_to_frame},
+                        OT_eq, {dir_weight}, {1.});
     }
 
-    // komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame}, OT_eq,
+    // komo.addObjective({2., 2.}, FS_scalarProductZZ, {obj, link_to_frame},
+    // OT_eq,
     //                   {1e1}, {1.});
 
     // homing
@@ -320,12 +323,13 @@ public:
   }
 };
 
-std::vector<arr>
-compute_pick_and_place_with_intermediate_pose(rai::Configuration C, Robot r1,
-                                              Robot r2, rai::String obj,
-                                              rai::String goal) {
+std::vector<arr> compute_pick_and_place_with_intermediate_pose(
+    rai::Configuration C, Robot r1, Robot r2, const rai::String &obj,
+    const rai::String &goal, const PickDirection pd1 = PickDirection::NegZ,
+    const PickDirection intermediate_direction = PickDirection::PosZ,
+    const PickDirection pd2 = PickDirection::NegZ) {
   RepeatedPickSampler sampler(C);
-  return sampler.sample(r1, r2, obj, goal);
+  return sampler.sample(r1, r2, obj, goal, pd1, intermediate_direction, pd2);
 }
 
 RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
@@ -338,18 +342,20 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
     }
   }
 
-  std::vector<std::tuple<PickDirection, PickDirection, PickDirection>> directions;
-  if (attempt_all_directions){
-    for (int i=5; i>=0; --i){
-      for (int j=0; j<=5; ++j){
-        for (int k=5; k>=0; --k){
-          directions.push_back(std::make_tuple(PickDirection(i), PickDirection(j), PickDirection(k)));
+  std::vector<std::tuple<PickDirection, PickDirection, PickDirection>>
+      directions;
+  if (attempt_all_directions) {
+    for (int i = 5; i >= 0; --i) {
+      for (int j = 0; j <= 5; ++j) {
+        for (int k = 5; k >= 0; --k) {
+          directions.push_back(std::make_tuple(
+              PickDirection(i), PickDirection(j), PickDirection(k)));
         }
       }
     }
-  }
-  else{
-    directions = {std::make_tuple(PickDirection::NegZ, PickDirection::PosZ, PickDirection::NegZ)};
+  } else {
+    directions = {std::make_tuple(PickDirection::NegZ, PickDirection::PosZ,
+                                  PickDirection::NegZ)};
   }
 
   delete_unnecessary_frames(C);
@@ -370,12 +376,15 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
-        for (const auto &d: directions){
+        for (const auto &d : directions) {
 
-          const auto sol = sampler.sample(r1, r2, obj, goal, std::get<0>(d), std::get<1>(d), std::get<2>(d));
+          const auto sol = sampler.sample(r1, r2, obj, goal, std::get<0>(d),
+                                          std::get<1>(d), std::get<2>(d));
 
           if (sol.size() > 0) {
-            // std::cout << to_string(std::get<0>(d)) << " " << to_string(std::get<1>(d)) << " " << to_string(std::get<2>(d)) << std::endl;
+            // std::cout << to_string(std::get<0>(d)) << " " <<
+            // to_string(std::get<1>(d)) << " " << to_string(std::get<2>(d)) <<
+            // std::endl;
             RobotTaskPair rtp_1;
             rtp_1.robots = {r1, r2};
             rtp_1.task = Task{.object = i, .type = PrimitiveType::pick_pick_1};

@@ -610,10 +610,13 @@ public:
   }
 };
 
-std::vector<arr> compute_handover_pose(rai::Configuration C, Robot r1, Robot r2,
-                                       rai::String obj, rai::String goal) {
+std::vector<arr> compute_handover_pose(
+    rai::Configuration C, const Robot &r1, const Robot &r2,
+    const rai::String &obj, const rai::String &goal,
+    const PickDirection pick_direction_1 = PickDirection::NegZ,
+    const PickDirection pick_direction_2 = PickDirection::NegZ) {
   HandoverSampler sampler(C);
-  return sampler.sample(r1, r2, obj, goal);
+  return sampler.sample(r1, r2, obj, goal, pick_direction_1, pick_direction_2);
 }
 
 RobotTaskPoseMap
@@ -628,14 +631,14 @@ compute_all_handover_poses(rai::Configuration C,
   }
 
   std::vector<std::pair<PickDirection, PickDirection>> directions;
-  if (attempt_all_directions){
-    for (int i=5; i>=0; --i){
-      for (int j=5; j>=0; --j){
-        directions.push_back(std::make_pair(PickDirection(i), PickDirection(j)));
+  if (attempt_all_directions) {
+    for (int i = 5; i >= 0; --i) {
+      for (int j = 5; j >= 0; --j) {
+        directions.push_back(
+            std::make_pair(PickDirection(i), PickDirection(j)));
       }
     }
-  }
-  else{
+  } else {
     directions = {std::make_pair(PickDirection::NegZ, PickDirection::NegZ)};
   }
 
@@ -662,9 +665,10 @@ compute_all_handover_poses(rai::Configuration C,
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
-        for (const auto &dirs: directions){
+        for (const auto &dirs : directions) {
 
-          const auto sol = sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second);
+          const auto sol =
+              sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second);
 
           // const auto sol = compute_handover_pose(C, r1, r2, obj, goal);
 
