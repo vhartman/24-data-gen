@@ -613,34 +613,35 @@ void random_objects(rai::Configuration &C, const uint N,
 }
 
 arr get_random_axis_aligned_orientation() {
-  arr rnd_orientation(1);
-  rndInteger(rnd_orientation, 0, 6);
+  // Generate a random integer between 0 and 5
+  int rnd_orientation = std::rand() % 6;
 
   arr orientation(4);
 
-  switch (int(rnd_orientation(0))) {
+  switch (rnd_orientation) {
   case 0:
     orientation = {1, 0, 0, 0};
     break; // Identity rotation (z -> +z)
   case 1:
-    orientation = {0, 0, 0, 1};
+    orientation = {0, 1, 0, 0};
     break; // 180° rotation about x-axis (z -> -z)
   case 2:
-    orientation = {0, 0.7071, 0, 0.7071};
+    orientation = {0, 0, 0.7071, 0.7071};
     break; // 90° rotation about y-axis (z -> +x)
   case 3:
-    orientation = {0, -0.7071, 0, 0.7071};
+    orientation = {0, 0, -0.7071, 0.7071};
     break; // -90° rotation about y-axis (z -> -x)
   case 4:
-    orientation = {0.7071, 0, 0, 0.7071};
+    orientation = {0.7071, 0.7071, 0, 0};
     break; // 90° rotation about x-axis (z -> +y)
   case 5:
-    orientation = {0.7071, 0, 0, -0.7071};
+    orientation = {0.7071, -0.7071, 0, 0};
     break; // -90° rotation about x-axis (z -> -y)
-
   default:
     orientation = {1, 0, 0, 0}; // Fallback (identity)
   }
+
+  // std::cout << orientation << std::endl;
 
   return orientation;
 }
@@ -655,6 +656,7 @@ void cubes_with_random_rotation(rai::Configuration &C, const uint N,
     obj->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
     obj->setContact(1.);
     obj->setJoint(rai::JT_rigid);
+    obj->setColor({0.5, 0.5, 0.5, 0.5});
 
     while (true) {
       arr rnd(2);
@@ -664,7 +666,7 @@ void cubes_with_random_rotation(rai::Configuration &C, const uint N,
 
       obj->setPosition({rnd(0), rnd(1), 0.66});
 
-      obj->setQuaternion(get_random_axis_aligned_orientation());
+      obj->setRelativeQuaternion(get_random_axis_aligned_orientation());
 
       ConfigurationProblem cp(C);
       if (cp.query({}, false)->isFeasible) {
@@ -672,12 +674,21 @@ void cubes_with_random_rotation(rai::Configuration &C, const uint N,
       }
     }
 
+    auto *marker = C.addFrame("goal_tmp_1", obj->name);
+    marker->setShape(rai::ST_marker, {0.1});
+    marker->setContact(0.);
+
     auto *goal = C.addFrame(STRING("goal" << i + 1), "table");
 
     goal->setShape(rai::ST_box, {shape(0), shape(1), 0.06, 0.01});
     goal->setContact(1.);
     goal->setColor({0, 0, 0, 0.5});
     goal->setJoint(rai::JT_rigid);
+
+    auto *marker2 = C.addFrame("goal_tmp_2", goal->name);
+    marker2->setShape(rai::ST_marker, {0.1});
+    marker2->setContact(0.);
+
 
     while (true) {
       arr rnd(2);
@@ -689,7 +700,7 @@ void cubes_with_random_rotation(rai::Configuration &C, const uint N,
       rnd(1) = (rnd(1) - 0.3) * 1;
 
       goal->setPosition({rnd(0), rnd(1), 0.66});
-      goal->setQuaternion(get_random_axis_aligned_orientation());
+      goal->setRelativeQuaternion(get_random_axis_aligned_orientation());
 
       ConfigurationProblem cp(C);
       if (cp.query({}, false)->isFeasible) {

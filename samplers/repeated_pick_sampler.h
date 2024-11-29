@@ -344,19 +344,19 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
   }
 
   std::vector<std::tuple<PickDirection, PickDirection, PickDirection>>
-      directions;
+      all_directions;
   if (attempt_all_directions) {
     for (int i = 5; i >= 0; --i) {
       for (int j = 0; j <= 5; ++j) {
         for (int k = 5; k >= 0; --k) {
-          directions.push_back(std::make_tuple(
+          all_directions.push_back(std::make_tuple(
               PickDirection(i), PickDirection(j), PickDirection(k)));
         }
       }
     }
   } else {
-    directions = {std::make_tuple(PickDirection::NegZ, PickDirection::PosZ,
-                                  PickDirection::NegZ)};
+    all_directions = {std::make_tuple(PickDirection::NegZ, PickDirection::PosZ,
+                                      PickDirection::NegZ)};
   }
 
   delete_unnecessary_frames(C);
@@ -377,7 +377,25 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
-        for (const auto &d : directions) {
+        const auto obj_quat = C[obj]->getRelativeQuaternion();
+        const auto goal_quat = C[goal]->getRelativeQuaternion();
+
+        for (const auto &d : all_directions) {
+          // C.watch(true);
+          // std::cout << "looking at  " << to_string(std::get<0>(d)) << std::endl;
+          // std::cout << "looking at " << to_string(std::get<2>(d)) << std::endl;
+
+          // std::cout << get_pos_z_axis_dir(obj_quat) << std::endl;
+          // std::cout << get_pos_z_axis_dir(goal_quat) << std::endl;
+
+          if (euclideanDistance(dir_to_vec(std::get<0>(d)),
+                                get_pos_z_axis_dir(obj_quat)) < 1e-6 ||
+              euclideanDistance(dir_to_vec(std::get<2>(d)),
+                                get_pos_z_axis_dir(goal_quat)) < 1e-6) {
+            // std::cout << "skipping " << to_string(std::get<0>(d)) << std::endl;
+            // std::cout << "skipping " << to_string(std::get<2>(d)) << std::endl;
+            continue;
+          }
 
           const auto sol = sampler.sample(r1, r2, obj, goal, std::get<0>(d),
                                           std::get<1>(d), std::get<2>(d));

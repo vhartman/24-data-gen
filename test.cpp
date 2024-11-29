@@ -377,11 +377,11 @@ GTEST_TEST(PLANNING_TEST, SingleArmTest) {
   const auto plan_result =
       plan_multiple_arms_given_sequence(C, rtpm, sequence, home_poses);
 
-  ASSERT_TRUE(check_plan_validity(C, robots, plan_result.plan, home_poses));
-
   if (show) {
     visualize_plan(C, plan_result.plan);
   }
+
+  ASSERT_TRUE(check_plan_validity(C, robots, plan_result.plan, home_poses));
 }
 
 GTEST_TEST(UTIL_TEST, SetAndLinkToPhaseTest) {

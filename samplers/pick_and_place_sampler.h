@@ -235,6 +235,28 @@ public:
   }
 };
 
+arr get_pos_z_axis_dir(const arr &quaternion) {
+  // Extract components of the quaternion
+  double w = quaternion(0);
+  double x = quaternion(1);
+  double y = quaternion(2);
+  double z = quaternion(3);
+
+  // Normalize the quaternion to avoid numerical inaccuracies
+  double norm = std::sqrt(w * w + x * x + y * y + z * z);
+  w /= norm;
+  x /= norm;
+  y /= norm;
+  z /= norm;
+
+  // Compute the Z-axis in world coordinates
+  double zX = 2.0 * (x * z + w * y);
+  double zY = 2.0 * (y * z - w * x);
+  double zZ = 1.0 - 2.0 * (x * x + y * y);
+
+  return {zX, zY, zZ};
+}
+
 RobotTaskPoseMap compute_all_pick_and_place_positions(
     rai::Configuration C, const std::vector<Robot> &robots,
     const bool attempt_all_directions = false) {
@@ -249,11 +271,11 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
 
   delete_unnecessary_frames(C);
 
-  std::vector<PickDirection> directions = {PickDirection::NegZ};
+  std::vector<PickDirection> all_directions = {PickDirection::NegZ};
   if (attempt_all_directions) {
-    directions = {PickDirection::NegZ, PickDirection::NegX,
-                  PickDirection::NegY, PickDirection::PosZ,
-                  PickDirection::PosX, PickDirection::PosY};
+    all_directions = {PickDirection::NegZ, PickDirection::NegX,
+                      PickDirection::NegY, PickDirection::PosZ,
+                      PickDirection::PosX, PickDirection::PosY};
   }
 
   const auto pairs = get_cant_collide_pairs(C);
@@ -268,7 +290,17 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
 
-      for (const auto dir: directions){
+      // TODO: figure out which direction is pointing in pos z-direction in
+      // world frame, and prioritize this on in our search
+      const auto obj_quat = C[obj]->getRelativeQuaternion();
+
+      for (const auto dir : all_directions) {
+        // C.watch(true);
+        if (euclideanDistance(dir_to_vec(dir), get_pos_z_axis_dir(obj_quat)) < 1e-6) {
+          // std::cout << "skipping " << to_string(dir) << std::endl;
+          continue;
+        }
+
         const auto sol = sampler.sample(r, obj, goal, dir);
 
         if (sol.size() > 0) {
