@@ -665,7 +665,23 @@ compute_all_handover_poses(rai::Configuration C,
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
-        for (const auto &dirs : directions) {
+        const auto obj_quat = C[obj]->getRelativeQuaternion();
+
+        std::vector<std::pair<PickDirection, PickDirection>> reordered_directions;
+        for (const auto &d: directions){
+          if (euclideanDistance(dir_to_vec(d.first), -get_pos_z_axis_dir(obj_quat)) < 1e-6 || 
+              euclideanDistance(dir_to_vec(d.second), -get_pos_z_axis_dir(obj_quat)) < 1e-6 ){
+            reordered_directions.push_back(d);
+          }
+        }
+
+        for (const auto &dir: directions){
+          if (std::find(reordered_directions.begin(), reordered_directions.end(), dir) == reordered_directions.end()){
+            reordered_directions.push_back(dir);
+          }
+        }
+
+        for (const auto &dirs : reordered_directions) {
 
           const auto sol =
               sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second);

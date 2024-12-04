@@ -139,7 +139,7 @@ GTEST_TEST(KEYFRAME_TEST, DualArmRepeatedPickPlaceTest_Vacuum_Reorientation) {
 }
 
 GTEST_TEST(KEYFRAME_TEST, DualArmRepeatedPickPlaceTest_Gripper_Reorientation) {
-  bool show = true;
+  bool show = false;
   spdlog::set_level(spdlog::level::off);
 
   rai::Configuration C;

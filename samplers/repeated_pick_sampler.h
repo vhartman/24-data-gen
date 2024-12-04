@@ -380,7 +380,21 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
         const auto obj_quat = C[obj]->getRelativeQuaternion();
         const auto goal_quat = C[goal]->getRelativeQuaternion();
 
-        for (const auto &d : all_directions) {
+        std::vector<std::tuple<PickDirection, PickDirection, PickDirection>> reordered_directions;
+        for (const auto &d: all_directions){
+          if (euclideanDistance(dir_to_vec(std::get<0>(d)), -get_pos_z_axis_dir(obj_quat)) < 1e-6 || 
+              euclideanDistance(dir_to_vec(std::get<2>(d)), -get_pos_z_axis_dir(obj_quat)) < 1e-6 ){
+            reordered_directions.push_back(d);
+          }
+        }
+
+        for (const auto &dir: all_directions){
+          if (std::find(reordered_directions.begin(), reordered_directions.end(), dir) == reordered_directions.end()){
+            reordered_directions.push_back(dir);
+          }
+        }
+
+        for (const auto &d : reordered_directions) {
           // C.watch(true);
           // std::cout << "looking at  " << to_string(std::get<0>(d)) << std::endl;
           // std::cout << "looking at " << to_string(std::get<2>(d)) << std::endl;
