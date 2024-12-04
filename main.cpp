@@ -606,16 +606,27 @@ int main(int argc, char **argv) {
     for (const auto &r : robots) {
       setActive(C, r);
       auto q = C.getJointState();
+      const arr lims = C.getLimits();
 
       for (uint i = 0; i < q.d0; ++i) {
+        double ub = lims(i, 1);
+        double lb = lims(i, 0);
+
+        if (lims(i, 1) < lims(i, 0)){
+          ub = 5; lb = -5;
+        }
+
+        const auto q_i_init = q(i);
         for (uint j=0; j<100; ++j) {
-          // TODO: do this nicer with the limits
-          q(i) += sin(j*3.1415/100*2);
+          q(i) = (ub - lb) * (cos(j*3.1415*2/(100 - 1)) / 2 + 0.5) + lb; 
           C.setJointState(q);
 
           C.watch(false);
           rai::wait(0.01);
         }
+
+        q(i) = q_i_init;
+        C.setJointState(q);
       }
     }
 
