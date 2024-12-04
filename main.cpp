@@ -403,6 +403,11 @@ void export_scene_at_keyframes(
 // TODO:
 // - constrained motion planning
 
+// this is to suppress a bunch of stacktracing
+extern "C" int backtrace(void **buffer, int size) {
+    return 0; // Prevent stack trace generation
+}
+
 int main(int argc, char **argv) {
   auto console = spdlog::stdout_color_mt("console");
 
@@ -410,6 +415,11 @@ int main(int argc, char **argv) {
   const uint seed = rai::getParameter<double>("seed", 42); // seed
   rnd.seed(seed);
   std::srand(seed);
+
+  const bool suppress_errors = rai::getParameter<bool>("suppress_errors", true);
+  if (suppress_errors){
+    freopen("/dev/null", "w", stderr); // Redirects stderr to /dev/null (Linux/Unix systems)
+  }
 
   const bool display = rai::getParameter<bool>("display", false);
   global_params.allow_display = display;

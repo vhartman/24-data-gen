@@ -468,3 +468,16 @@ GTEST_TEST(PLANNING_TEST, SingleArmTest) {
 GTEST_TEST(UTIL_TEST, SetAndLinkToPhaseTest) {
   // TODO
 }
+
+extern "C" int backtrace(void **buffer, int size) {
+    return 0; // Prevent stack trace generation
+}
+
+int main( int argc, char** argv )
+{
+    testing::InitGoogleTest( &argc, argv );
+
+    freopen("/dev/null", "w", stderr); // Redirects stderr to /dev/null (Linux/Unix systems)
+
+    return RUN_ALL_TESTS();
+}
