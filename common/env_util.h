@@ -126,6 +126,9 @@ std::vector<Robot> make_robot_environment_from_json(
       arr state;
       state.read(ss);
 
+      // std::cout << "Given start pose: " << state << std::endl;
+      // std::cout << "Default start pose: " << C.getJointState() << std::endl;
+
       assert(state.d0 == C.getJointState().N);
       C.setJointState(state);
     }
@@ -651,7 +654,7 @@ void cubes_with_random_rotation(rai::Configuration &C, const uint N,
   for (uint i = 0; i < N; ++i) {
     auto *obj = C.addFrame(STRING("obj" << i + 1), "table");
 
-    const arr shape = {0.1, 0.1, 0.1};
+    const arr shape = {0.05, 0.05, 0.05};
 
     obj->setShape(rai::ST_box, {shape(0), shape(1), shape(2), 0.01});
     obj->setContact(1.);

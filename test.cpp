@@ -57,12 +57,93 @@ GTEST_TEST(KEYFRAME_TEST, SingleArmRepeatedPickPlaceTest_Vacuum_Reorientation) {
   ASSERT_GE(rtpm.size(), 1);
 }
 
+GTEST_TEST(KEYFRAME_TEST, SingleArmRepeatedPickPlaceTest_Gripper_Reorientation) {
+  bool show = false;
+  spdlog::set_level(spdlog::level::off);
+
+  rai::Configuration C;
+  const auto robots = single_robot_configuration(C, true);
+  cubes_with_random_rotation(C, 1);
+
+  const auto rtpm =
+      compute_all_pick_and_place_with_intermediate_pose(C, robots, true);
+
+  ASSERT_GE(rtpm.size(), 1);
+}
+
 GTEST_TEST(KEYFRAME_TEST, DualArmRepeatedPickPlaceTest_Vacuum_Reorientation) {
   bool show = false;
   spdlog::set_level(spdlog::level::off);
 
   rai::Configuration C;
   const auto robots = two_robot_configuration(C, false);
+  cubes_with_random_rotation(C, 1);
+
+  const auto rtpm =
+      compute_all_pick_and_place_with_intermediate_pose(C, robots, true);
+
+  ASSERT_GE(rtpm.size(), 1);
+
+  for (const auto &r : rtpm) {
+    if (r.first.task.type != PrimitiveType::pick_pick_1) {
+      continue;
+    }
+
+    // find the corresponding second task
+    TaskPoses tp_second_part;
+    for (const auto &r_inner : rtpm) {
+      if (r_inner.first.task.type == PrimitiveType::pick_pick_2 &&
+          r.first.robots[0] == r_inner.first.robots[0] &&
+          r.first.robots[1] == r_inner.first.robots[1]) {
+        tp_second_part = r_inner.second[0];
+
+        break;
+      }
+    }
+
+    for (int i = 0; i < 4; ++i) {
+      arr pose;
+      if (i < 2) {
+        pose = r.second[0][i];
+      } else {
+        pose = tp_second_part[i - 2];
+      }
+      if (i == 0) {
+        setActive(C, r.first.robots[0]);
+      } else if (i == 1) {
+        setActive(C, r.first.robots[0]);
+      } else if (i == 2) {
+        setActive(C, r.first.robots[1]);
+      } else if (i == 3) {
+        setActive(C, r.first.robots[1]);
+      }
+      // std::cout << pose << std::endl;
+      // std::cout << r.first.robots[0] << std::endl;
+      // std::cout << r.first.robots[1] << std::endl;
+      const arr initial_pose = C.getJointState();
+
+      if (show) {
+        // std::cout << pose << std::endl;
+        C.setJointState(pose);
+        C.watch(true);
+      }
+
+      ConfigurationProblem cp(C);
+      auto res = cp.query(pose);
+      ASSERT_TRUE(res->isFeasible);
+
+      // set back to home pose
+      C.setJointState(initial_pose);
+    }
+  }
+}
+
+GTEST_TEST(KEYFRAME_TEST, DualArmRepeatedPickPlaceTest_Gripper_Reorientation) {
+  bool show = true;
+  spdlog::set_level(spdlog::level::off);
+
+  rai::Configuration C;
+  const auto robots = two_robot_configuration(C, true);
   cubes_with_random_rotation(C, 1);
 
   const auto rtpm =

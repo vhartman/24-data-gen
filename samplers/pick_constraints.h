@@ -59,6 +59,8 @@ void add_pick_constraints(KOMO &komo, const double start, const int end,
 
   komo.addObjective({start, start}, FS_insideBox, {ee, obj}, OT_ineq, {5e1});
 
+  spdlog::info("Grasping from " + to_string(dir) + " direction");
+
   if (dir == PickDirection::NegZ) {
     komo.addObjective({start, start}, FS_scalarProductZZ, {obj, ee}, OT_sos,
                       {1e1}, {-1.});
@@ -81,16 +83,71 @@ void add_pick_constraints(KOMO &komo, const double start, const int end,
 
   // only add the 'alignment' constaint if the end effector is a
   // two-finger-gripper
+  const double max_grabbable_width = 0.1;
   if (ee_type == EndEffectorType::two_finger) {
-    if (obj_size(0) > obj_size(1)) {
-      // x longer than y
-      spdlog::info("Trying to grab along x-axis");
-      komo.addObjective({start, start}, FS_scalarProductXY, {obj, ee}, OT_eq,
-                        {1e1}, {0.});
-    } else {
-      spdlog::info("Trying to grab along y-axis");
-      komo.addObjective({start, start}, FS_scalarProductXX, {obj, ee}, OT_eq,
-                        {1e1}, {0.});
+    // if we grasp from one of the z-directions, we ty to align the y-axis of
+    // the gripper with the x (or y) axis of the object
+    if (dir == PickDirection::NegZ || dir == PickDirection::PosZ) {
+      // obj_size(0) is x, (1) is y, (2) is z
+      if (obj_size(0) < obj_size(1)) {
+        // x shorter than y
+        spdlog::info("Trying to grab along y-axis");
+        komo.addObjective({start, start}, FS_scalarProductYY, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+
+        if (obj_size(1) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      } else {
+        spdlog::info("Trying to grab along x-axis");
+        komo.addObjective({start, start}, FS_scalarProductXY, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+        if (obj_size(0) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      }
+    }
+    // if we grasp from the y direction, we want to align with the x or the z
+    // direction
+    else if (dir == PickDirection::NegY || dir == PickDirection::PosY) {
+      if (obj_size(0) < obj_size(2)) {
+        // x shorter than z
+        spdlog::info("Trying to grab along z-axis");
+        // should be ZY, is not defined, XX is equivalent
+        komo.addObjective({start, start}, FS_scalarProductXX, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+        if (obj_size(2) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      } else {
+        spdlog::info("Trying to grab along x-axis");
+        // should be FS_scalarProduct ZY, but that is undefined. this here is equivalent
+        komo.addObjective({start, start}, FS_scalarProductXY, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+        if (obj_size(0) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      }
+    }
+    else if (dir == PickDirection::NegX || dir == PickDirection::PosX) {
+      if (obj_size(1) < obj_size(2)) {
+        // y shorter than z
+        spdlog::info("Trying to grab along z-axis");
+        komo.addObjective({start, start}, FS_scalarProductYX, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+        if (obj_size(2) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      } else {
+        spdlog::info("Trying to grab along z-axis");
+        // should be FS_scalarProduct ZX, but that is undefined. this here is equivalent
+        komo.addObjective({start, start}, FS_scalarProductYY, {obj, ee}, OT_eq,
+                          {1e1}, {0.});
+
+        if (obj_size(1) > max_grabbable_width){
+          spdlog::warn("Unlikely to be able to grab with these constraints, since the obejct is too big.");
+        }
+      }
     }
   }
 }
