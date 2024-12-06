@@ -741,8 +741,12 @@ int main(int argc, char **argv) {
         export_plan(C, robots, home_poses, plan.plan, seq, buffer.str(),
                     seq_num, duration);
 
-        if (display) {
-          visualize_plan(C, plan.plan);
+        if (global_params.export_images) {
+          const std::string image_path = global_params.output_path + buffer.str() +
+                                        "/" + std::to_string(0) + "/img/";
+          visualize_plan(C, plan.plan, global_params.allow_display, image_path);
+        } else {
+          visualize_plan(C, plan.plan, global_params.allow_display);
         }
       } else {
         spdlog::warn("No solution found for given sequence.");
