@@ -133,6 +133,8 @@ std::vector<Robot> make_robot_environment_from_json(
       C.setJointState(state);
     }
 
+    arr start_pose = C.getJointState();
+
     // check if speed is set, otherwise use default
     double vmax = 0.05;
     if (item.value().contains("vmax")) {
@@ -149,6 +151,7 @@ std::vector<Robot> make_robot_environment_from_json(
 
     robots.push_back(Robot(prefix.p, robot_type, vmax));
     robots.back().home_pose = home_pose;
+    robots.back().start_pose = start_pose;
     robots.back().ee_type = ee;
 
     ++cnt;
@@ -352,6 +355,7 @@ std::vector<Robot> tub_lab_setting(rai::Configuration &C) {
 
     robots.push_back(Robot(prefix.p, RobotType::panda, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().start_pose = C.getJointState();
     robots.back().ee_type = EndEffectorType::two_finger;
   }
 
@@ -505,6 +509,7 @@ std::vector<Robot> make_configuration_from_base_pose_and_quat(
 
     robots.push_back(Robot(prefix.p, RobotType::ur5, 0.05));
     robots.back().home_pose = C.getJointState();
+    robots.back().start_pose = C.getJointState();
     robots.back().ee_type = ee;
   }
 

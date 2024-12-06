@@ -134,6 +134,7 @@ public:
   RobotType type;
   EndEffectorType ee_type;
 
+  arr start_pose;
   arr home_pose;
   double vmax = 0.05;
 };
