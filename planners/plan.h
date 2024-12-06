@@ -215,17 +215,21 @@ rai::Animation make_animation_from_plan(const Plan &plan) {
 arr get_robot_pose_at_time(const uint t, const Robot &r,
                            const std::unordered_map<Robot, arr> &home_poses,
                            const Plan &plan) {
-  bool all_plans_start_after_t = true;
-  for (const auto &part : plan.at(r)) {
-    if (part.t(0) < t) {
-      all_plans_start_after_t = false;
-    }
-  }
-  if (all_plans_start_after_t){
+  if (plan.count(r) == 0){
     return r.start_pose;
   }
-
+  
   if (plan.count(r) > 0) {
+    bool all_plans_start_after_t = true;
+    for (const auto &part : plan.at(r)) {
+      if (part.t(0) < t) {
+        all_plans_start_after_t = false;
+      }
+    }
+    if (all_plans_start_after_t){
+      return r.start_pose;
+    }
+
     for (const auto &part : plan.at(r)) {
       // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
       if (part.t(0) > t || part.t(-1) < t) {
