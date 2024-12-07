@@ -16,6 +16,7 @@
 // - reduce code duplication of actual solver and subproblem
 std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
                                   rai::String obj, rai::String goal) {
+  spdlog::info("Solving subproblem for handover");
   std::unordered_map<Robot, FrameL> robot_frames;
   for (const auto &r : {r1, r2}) {
     robot_frames[r] = get_robot_joints(C, r);
@@ -245,6 +246,7 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
     const double eq = komo.getReport(false).get<double>("eq");
 
     if (res1->isFeasible && res2->isFeasible && ineq < 1. && eq < 1.) {
+      spdlog::debug("found solution for subproblem.");
       // komo.pathConfig.watch(true);
       const auto home = C.getJointState();
 
@@ -256,6 +258,9 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
       // std::cout << place_pose << std::endl;
 
       C.setJointState(home);
+
+      // C.watch(true);
+
       return {pick_pose, q1};
     } else {
       spdlog::debug("pick/place failed for robot {} and {}, obj {} ineq: "
@@ -301,9 +306,14 @@ public:
   sample(const Robot r1, const Robot r2, const rai::String obj,
          const rai::String goal,
          const PickDirection pick_direction_1 = PickDirection::NegZ,
-         const PickDirection pick_direction_2 = PickDirection::NegZ) {
+         const PickDirection pick_direction_2 = PickDirection::NegZ,
+         const bool sample_pick=true) {
     spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
                  r2.prefix, obj.p);
+
+    if (!sample_pick){
+      spdlog::debug("Not optimizing the pick pose.");
+    }
 
     std::unordered_map<Robot, FrameL> robot_frames;
     for (const auto &r : {r1, r2}) {
@@ -335,7 +345,10 @@ public:
       return {};
     }
 
-    const auto subproblem_sol = solve_subproblem(C, r1, r2, obj, goal);
+    std::vector<arr> subproblem_sol;
+    if (sample_pick){
+      subproblem_sol = solve_subproblem(C, r1, r2, obj, goal);
+    }
 
     KOMO komo;
     // komo.verbose = 5;
@@ -375,15 +388,20 @@ public:
     const uint handover_phase = 2;
     const uint place_phase = 3;
 
-    Skeleton S = {
-        // {1., 2., SY_touch, {r1_pen_tip, obj}},
-        {1., 2, SY_stable, {r1_pen_tip, obj}},
-        // {2., -1., SY_touch, {r2_pen_tip, obj}},
-        {2., 3., SY_stable, {r2_pen_tip, obj}},
-        {3., -1, SY_poseEq, {obj, goal}},
-        // {3., -1, SY_positionEq, {obj, goal}}
-        // {3., -1, SY_stable, {obj, goal}},
-    };
+    Skeleton S;
+    S.append({1., 2, SY_stable, {r1_pen_tip, obj}});
+    S.append({2., 3., SY_stable, {r2_pen_tip, obj}});
+    S.append({3., -1, SY_poseEq, {obj, goal}});
+
+    // Skeleton S = {
+    //     // {1., 2., SY_touch, {r1_pen_tip, obj}},
+    //     {1., 2, SY_stable, {r1_pen_tip, obj}},
+    //     // {2., -1., SY_touch, {r2_pen_tip, obj}},
+    //     {2., 3., SY_stable, {r2_pen_tip, obj}},
+    //     {3., -1, SY_poseEq, {obj, goal}},
+    //     // {3., -1, SY_positionEq, {obj, goal}}
+    //     // {3., -1, SY_stable, {obj, goal}},
+    // };
 
     komo.setSkeleton(S);
 
@@ -395,8 +413,13 @@ public:
     // {1e2}, {0.0, 0.0, 0.0, 0.0}); komo.addObjective({2., 2.}, FS_aboveBox,
     // {obj, r2_pen_tip}, OT_ineq, {1e2}, {0.1, 0.1, 0.1, 0.1});
 
-    add_pick_constraints(komo, pick_phase, pick_phase, r1_pen_tip, r1.ee_type,
-                         obj, pick_direction_1, C[obj]->shape->size);
+    // constraints for picking
+    if (sample_pick){
+      add_pick_constraints(komo, pick_phase, pick_phase, r1_pen_tip, r1.ee_type,
+                          obj, pick_direction_1, C[obj]->shape->size);
+    }
+
+    // constraints for the handover
     add_pick_constraints(komo, handover_phase, handover_phase, r2_pen_tip,
                          r2.ee_type, obj, pick_direction_2,
                          C[obj]->shape->size);
@@ -414,6 +437,11 @@ public:
         }
         komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
                           OT_sos, {1e-1}, NoArr); // world.q, prec);
+      
+        if (!sample_pick){
+          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, true), {},
+                          OT_eq, {1e1}, NoArr); // world.q, prec);
+        }
       }
     }
 
@@ -424,6 +452,7 @@ public:
 
     const uint max_attempts = 10;
     for (uint j = 0; j < max_attempts; ++j) {
+      spdlog::debug("Attempting to solve {}th time", j);
       // reset komo to initial state
       komo.pathConfig.setJointState(inital_state);
       komo.x = inital_state;
@@ -435,6 +464,7 @@ public:
 
       uint r1_cnt = 0;
       uint r2_cnt = 0;
+      spdlog::debug("initializing bases to face boxes");
       for (const auto aj : komo.pathConfig.activeJoints) {
         const uint ind = aj->qIndex;
         if (aj->frame->name.contains(r1_base_joint_name.c_str()) &&
@@ -470,10 +500,12 @@ public:
 
       // initialize stuff
       if (subproblem_sol.size() > 0) {
+        spdlog::debug("setting solution from subproblem");
         uintA r1IDs;
         for (const rai::Frame *f : robot_frames[r1]) {
           r1IDs.append(f->ID);
         }
+        std::cout << subproblem_sol[0] << std::endl;
         komo.pathConfig.setJointStateSlice(subproblem_sol[0], 1, r1IDs);
 
         uintA f2IDs;
@@ -483,12 +515,14 @@ public:
         for (const rai::Frame *f : robot_frames[r2]) {
           f2IDs.append(f->ID);
         }
+        std::cout << subproblem_sol[1] << std::endl;
         komo.pathConfig.setJointStateSlice(subproblem_sol[1], 2, f2IDs);
 
         // komo.pathConfig.watch(true);
       }
 
       // initialize object pose to start and goal respectively
+      spdlog::debug("Setting object poses");
       uintA objID;
       objID.append(C[obj]->ID);
       rai::Frame *obj1 =
@@ -506,6 +540,7 @@ public:
 
       // komo.pathConfig.watch(true);
 
+      spdlog::debug("Initialized values, running optimizer");
       komo.run_prepare(0.0, false);
 
       komo.run(options);
@@ -580,7 +615,7 @@ public:
 
         return {pick_pose, q1, place_pose};
       } else {
-        spdlog::debug("pick/place failed for robot {} and {}, obj {} ineq: "
+        spdlog::debug("handover failed for robot {} and {}, obj {} ineq: "
                       "{:03.2f} eq: {:03.2f}",
                       r1.prefix, r2.prefix, obj, ineq, eq);
         spdlog::debug("Collisions: pose 1 coll: {0}, pose 2 coll: {1}, pose "
@@ -649,8 +684,27 @@ compute_all_handover_poses(rai::Configuration C,
   HandoverSampler sampler(C);
   RobotTaskPoseMap rtpm;
 
+  // check if we are currently holding an object with the robot that we are computing the keyframe for
+  std::vector<std::pair<Robot, rai::String>> held_objs;
+  for (const Robot &r : robots) {
+    for (const auto &c: sampler.C[STRING(r.prefix + "pen_tip")]->children){
+      std::cout << c->name << std::endl;
+      if (c->name.contains("obj")){
+        held_objs.push_back(std::make_pair(r, c->name));
+      }
+    }
+  }
+
   for (const auto &r1 : robots) {
     for (const auto &r2 : robots) {
+      for (const auto &robot_obj_pair: held_objs){
+        if (r1 == robot_obj_pair.first || r2 == robot_obj_pair.first){
+          // if we are planning keyframes for this robot, and the robot is holding something, 
+          // we need to disable the collision for this object
+          sampler.C[robot_obj_pair.second]->setContact(0);
+          break;
+        }
+      }
 
       if (r1 == r2) {
         continue;
@@ -659,11 +713,29 @@ compute_all_handover_poses(rai::Configuration C,
       setActive(C, std::vector<Robot>{r1, r2});
 
       for (uint i = 0; i < num_objects; ++i) {
-        spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
-                     r2.prefix, i + 1);
-
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
+
+        bool is_held_by_other_robot = false;
+        bool is_held_by_this_robot = false;
+        for (const auto &robot_obj_pair: held_objs){
+          if (robot_obj_pair.second == obj && (robot_obj_pair.first != r1)){
+            is_held_by_other_robot = true;
+            break;
+          }
+          if (robot_obj_pair.second == obj && robot_obj_pair.first == r1){
+            is_held_by_this_robot = true;
+            break;
+          }
+
+        }
+
+        if (is_held_by_other_robot){
+          continue;
+        }
+
+        spdlog::info("computing handover for {0}, {1}, obj {2}", r1.prefix,
+                     r2.prefix, i + 1);
 
         const auto obj_quat = C[obj]->getRelativeQuaternion();
 
@@ -684,7 +756,7 @@ compute_all_handover_poses(rai::Configuration C,
         for (const auto &dirs : reordered_directions) {
 
           const auto sol =
-              sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second);
+              sampler.sample(r1, r2, obj, goal, dirs.first, dirs.second, !is_held_by_this_robot);
 
           // const auto sol = compute_handover_pose(C, r1, r2, obj, goal);
 
@@ -700,6 +772,16 @@ compute_all_handover_poses(rai::Configuration C,
           else {
             spdlog::info("Could not find a solution.");
           }
+        }
+      
+      }
+
+      for (const auto &robot_obj_pair: held_objs){
+        if (r1 == robot_obj_pair.first || r2 == robot_obj_pair.first){
+          // if we are planning keyframes for this robot, and the robot is holding something, 
+          // we need to disable the collision for this object
+          sampler.C[robot_obj_pair.second]->setContact(1);
+          break;
         }
       }
     }

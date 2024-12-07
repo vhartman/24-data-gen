@@ -40,8 +40,6 @@ public:
 
   void add_place_contraint_and_objectives() {}
 
-  // enum class PickDirection {PosX, NegX, PosY, NegY, PosZ, NegZ};
-
   TaskPoses sample(const Robot r, const rai::String obj, const rai::String goal,
                    const PickDirection pick_direction = PickDirection::NegZ,
                    const bool sample_only_place = false) {
@@ -59,7 +57,7 @@ public:
     // For now: hardcode the radius of the ur5
     if (euclideanDistance(obj_pos, r1_pos) > 1. ||
         euclideanDistance(goal_pos, r1_pos) > 1.) {
-      spdlog::info("Skipping pick keyframe copmutation for obj {} and "
+      spdlog::info("Skipping pick keyframe computation for obj {} and "
                    "robot {}",
                    obj, r.prefix);
       return {};
@@ -71,9 +69,6 @@ public:
     // komo.pathConfig.fcl()->deactivatePairs(pairs);
 
     uint total_phases = 2;
-    if (sample_only_place) {
-      total_phases = 1;
-    }
 
     komo.setDiscreteOpt(total_phases);
     // komo.animateOptimization = 3;
@@ -96,16 +91,9 @@ public:
     double pick_phase = 1;
     double place_phase = 2;
 
-    if (sample_only_place) {
-      place_phase = 1;
-    }
-
     Skeleton S;
-    if (!sample_only_place)
-      S.append({pick_phase, place_phase, SY_stable, {pen_tip, obj}});
+    S.append({pick_phase, place_phase, SY_stable, {pen_tip, obj}});
     S.append({place_phase, place_phase, SY_poseEq, {obj, goal}});
-    //   {1., 1., SY_touch, {pen_tip, obj}},
-    // {2., -1, SY_positionEq, {obj, goal}},
 
     komo.setSkeleton(S);
 
@@ -126,6 +114,12 @@ public:
         }
         komo.addObjective({0, 3}, make_shared<F_qItself>(bodies, true), {},
                           OT_sos, {1e0}, NoArr); // world.q, prec);
+
+        // enforce that the position of the robot is the same
+        if (sample_only_place){
+          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, true), {},
+                          OT_eq, {1e1}, NoArr); // world.q, prec);
+        }
       }
     }
 
@@ -261,12 +255,48 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
 
   PickAndPlaceSampler sampler(C);
 
+  // check if we are currently holding an object with the robot that we are computing the keyframe for
+  std::vector<std::pair<Robot, rai::String>> held_objs;
   for (const Robot &r : robots) {
-    setActive(C, r);
+    for (const auto &c: sampler.C[STRING(r.prefix + "pen_tip")]->children){
+      std::cout << c->name << std::endl;
+      if (c->name.contains("obj")){
+        held_objs.push_back(std::make_pair(r, c->name));
+      }
+    }
+  }
+
+  for (const Robot &r : robots) {
+    for (const auto &robot_obj_pair: held_objs){
+      if (r == robot_obj_pair.first){
+        // if we are planning keyframes for this robot, and the robot is holding something, 
+        // we need to disable the collision for this object
+        sampler.C[robot_obj_pair.second]->setContact(0);
+        break;
+      }
+    }
 
     for (uint i = 0; i < num_objects; ++i) {
       const auto obj = STRING("obj" << i + 1);
       const auto goal = STRING("goal" << i + 1);
+
+      bool is_held_by_other_robot = false;
+      bool is_held_by_this_robot = false;
+      for (const auto &robot_obj_pair: held_objs){
+        if (robot_obj_pair.second == obj && robot_obj_pair.first != r){
+          is_held_by_other_robot = true;
+          break;
+        }
+        if (robot_obj_pair.second == obj && robot_obj_pair.first == r){
+          is_held_by_this_robot = true;
+          break;
+        }
+
+      }
+
+      if (is_held_by_other_robot){
+        continue;
+      }
 
       // TODO: figure out which direction is pointing in pos z-direction in
       // world frame, and prioritize this on in our search
@@ -296,17 +326,25 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
           continue;
         }
 
-        const auto sol = sampler.sample(r, obj, goal, dir);
+        const auto sol = sampler.sample(r, obj, goal, dir, is_held_by_this_robot);
 
         if (sol.size() > 0) {
           RobotTaskPair rtp;
           rtp.robots = {r};
           rtp.task = Task{.object = i, .type = PrimitiveType::pick};
           rtpm[rtp].push_back({sol[0], sol[1]});
+          spdlog::info("Found a solution");
           break;
         } else {
           spdlog::info("Did not find a solution");
         }
+      }
+    }
+    for (const auto &robot_obj_pair: held_objs){
+      if (r == robot_obj_pair.first){
+        // if we are planning keyframes for this robot, and the robot is holding something, 
+        // we need to re-enable the collision for this object
+        sampler.C[robot_obj_pair.second]->setContact(1);
       }
     }
   }

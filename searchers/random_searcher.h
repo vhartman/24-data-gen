@@ -55,6 +55,7 @@ Plan plan_multiple_arms_random_search(
 
     // check if the sequence was already evaluated at some point
     if (avoid_repeat_evaluations && all_sequences.count(seq) > 0) {
+      spdlog::info("Skipping sequence since it was already evaluated.");
       continue;
     }
     all_sequences.insert(seq);

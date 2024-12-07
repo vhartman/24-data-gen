@@ -747,13 +747,21 @@ void visualize_plan(rai::Configuration &C, const Plan &plan,
 
   const auto initial_frame_state = C.getFrameState();
 
+  // rai::Animation A = make_animation_from_plan(plan);
+
   arr framePath(makespan, C.frames.N, 7);
 
   // we can not simly use the animations that are in the path
   // since they do not contain all the frames.
   // Thus, we hve to retrieve the correct part, find the right time, and then
   // set the given configuration to this state.
+
+  // further, the obj handling is messy, and objs might initially be linked to a robot
+  std::unordered_map<std::string, arr> obj_poses;
   for (uint t = 0; t < makespan; ++t) {
+    // set it to the pose in which the plan thinks it should be
+    // A.setToTime(C, t); // this does not work at all
+
     for (const auto &tp : plan) {
       const auto r = tp.first;
       const auto parts = tp.second;
@@ -781,14 +789,19 @@ void visualize_plan(rai::Configuration &C, const Plan &plan,
               const auto pose =
                   part.anim.X[uint(std::floor(t - part.anim.start))];
               arr tmp(1, 7);
-              tmp[0] = pose[-1];
+              tmp[0] = pose[-1]; // the obj is always the last part of the pose
               C.setFrameState(tmp, {C[obj_name]});
+
+              obj_poses[std::string(obj_name.p)] = tmp;
             }
             break;
           }
         }
 
         if (done) {
+          for (const auto &obj_pose: obj_poses){
+            C.setFrameState(obj_pose.second, {C[STRING(obj_pose.first)]});
+          }
           framePath[t] = C.getFrameState();
           break;
         }

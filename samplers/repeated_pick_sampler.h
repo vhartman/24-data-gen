@@ -35,7 +35,8 @@ public:
                 const rai::String &obj, const rai::String &goal,
                 const PickDirection pick_direction_1 = PickDirection::NegZ,
                 const PickDirection intermediate_dir = PickDirection::PosZ,
-                const PickDirection pick_direction_2 = PickDirection::NegZ) {
+                const PickDirection pick_direction_2 = PickDirection::NegZ,
+                const bool sample_pick = true) {
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
@@ -57,8 +58,11 @@ public:
 
     komo.setSkeleton(S);
 
-    add_pick_constraints(komo, 1., 2., r1_pen_tip, r1.ee_type, obj,
-                         pick_direction_1, C[obj]->shape->size);
+    if(sample_pick){
+      add_pick_constraints(komo, 1., 2., r1_pen_tip, r1.ee_type, obj,
+                          pick_direction_1, C[obj]->shape->size);
+    }
+
     add_pick_constraints(komo, 3., 4., r2_pen_tip, r2.ee_type, obj,
                          pick_direction_2, C[obj]->shape->size);
 
@@ -106,6 +110,11 @@ public:
         }
         komo.addObjective({0, 5}, make_shared<F_qItself>(bodies, true), {},
                           OT_sos, {1e1}, NoArr); // world.q, prec);
+
+        if (!sample_pick){
+          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, true), {},
+                            OT_eq, {1e1}, NoArr); // world.q, prec);
+        }
       }
     }
   }
@@ -114,7 +123,8 @@ public:
   sample(const Robot &r1, const Robot &r2, const rai::String &obj,
          const rai::String &goal, const PickDirection pd1 = PickDirection::NegZ,
          const PickDirection intermediate_direction = PickDirection::NegZ,
-         const PickDirection pd2 = PickDirection::NegZ) {
+         const PickDirection pd2 = PickDirection::NegZ,
+         const bool sample_pick = true) {
     setActive(C, std::vector<Robot>{r1, r2});
     std::unordered_map<Robot, FrameL> robot_frames;
     for (const auto &r : {r1, r2}) {
@@ -181,7 +191,7 @@ public:
     komo.add_jointLimits(true, 0., 1e1);
 
     // add constraints and costs for alignment
-    setup_problem(komo, r1, r2, obj, goal, pd1, intermediate_direction, pd2);
+    setup_problem(komo, r1, r2, obj, goal, pd1, intermediate_direction, pd2, sample_pick);
 
     const auto r1_pen_tip = STRING(r1 << "pen_tip");
     const auto r2_pen_tip = STRING(r2 << "pen_tip");
@@ -367,8 +377,27 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
 
   RepeatedPickSampler sampler(C);
 
+  std::vector<std::pair<Robot, rai::String>> held_objs;
+  for (const Robot &r : robots) {
+    for (const auto &c : sampler.C[STRING(r.prefix + "pen_tip")]->children) {
+      std::cout << c->name << std::endl;
+      if (c->name.contains("obj")) {
+        held_objs.push_back(std::make_pair(r, c->name));
+      }
+    }
+  }
+
   for (const auto &r1 : robots) {
     for (const auto &r2 : robots) {
+      for (const auto &robot_obj_pair: held_objs){
+        if (r1 == robot_obj_pair.first || r2 == robot_obj_pair.first){
+          // if we are planning keyframes for this robot, and the robot is holding something, 
+          // we need to disable the collision for this object
+          sampler.C[robot_obj_pair.second]->setContact(0);
+          break;
+        }
+      }
+
       // if (r1 == r2 && !allow_repeated_handling) {
       //   continue;
       // }
@@ -377,27 +406,50 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
         const auto obj = STRING("obj" << i + 1);
         const auto goal = STRING("goal" << i + 1);
 
+        bool is_held_by_other_robot = false;
+        bool is_held_by_this_robot = false;
+        for (const auto &robot_obj_pair: held_objs){
+          if (robot_obj_pair.second == obj && robot_obj_pair.first != r1){
+            is_held_by_other_robot = true;
+            break;
+          }
+          if (robot_obj_pair.second == obj && robot_obj_pair.first == r1){
+            is_held_by_this_robot = true;
+            break;
+          }
+        }
+
+        if (is_held_by_other_robot){
+          continue;
+        }
+
         const auto obj_quat = C[obj]->getRelativeQuaternion();
         const auto goal_quat = C[goal]->getRelativeQuaternion();
 
-        std::vector<std::tuple<PickDirection, PickDirection, PickDirection>> reordered_directions;
-        for (const auto &d: all_directions){
-          if (euclideanDistance(dir_to_vec(std::get<0>(d)), -get_pos_z_axis_dir(obj_quat)) < 1e-6 || 
-              euclideanDistance(dir_to_vec(std::get<2>(d)), -get_pos_z_axis_dir(obj_quat)) < 1e-6 ){
+        std::vector<std::tuple<PickDirection, PickDirection, PickDirection>>
+            reordered_directions;
+        for (const auto &d : all_directions) {
+          if (euclideanDistance(dir_to_vec(std::get<0>(d)),
+                                -get_pos_z_axis_dir(obj_quat)) < 1e-6 ||
+              euclideanDistance(dir_to_vec(std::get<2>(d)),
+                                -get_pos_z_axis_dir(obj_quat)) < 1e-6) {
             reordered_directions.push_back(d);
           }
         }
 
-        for (const auto &dir: all_directions){
-          if (std::find(reordered_directions.begin(), reordered_directions.end(), dir) == reordered_directions.end()){
+        for (const auto &dir : all_directions) {
+          if (std::find(reordered_directions.begin(),
+                        reordered_directions.end(),
+                        dir) == reordered_directions.end()) {
             reordered_directions.push_back(dir);
           }
         }
 
         for (const auto &d : reordered_directions) {
           // C.watch(true);
-          // std::cout << "looking at  " << to_string(std::get<0>(d)) << std::endl;
-          // std::cout << "looking at " << to_string(std::get<2>(d)) << std::endl;
+          // std::cout << "looking at  " << to_string(std::get<0>(d)) <<
+          // std::endl; std::cout << "looking at " << to_string(std::get<2>(d))
+          // << std::endl;
 
           // std::cout << get_pos_z_axis_dir(obj_quat) << std::endl;
           // std::cout << get_pos_z_axis_dir(goal_quat) << std::endl;
@@ -406,13 +458,14 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
                                 get_pos_z_axis_dir(obj_quat)) < 1e-6 ||
               euclideanDistance(dir_to_vec(std::get<2>(d)),
                                 get_pos_z_axis_dir(goal_quat)) < 1e-6) {
-            // std::cout << "skipping " << to_string(std::get<0>(d)) << std::endl;
-            // std::cout << "skipping " << to_string(std::get<2>(d)) << std::endl;
+            // std::cout << "skipping " << to_string(std::get<0>(d)) <<
+            // std::endl; std::cout << "skipping " << to_string(std::get<2>(d))
+            // << std::endl;
             continue;
           }
 
           const auto sol = sampler.sample(r1, r2, obj, goal, std::get<0>(d),
-                                          std::get<1>(d), std::get<2>(d));
+                                          std::get<1>(d), std::get<2>(d), !is_held_by_this_robot);
 
           if (sol.size() > 0) {
             // std::cout << to_string(std::get<0>(d)) << " " <<
@@ -429,6 +482,14 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
             rtpm[rtp_2].push_back({sol[2], sol[3]});
             break;
           }
+        }
+      }
+      for (const auto &robot_obj_pair: held_objs){
+        if (r1 == robot_obj_pair.first || r2 == robot_obj_pair.first){
+          // if we are planning keyframes for this robot, and the robot is holding something, 
+          // we need to disable the collision for this object
+          sampler.C[robot_obj_pair.second]->setContact(1);
+          break;
         }
       }
     }

@@ -82,6 +82,18 @@ FrameL get_robot_frames(rai::Configuration &C, const Robot &robot) {
   }
   frames.append(roots);
 
+  // remove any objs that might otherwise beome part of the frame-list
+  FrameL objs_in_tree;
+  for (auto f: frames){
+    if (f->name.contains("obj")){
+      objs_in_tree.append(f);
+    }
+  }
+
+  for (const auto f: objs_in_tree){
+    frames.removeValue(f);
+  }
+
   return frames;
 }
 
@@ -618,7 +630,7 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   const bool should_shortcut = rai::getParameter<bool>("shortcutting", true);
 
   arr new_path = path;
-  if (should_shortcut){
+  if (should_shortcut && path.d0 > 2){
     spdlog::info("Running shortcutter");
     // for (uint i = 0; i < path.d0; ++i) {
     //   const auto res = TP.query(path[i], t(i));
@@ -1812,7 +1824,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
   for (const auto &p : paths) {
     const auto robot = p.first;
     // do not plan an exit path if
-    // -- ther is already one
+    // -- there is already one
     // -- there is no other path
     // -- we are planning for this robot next
     if (p.second.size() > 0 && !paths[robot].back().is_exit) {
@@ -1915,6 +1927,16 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     // const auto res = plan_task(CPlanner, sequence[i], rtpm,
     //                            best_makespan_so_far, home_poses,
     //                            prev_finishing_time, early_stopping, paths);
+
+    // TODO: fix this crap
+    // const auto obj = STRING("obj" << sequence[i].task.object + 1);
+    // auto to = CPlanner[obj];
+    // auto from = CPlanner["table_base"];
+
+    // to->unLink();
+
+    // // create a new joint
+    // to->linkFrom(from, true);
 
     if (res != PlanStatus::success) {
       spdlog::info("Failed planning");
