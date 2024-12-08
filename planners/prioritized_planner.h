@@ -990,7 +990,12 @@ class PrioritizedTaskPlanner {
             paths[r1].pop_back();
             removed_exit_path = true;
 
-            spdlog::info("New end time: {}", paths[r1].back().t(-1));
+            std::cout << "A" << std::endl;
+            int path_end_time = 0;
+            if (paths[r1].size() > 0){
+              path_end_time = paths[r1].back().t(-1);
+            }
+            spdlog::info("New end time: {}", path_end_time);
           }
 
           rai::Animation A = make_animation_from_plan(paths);
@@ -1010,16 +1015,20 @@ class PrioritizedTaskPlanner {
           setActive(CPlanner, r1);
           TP.A = A;
 
-          const arr pick_start_pose = (removed_exit_path) ? paths[r1].back().path[-1]: CPlanner.getJointState();
+          const arr pick_start_pose = (removed_exit_path && paths[r1].size() > 0) ? paths[r1].back().path[-1]: CPlanner.getJointState();
           const arr pick_pose = rtpm[rtp][0][0];
 
           // ensure that the start time is not too far away from the earliest end time:
-          uint pick_start_time = (paths.count(r1) > 0) ? paths[r1].back().t(-1): 0;
+          uint pick_start_time = (paths.count(r1) > 0 && paths[r1].size() > 0) ? paths[r1].back().t(-1): 0;
 
           if (removed_exit_path) {
             // if we removed the exit path, we always need to start planning from that time.
             // If we do not, other plans might become infeasible
-            pick_start_time = paths[r1].back().t(-1);
+            if (paths[r1].size() > 0){
+              pick_start_time = paths[r1].back().t(-1);}
+            else{
+              pick_start_time = 0;
+            }
           } else {
             // ensure that the difference between the previous finish and the 
             // start time of this plan is not too large.
@@ -1572,7 +1581,12 @@ class PrioritizedTaskPlanner {
           paths[robot].pop_back();
           removed_exit_path = true;
 
-          spdlog::info("New end time: {}", paths[robot].back().t(-1));
+          int new_end_time = 0;
+          if (paths[robot].size() > 0){
+            new_end_time = paths[robot].back().t(-1);
+          }
+
+          spdlog::info("New end time: {}", new_end_time);
         }
 
         for (uint j = 0; j < poses.size(); ++j) {
@@ -1585,7 +1599,9 @@ class PrioritizedTaskPlanner {
             start_time = paths[robot].back().t(-1);
           } else {
             setActive(CPlanner, robot);
-            start_pose = CPlanner.getJointState();
+            // start_pose = CPlanner.getJointState();
+            start_pose = robot.start_pose;
+            // CPlanner.watch(true);
             start_time = 0;
 
             if (prev_finishing_time > max_start_time_shift + 1) {
@@ -1833,6 +1849,14 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     }
   }
 
+  for (const auto &hp: home_poses){
+    const auto robot = hp.first;
+    if (euclideanDistance(robot.start_pose, robot.home_pose) > 1e-6){
+      spdlog::info("Planning an exit path for robot {} since it starts not at the home pose", robot.prefix);
+      robot_exit_paths.push_back({robot.prefix, 0});
+    }
+  }
+
   spdlog::info("Needing to plan {} exit paths.", robot_exit_paths.size());
   std::sort(robot_exit_paths.begin(), robot_exit_paths.end(),
             [](const auto &left, const auto &right) { return left.second < right.second; });
@@ -1865,11 +1889,19 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     TP.C.fcl()->deactivatePairs(pairs);
     TP.C.fcl()->stopEarly = global_params.use_early_coll_check_stopping;
 
+    arr start_pose = robot.start_pose;
+    int task_index = 0;
+
+    if (paths.count(robot) > 0){
+      start_pose = paths[robot].back().path[-1];
+      task_index = paths[robot].back().task_index;
+    }
+
     auto exit_path =
-        plan_in_animation(TP, p.second, paths[robot].back().path[-1],
+        plan_in_animation(TP, p.second, start_pose,
                           home_poses.at(robot), p.second + 5, robot, true);
     exit_path.r = robot;
-    exit_path.task_index = paths[robot].back().task_index;
+    exit_path.task_index = task_index;
     exit_path.is_exit = true;
     exit_path.name = "exit";
 
@@ -1912,8 +1944,13 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
       if (plans.size() > 0) {
         if (plans.back().is_exit) {
           // if a path is an exit, we are looking at the maximum non-exit time
-          prev_finishing_time = std::max(
-              {uint(plans[plans.size() - 2].t(-1)), prev_finishing_time});
+          if (plans.size() > 1){
+            prev_finishing_time = std::max(
+                {uint(plans[plans.size() - 2].t(-1)), prev_finishing_time});
+          }
+          else{ // the first path can be an exit path that leads from the start pose to the home pose
+            prev_finishing_time = 0;
+          }
         } else {
           // else, we are looking at the final current time
           prev_finishing_time = std::max(
