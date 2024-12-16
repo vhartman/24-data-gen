@@ -117,8 +117,8 @@ public:
 
         // enforce that the position of the robot is the same
         if (sample_only_place){
-          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, true), {},
-                          OT_eq, {1e1}, NoArr); // world.q, prec);
+          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, false), {},
+                          OT_eq, {1e1}, komo.world.getJointState());
         }
       }
     }
@@ -291,7 +291,6 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
           is_held_by_this_robot = true;
           break;
         }
-
       }
 
       if (is_held_by_other_robot){

@@ -99,8 +99,14 @@ public:
 
     // homing
     if (true) {
-      for (const auto &base_name : {r1.prefix, r2.prefix}) {
-        uintA bodies;
+      uintA bodies;
+
+      std::vector<std::string> roots = {r1.prefix, r2.prefix};
+      if (r1.prefix == r2.prefix){
+        roots = {r1.prefix};
+      }
+
+      for (const auto &base_name : roots) {
         rai::Joint *j;
         for (rai::Frame *f : komo.world.frames) {
           if ((j = f->joint) && j->qDim() > 0 &&
@@ -108,13 +114,13 @@ public:
             bodies.append(f->ID);
           }
         }
-        komo.addObjective({0, 5}, make_shared<F_qItself>(bodies, true), {},
-                          OT_sos, {1e1}, NoArr); // world.q, prec);
+      }
+      komo.addObjective({0, 5}, make_shared<F_qItself>(bodies, true), {},
+                        OT_sos, {1e1}, NoArr); // world.q, prec);
 
-        if (!sample_pick){
-          komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, true), {},
-                            OT_eq, {1e1}, NoArr); // world.q, prec);
-        }
+      if (!sample_pick){
+        komo.addObjective({0, 1}, make_shared<F_qItself>(bodies, false), {},
+                        OT_eq, {1e1}, komo.world.getJointState());
       }
     }
   }
