@@ -508,7 +508,7 @@ public:
         for (const rai::Frame *f : robot_frames[r1]) {
           r1IDs.append(f->ID);
         }
-        std::cout << subproblem_sol[0] << std::endl;
+        // std::cout << subproblem_sol[0] << std::endl;
         komo.pathConfig.setJointStateSlice(subproblem_sol[0], 1, r1IDs);
 
         uintA f2IDs;
@@ -518,7 +518,7 @@ public:
         for (const rai::Frame *f : robot_frames[r2]) {
           f2IDs.append(f->ID);
         }
-        std::cout << subproblem_sol[1] << std::endl;
+        // std::cout << subproblem_sol[1] << std::endl;
         komo.pathConfig.setJointStateSlice(subproblem_sol[1], 2, f2IDs);
 
         // komo.pathConfig.watch(true);
@@ -691,7 +691,7 @@ compute_all_handover_poses(rai::Configuration C,
   std::vector<std::pair<Robot, rai::String>> held_objs;
   for (const Robot &r : robots) {
     for (const auto &c: sampler.C[STRING(r.prefix + "pen_tip")]->children){
-      std::cout << c->name << std::endl;
+      // std::cout << c->name << std::endl;
       if (c->name.contains("obj")){
         held_objs.push_back(std::make_pair(r, c->name));
       }

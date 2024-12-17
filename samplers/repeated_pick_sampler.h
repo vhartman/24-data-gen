@@ -43,18 +43,18 @@ public:
 
     const auto link_to_frame = STRING("table");
 
-    Skeleton S = {
-        {1., 2., SY_touch, {r1_pen_tip, obj}},
-        {1., 2, SY_stable, {r1_pen_tip, obj}},
+    Skeleton S;
 
-        // {2., 3., SY_touch, {obj, "table"}},
-        {2., 3., SY_stable, {link_to_frame, obj}},
+    S.append({1., 2., SY_touch, {r1_pen_tip, obj}});
+    S.append({1., 2, SY_stable, {r1_pen_tip, obj}});
 
-        {3., 4., SY_stable, {r2_pen_tip, obj}},
+    if (komo.T >= 3)
+    S.append({2., 3., SY_stable, {link_to_frame, obj}});
 
-        {4., -1, SY_poseEq, {obj, goal}},
-        // {3., -1, SY_positionEq, {obj, goal}}
-    };
+    if (komo.T >= 4)
+    S.append({3., 4., SY_stable, {r2_pen_tip, obj}});
+
+    S.append({4., -1, SY_poseEq, {obj, goal}});
 
     komo.setSkeleton(S);
 
@@ -158,33 +158,50 @@ public:
       return {};
     }
 
-    // TODO: solve subproblems to check for feasibility.
-    // {
-    //   KOMO komo;
-    //   komo.verbose = 0;
-    //   komo.setModel(C, true);
-    //   // komo.animateOptimization = 5;
+    if (pd1 == intermediate_direction || pd2 == intermediate_direction) {
+      spdlog::info(
+          "Skipping pickpick keyframe computatoin for obj {} and robots {}, {} "
+          "since we can not grasp and place in the same direction.",
+          obj.p, r1.prefix, r2.prefix);
+      return {};
+    }
 
-    //   komo.setDiscreteOpt(4);
+    // solve simpler subproblem to check for feasibility.
+    {
+      KOMO komo;
+      komo.verbose = 0;
+      komo.setModel(C, false);
+      // komo.animateOptimization = 5;
 
-    //   setup_problem(komo, r1, r2, obj, goal);
-    //   komo.run_prepare(0.00001, false);
-    //   komo.run(options);
+      komo.setDiscreteOpt(2);
 
-    //   // komo.pathConfig.watch(true);
+      // omit collision
+      // komo.add_collision(true, .05, 1e1);
+      komo.add_jointLimits(true, 0., 1e1);
 
-    //   const double ineq = komo.getReport(false).get<double>("ineq");
-    //   const double eq = komo.getReport(false).get<double>("eq");
+      // add constraints and costs for alignment
+      setup_problem(komo, r1, r2, obj, goal, pd1, intermediate_direction, pd2, sample_pick);
+      komo.run_prepare(0.0, false);
 
-    //   if (ineq > 1 || eq > 1) {
-    //     // std::cout << ineq << " " << eq << std::endl;
-    //     spdlog::info("Skipping pickpick keyframe copmutation for obj {} and "
-    //                  "robots {}, {} since subproblem is infeasible",
-    //                  obj.p, r1.prefix, r2.prefix);
-    //     // komo.pathConfig.watch(true);
-    //     return {};
-    //   }
-    // }
+      auto subproblem_options = options;
+      subproblem_options.nonStrictSteps = 200;
+
+      komo.run(subproblem_options);
+
+      // komo.pathConfig.watch(true);
+
+      const double ineq = komo.getReport(false).get<double>("ineq");
+      const double eq = komo.getReport(false).get<double>("eq");
+
+      if (ineq > 1 || eq > 1) {
+        spdlog::debug("Ineq: " + std::to_string(ineq) + " Eq: " + std::to_string(eq));
+        spdlog::info("Skipping pickpick keyframe copmutation for obj {} and "
+                     "robots {}, {} since subproblem is infeasible",
+                     obj.p, r1.prefix, r2.prefix);
+        // komo.pathConfig.watch(true);
+        return {};
+      }
+    }
 
     KOMO komo;
     komo.verbose = 0;
@@ -291,7 +308,7 @@ public:
       const arr q3 = komo.getPath()[3]();
       // const arr q4 = komo.getPath()[4]();
 
-      //   komo.pathConfig.watch(true);
+      // komo.pathConfig.watch(true);
 
       // ensure via sampling as well
       // std::cout << q0 << std::endl;
@@ -386,7 +403,7 @@ RobotTaskPoseMap compute_all_pick_and_place_with_intermediate_pose(
   std::vector<std::pair<Robot, rai::String>> held_objs;
   for (const Robot &r : robots) {
     for (const auto &c : sampler.C[STRING(r.prefix + "pen_tip")]->children) {
-      std::cout << c->name << std::endl;
+      // std::cout << c->name << std::endl;
       if (c->name.contains("obj")) {
         held_objs.push_back(std::make_pair(r, c->name));
       }

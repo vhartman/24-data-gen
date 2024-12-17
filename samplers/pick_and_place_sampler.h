@@ -259,7 +259,7 @@ RobotTaskPoseMap compute_all_pick_and_place_positions(
   std::vector<std::pair<Robot, rai::String>> held_objs;
   for (const Robot &r : robots) {
     for (const auto &c: sampler.C[STRING(r.prefix + "pen_tip")]->children){
-      std::cout << c->name << std::endl;
+      // std::cout << c->name << std::endl;
       if (c->name.contains("obj")){
         held_objs.push_back(std::make_pair(r, c->name));
       }

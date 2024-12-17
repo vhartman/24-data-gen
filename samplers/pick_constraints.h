@@ -11,6 +11,25 @@
 // TODO: should likely make this shared
 enum class PickDirection { PosX, NegX, PosY, NegY, PosZ, NegZ };
 
+constexpr PickDirection operator!(PickDirection dir) {
+  switch (dir) {
+  case PickDirection::PosX:
+    return PickDirection::NegX;
+  case PickDirection::NegX:
+    return PickDirection::PosX;
+  case PickDirection::PosY:
+    return PickDirection::NegY;
+  case PickDirection::NegY:
+    return PickDirection::PosY;
+  case PickDirection::PosZ:
+    return PickDirection::NegZ;
+  case PickDirection::NegZ:
+    return PickDirection::PosZ;
+  }
+  // Optional: Add a default return or error handling
+  throw std::invalid_argument("Invalid PickDirection");
+}
+
 std::string to_string(PickDirection direction) {
   switch (direction) {
   case PickDirection::PosX:
