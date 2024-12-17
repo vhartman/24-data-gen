@@ -265,44 +265,55 @@ std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r,
 }
 
 void set_full_configuration_to_time(rai::Configuration &C, const Plan &plan,
-                                    const uint t) {
-  // std::cout << t << std::endl;
-  for (const auto &tp : plan) {
-    const auto r = tp.first;
-    const auto parts = tp.second;
+                                    const uint time) {
+  std::unordered_map<std::string, arr> obj_poses;
+  for (uint t = 0; t <= time; ++t) {
+    // set it to the pose in which the plan thinks it should be
+    // A.setToTime(C, t); // this does not work at all
 
-    bool done = false;
-    for (const auto &part : parts) {
-      // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-      if (part.t(0) > t || part.t(-1) < t) {
-        continue;
-      }
+    for (const auto &tp : plan) {
+      const auto r = tp.first;
+      const auto parts = tp.second;
 
-      for (uint i = 0; i < part.t.N - 1; ++i) {
-        if ((i == part.t.N - 1 && t == part.t(-1)) ||
-            (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
-          setActive(C, r);
-          C.setJointState(part.path[i]);
-          // std::cout <<part.path[i] << std::endl;
-          done = true;
+      bool done = false;
+      for (const auto &part : parts) {
+        // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+        if (part.t(0) > t || part.t(-1) < t) {
+          continue;
+        }
 
-          // set bin picking things
-          const auto task_index = part.task_index;
-          const auto obj_name = STRING("obj" << task_index + 1);
+        for (uint i = 0; i < part.t.N; ++i) {
+          if ((i == part.t.N - 1 && t == part.t(-1)) ||
+              (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+            setActive(C, r);
+            C.setJointState(part.path[i]);
+            // std::cout <<part.path[i] << std::endl;
+            done = true;
 
-          if (part.anim.frameNames.contains(obj_name)) {
-            const auto pose =
-                part.anim.X[uint(std::floor(t - part.anim.start))];
-            arr tmp(1, 7);
-            tmp[0] = pose[-1];
-            C.setFrameState(tmp, {C[obj_name]});
+            // set bin picking things
+            const auto task_index = part.task_index;
+            const auto obj_name = STRING("obj" << task_index + 1);
+
+            if (part.anim.frameNames.contains(obj_name)) {
+              const auto pose =
+                  part.anim.X[uint(std::floor(t - part.anim.start))];
+              arr tmp(1, 7);
+              tmp[0] = pose[-1]; // the obj is always the last part of the pose
+              C.setFrameState(tmp, {C[obj_name]});
+
+              obj_poses[std::string(obj_name.p)] = tmp;
+            }
+            break;
           }
+        }
+
+        if (done) {
+          for (const auto &obj_pose: obj_poses){
+            C.setFrameState(obj_pose.second, {C[STRING(obj_pose.first)]});
+          }
+          // framePath[t] = C.getFrameState();
           break;
         }
-      }
-
-      if (done) {
-        break;
       }
     }
   }
@@ -750,63 +761,9 @@ void visualize_plan(rai::Configuration &C, const Plan &plan,
   // rai::Animation A = make_animation_from_plan(plan);
 
   arr framePath(makespan, C.frames.N, 7);
-
-  // we can not simly use the animations that are in the path
-  // since they do not contain all the frames.
-  // Thus, we hve to retrieve the correct part, find the right time, and then
-  // set the given configuration to this state.
-
-  // further, the obj handling is messy, and objs might initially be linked to a robot
-  std::unordered_map<std::string, arr> obj_poses;
   for (uint t = 0; t < makespan; ++t) {
-    // set it to the pose in which the plan thinks it should be
-    // A.setToTime(C, t); // this does not work at all
-
-    for (const auto &tp : plan) {
-      const auto r = tp.first;
-      const auto parts = tp.second;
-
-      bool done = false;
-      for (const auto &part : parts) {
-        // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
-        if (part.t(0) > t || part.t(-1) < t) {
-          continue;
-        }
-
-        for (uint i = 0; i < part.t.N; ++i) {
-          if ((i == part.t.N - 1 && t == part.t(-1)) ||
-              (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
-            setActive(C, r);
-            C.setJointState(part.path[i]);
-            // std::cout <<part.path[i] << std::endl;
-            done = true;
-
-            // set bin picking things
-            const auto task_index = part.task_index;
-            const auto obj_name = STRING("obj" << task_index + 1);
-
-            if (part.anim.frameNames.contains(obj_name)) {
-              const auto pose =
-                  part.anim.X[uint(std::floor(t - part.anim.start))];
-              arr tmp(1, 7);
-              tmp[0] = pose[-1]; // the obj is always the last part of the pose
-              C.setFrameState(tmp, {C[obj_name]});
-
-              obj_poses[std::string(obj_name.p)] = tmp;
-            }
-            break;
-          }
-        }
-
-        if (done) {
-          for (const auto &obj_pose: obj_poses){
-            C.setFrameState(obj_pose.second, {C[STRING(obj_pose.first)]});
-          }
-          framePath[t] = C.getFrameState();
-          break;
-        }
-      }
-    }
+    set_full_configuration_to_time(C, plan, t);
+    framePath[t] = C.getFrameState();
   }
 
   spdlog::debug("Finished assembling framepath.");
