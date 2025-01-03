@@ -600,6 +600,18 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (mode == "show_env_at_home_pose") {
+    C.watch(true);
+    for (const auto &r : robots) {
+      setActive(C, r);
+      auto q = r.home_pose;
+      C.setJointState(q);
+    }
+    C.watch(true);
+
+    return 0;
+  }
+
   if (mode == "show_env_and_move_manipulators") {
     C.watch(true);
 
