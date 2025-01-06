@@ -151,7 +151,7 @@ arr plan_with_komo_given_horizon(const rai::Animation &A, rai::Configuration &C,
   // make pen tip go a way from the table
   const double offset = 0.1;
   komo.addObjective({0.3, 0.7}, FS_distance,
-                    {"table", STRING(r.prefix << "pen_tip")}, OT_ineq, {1e0},
+                    {"table", STRING(r.prefix << r.ee_frame_name)}, OT_ineq, {1e0},
                     {-offset});
   // komo.addObjective({0.1, 0.8}, FS_distance,
   //                  {"table", STRING(prefix << "pen_tip")}, OT_sos, {1e1});
@@ -1128,7 +1128,7 @@ class PrioritizedTaskPlanner {
           // const arr pick_pose = rtpm[rtp][0][0];
           // CPlanner.setJointState(pick_pose);
           // CPlanner.watch(true);
-          const auto pen_tip = STRING(r1 << "pen_tip");
+          const auto pen_tip = STRING(r1 << r1.ee_frame_name);
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto from = CPlanner[pen_tip];
@@ -1364,7 +1364,7 @@ class PrioritizedTaskPlanner {
           CPlanner.setJointState(paths[r2].back().path[-1]);
           
           // CPlanner.watch(true);
-          const auto pen_tip = STRING(r2 << "pen_tip");
+          const auto pen_tip = STRING(r2 << r2.ee_frame_name);
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto from = CPlanner[pen_tip];
@@ -1473,7 +1473,7 @@ class PrioritizedTaskPlanner {
           setActive(CPlanner, r2);
           CPlanner.setJointState(paths[r2].back().path[-1]);
             // CPlanner.watch(true);
-          const auto pen_tip = STRING(r2 << "pen_tip");
+          const auto pen_tip = STRING(r2 << r2.ee_frame_name);
           const auto obj = STRING("obj" << rtp.task.object + 1);
 
           auto to = CPlanner[obj];
@@ -1714,7 +1714,7 @@ class PrioritizedTaskPlanner {
           if (is_bin_picking) {
             A.setToTime(CPlanner, path.t(-1));
             CPlanner.setJointState(path.path[-1]);
-            const auto pen_tip = STRING(robot << "pen_tip");
+            const auto pen_tip = STRING(robot << robot.ee_frame_name);
             const auto obj = STRING("obj" << task + 1);
 
             if (j == 0) {
@@ -1849,8 +1849,23 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
     }
   }
 
+  // TODO: only do this if the robot is not holding something currently
+  // valid home pose is only assumed if the robot is not holding something
   for (const auto &hp: home_poses){
     const auto robot = hp.first;
+    // check if we want a path to the home pose at all: 
+    // - at the moment, we only do this if we do not hold something.
+    bool robot_holds_something = false;
+    for (const auto &c: C[STRING(robot.prefix + robot.ee_frame_name)]->children){
+      // std::cout << c->name << std::endl;
+      if (c->name.contains("obj")){
+        robot_holds_something = true;
+      }
+    }
+    if (robot_holds_something){
+      continue;
+    }
+
     if (euclideanDistance(robot.start_pose, robot.home_pose) > 1e-6){
       spdlog::info("Planning an exit path for robot {} since it starts not at the home pose", robot.prefix);
       robot_exit_paths.push_back({robot.prefix, 0});

@@ -38,8 +38,8 @@ public:
                 const PickDirection pick_direction_2 = PickDirection::NegZ,
                 const bool sample_pick = true) {
 
-    const auto r1_pen_tip = STRING(r1 << "pen_tip");
-    const auto r2_pen_tip = STRING(r2 << "pen_tip");
+    const auto r1_pen_tip = STRING(r1 << r1.ee_frame_name);
+    const auto r2_pen_tip = STRING(r2 << r1.ee_frame_name);
 
     const auto link_to_frame = STRING("table");
 

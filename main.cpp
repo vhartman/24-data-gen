@@ -234,26 +234,27 @@ OrderedTaskSequence make_pick_pick_seq(const std::vector<Robot> &robots,
   return seq;
 }
 
-RobotTaskPoseMap compute_keyframes(rai::Configuration &C,
-                                   const std::vector<Robot> &robots,
-                                   const bool use_picks = true,
-                                   const bool use_handovers = true,
-                                   const bool use_repeated_picks = true,
-                                   const bool attempt_all_grasp_directions=false) {
+RobotTaskPoseMap
+compute_keyframes(rai::Configuration &C, const std::vector<Robot> &robots,
+                  const bool use_picks = true, const bool use_handovers = true,
+                  const bool use_repeated_picks = true,
+                  const bool attempt_all_grasp_directions = false) {
   RobotTaskPoseMap robot_task_pose_mapping;
 
   if (use_picks) {
-    RobotTaskPoseMap pick_rtpm =
-        compute_all_pick_and_place_positions(C, robots, attempt_all_grasp_directions);
+    RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(
+        C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(pick_rtpm.begin(), pick_rtpm.end());
   }
   if (use_handovers) {
-    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
+    RobotTaskPoseMap handover_rtpm =
+        compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(handover_rtpm.begin(), handover_rtpm.end());
   }
   if (use_repeated_picks) {
     RobotTaskPoseMap pick_pick_rtpm =
-        compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
+        compute_all_pick_and_place_with_intermediate_pose(
+            C, robots, attempt_all_grasp_directions);
     robot_task_pose_mapping.insert(pick_pick_rtpm.begin(),
                                    pick_pick_rtpm.end());
   }
@@ -265,39 +266,40 @@ void export_keyframes() {}
 
 void set_to_mode_for_primitive(rai::Configuration &C, RobotTaskPair rtp,
                                TaskPoses poses, const uint phase) {
-  if (rtp.task.type == PrimitiveType::handover){
-    for (uint i=0; i<phase; ++i){
+  if (rtp.task.type == PrimitiveType::handover) {
+    for (uint i = 0; i < phase; ++i) {
       const auto pose = poses[i];
 
       // set all robots to their home-pose
-      for (const auto &r: rtp.robots){
+      for (const auto &r : rtp.robots) {
         setActive(C, r);
         C.setJointState(r.home_pose);
       }
 
-      if (i==0){
+      if (i == 0) {
         setActive(C, rtp.robots[0]);
         C.setJointState(pose);
 
-        const auto pen_tip = STRING(rtp.robots[0] << "pen_tip");
+        const auto ee_frame_name =
+            STRING(rtp.robots[0] << rtp.robots[0].ee_frame_name);
         const auto obj = STRING("obj" << rtp.task.object + 1);
 
-        auto from = C[pen_tip];
+        auto from = C[ee_frame_name];
         auto to = C[obj];
 
         to->unLink();
 
         // create a new joint
         to->linkFrom(from, true);
-      }
-      else if (i==1){
+      } else if (i == 1) {
         setActive(C, rtp.robots);
         C.setJointState(pose);
 
-        const auto pen_tip = STRING(rtp.robots[1] << "pen_tip");
+        const auto ee_frame_name =
+            STRING(rtp.robots[1] << rtp.robots[0].ee_frame_name);
         const auto obj = STRING("obj" << rtp.task.object + 1);
 
-        auto from = C[pen_tip];
+        auto from = C[ee_frame_name];
         auto to = C[obj];
 
         to->unLink();
@@ -335,10 +337,11 @@ void set_to_mode_for_primitive(rai::Configuration &C, RobotTaskPair rtp,
         setActive(C, rtp.robots[0]);
         C.setJointState(pose);
 
-        const auto pen_tip = STRING(rtp.robots[0] << "pen_tip");
+        const auto ee_frame_name =
+            STRING(rtp.robots[0] << rtp.robots[0].ee_frame_name);
         const auto obj = STRING("obj" << rtp.task.object + 1);
 
-        auto from = C[pen_tip];
+        auto from = C[ee_frame_name];
         auto to = C[obj];
 
         to->unLink();
@@ -387,7 +390,7 @@ void export_scene_at_keyframes(
 
       rai::Configuration c_copy = C;
 
-      set_to_mode_for_primitive(c_copy, rtp, poses, i+1);
+      set_to_mode_for_primitive(c_copy, rtp, poses, i + 1);
       c_copy.watch(true);
 
       // export json description of scene
@@ -400,19 +403,20 @@ void export_scene_at_keyframes(
   }
 }
 
-bool check_scene_validity(rai::Configuration C, const std::vector<Robot> &robots){
-  for (const auto &r: robots){
+bool check_scene_validity(rai::Configuration C,
+                          const std::vector<Robot> &robots) {
+  for (const auto &r : robots) {
     setActive(C, r);
     ConfigurationProblem cp(C);
 
     const bool is_current_pose_valid = cp.query({}, false)->isFeasible;
-    if (!is_current_pose_valid){
+    if (!is_current_pose_valid) {
       spdlog::info("The startpose of robot {} seems to be invalid", r.prefix);
       return false;
     }
 
     const bool is_home_pose_valid = cp.query(r.home_pose, true)->isFeasible;
-    if (!is_home_pose_valid){
+    if (!is_home_pose_valid) {
       spdlog::info("The homepose of robot {} seems to be invalid", r.prefix);
       return false;
     }
@@ -428,7 +432,7 @@ bool check_scene_validity(rai::Configuration C, const std::vector<Robot> &robots
 
 // this is to suppress a bunch of stacktracing
 extern "C" int backtrace(void **buffer, int size) {
-    return 0; // Prevent stack trace generation
+  return 0; // Prevent stack trace generation
 }
 
 int main(int argc, char **argv) {
@@ -440,8 +444,9 @@ int main(int argc, char **argv) {
   std::srand(seed);
 
   const bool suppress_errors = rai::getParameter<bool>("suppress_errors", true);
-  if (suppress_errors){
-    freopen("/dev/null", "w", stderr); // Redirects stderr to /dev/null (Linux/Unix systems)
+  if (suppress_errors) {
+    freopen("/dev/null", "w",
+            stderr); // Redirects stderr to /dev/null (Linux/Unix systems)
   }
 
   const bool display = rai::getParameter<bool>("display", false);
@@ -449,6 +454,9 @@ int main(int argc, char **argv) {
 
   const bool export_images = rai::getParameter<bool>("export_images", false);
   global_params.export_images = export_images;
+
+  const bool check_scene_validity_flag =
+      rai::getParameter<bool>("check_scene_validity", false);
 
   const bool allow_early_stopping =
       rai::getParameter<bool>("early_stopping", false);
@@ -487,7 +495,8 @@ int main(int argc, char **argv) {
       rai::getParameter<rai::String>("output_path", "./out/");
   global_params.output_path = std::string(output_path.p);
 
-  const bool attempt_all_grasp_directions = rai::getParameter<bool>("attempt_all_grasp_directions", false);
+  const bool attempt_all_grasp_directions =
+      rai::getParameter<bool>("attempt_all_grasp_directions", false);
 
   const bool use_picks = rai::getParameter<bool>("use_simple_picks", true);
 
@@ -591,7 +600,7 @@ int main(int argc, char **argv) {
   rai::Configuration C;
   std::vector<Robot> robots;
 
-  if (false){
+  if (false) {
     // TODO: implement, make sure that not both things can be active
     // robots = make_env_from_file(C, full_scene_path.p);
   } else {
@@ -647,13 +656,14 @@ int main(int argc, char **argv) {
         double ub = lims(i, 1);
         double lb = lims(i, 0);
 
-        if (lims(i, 1) < lims(i, 0)){
-          ub = 5; lb = -5;
+        if (lims(i, 1) < lims(i, 0)) {
+          ub = 5;
+          lb = -5;
         }
 
         const auto q_i_init = q(i);
-        for (uint j=0; j<100; ++j) {
-          q(i) = (ub - lb) * (cos(j*3.1415*2/(100 - 1)) / 2 + 0.5) + lb; 
+        for (uint j = 0; j < 100; ++j) {
+          q(i) = (ub - lb) * (cos(j * 3.1415 * 2 / (100 - 1)) / 2 + 0.5) + lb;
           C.setJointState(q);
 
           C.watch(false);
@@ -678,13 +688,14 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "repeated_pick") {
-    compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
+    compute_all_pick_and_place_with_intermediate_pose(
+        C, robots, attempt_all_grasp_directions);
     return 0;
   }
 
   if (mode == "repeated_pick_planning") {
-    const auto rtpm =
-        compute_all_pick_and_place_with_intermediate_pose(C, robots, attempt_all_grasp_directions);
+    const auto rtpm = compute_all_pick_and_place_with_intermediate_pose(
+        C, robots, attempt_all_grasp_directions);
     const auto test_sequence_for_repeated_manip =
         make_pick_pick_seq(robots, num_objects, rtpm);
 
@@ -712,9 +723,10 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "handover_test") {
-    RobotTaskPoseMap handover_rtpm = compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
-    RobotTaskPoseMap pick_rtpm =
-        compute_all_pick_and_place_positions(C, robots, attempt_all_grasp_directions);
+    RobotTaskPoseMap handover_rtpm =
+        compute_all_handover_poses(C, robots, attempt_all_grasp_directions);
+    RobotTaskPoseMap pick_rtpm = compute_all_pick_and_place_positions(
+        C, robots, attempt_all_grasp_directions);
 
     // merge both maps
     RobotTaskPoseMap rtpm;
@@ -740,8 +752,9 @@ int main(int argc, char **argv) {
   }
 
   // check validity of the environment
-  if (!check_scene_validity(C, robots)){
-    spdlog::warn("Scene is not feasible as is - use 'show_env' or 'show_env_at_home_pose' for visual inspection.");
+  if (check_scene_validity_flag && !check_scene_validity(C, robots)) {
+    spdlog::warn("Scene is not feasible as is - use 'show_env' or "
+                 "'show_env_at_home_pose' for visual inspection.");
     return 0;
   }
 
@@ -752,8 +765,9 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << "sequence_plan_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
-    RobotTaskPoseMap rtpm = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
+    RobotTaskPoseMap rtpm =
+        compute_keyframes(C, robots, use_picks, use_handovers,
+                          use_repeated_picks, attempt_all_grasp_directions);
 
     const auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -783,8 +797,9 @@ int main(int argc, char **argv) {
                     seq_num, duration);
 
         if (global_params.export_images) {
-          const std::string image_path = global_params.output_path + buffer.str() +
-                                        "/" + std::to_string(0) + "/img/";
+          const std::string image_path = global_params.output_path +
+                                         buffer.str() + "/" +
+                                         std::to_string(0) + "/img/";
           visualize_plan(C, plan.plan, global_params.allow_display, image_path);
         } else {
           visualize_plan(C, plan.plan, global_params.allow_display);
@@ -800,8 +815,9 @@ int main(int argc, char **argv) {
   }
 
   if (mode == "compute_keyframes") {
-    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
+    RobotTaskPoseMap robot_task_pose_mapping =
+        compute_keyframes(C, robots, use_picks, use_handovers,
+                          use_repeated_picks, attempt_all_grasp_directions);
     spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
     // TODO: export?
@@ -818,8 +834,9 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << "sequence_generation_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
 
-    RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-        C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
+    RobotTaskPoseMap robot_task_pose_mapping =
+        compute_keyframes(C, robots, use_picks, use_handovers,
+                          use_repeated_picks, attempt_all_grasp_directions);
 
     int num_tasks = 0;
     for (auto f : C.frames) {
@@ -868,8 +885,9 @@ int main(int argc, char **argv) {
   spdlog::info("Computing pick and place poses");
 
   // merge both maps
-  RobotTaskPoseMap robot_task_pose_mapping = compute_keyframes(
-      C, robots, use_picks, use_handovers, use_repeated_picks, attempt_all_grasp_directions);
+  RobotTaskPoseMap robot_task_pose_mapping =
+      compute_keyframes(C, robots, use_picks, use_handovers, use_repeated_picks,
+                        attempt_all_grasp_directions);
   spdlog::info("{} poses computed.", robot_task_pose_mapping.size());
 
   // initial test

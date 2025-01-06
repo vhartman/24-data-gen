@@ -264,6 +264,63 @@ std::string get_action_at_time_for_robot(const Plan &plan, const Robot &r,
   return "none";
 }
 
+arr get_frame_trajectories(rai::Configuration &C, const Plan &plan){
+  const double makespan = get_makespan_from_plan(plan);
+
+  arr framePath(makespan, C.frames.N, 7);
+  // we can not simly use the animations that are in the path
+  // since they do not contain all the frames.
+  // Thus, we hve to retrieve the correct part, find the right time, and then
+  // set the given configuration to this state.
+  // further, the obj handling is messy, and objs might initially be linked to a robot
+  std::unordered_map<std::string, arr> obj_poses;
+  for (uint t = 0; t < makespan; ++t) {
+    // set it to the pose in which the plan thinks it should be
+    // A.setToTime(C, t); // this does not work at all
+    for (const auto &tp : plan) {
+      const auto r = tp.first;
+      const auto parts = tp.second;
+      bool done = false;
+      for (const auto &part : parts) {
+        // std::cout <<part.t(0) << " " << part.t(-1) << std::endl;
+        if (part.t(0) > t || part.t(-1) < t) {
+          continue;
+        }
+        for (uint i = 0; i < part.t.N; ++i) {
+          if ((i == part.t.N - 1 && t == part.t(-1)) ||
+              (i < part.t.N - 1 && (part.t(i) <= t && part.t(i + 1) > t))) {
+            setActive(C, r);
+            C.setJointState(part.path[i]);
+            // std::cout <<part.path[i] << std::endl;
+            done = true;
+            // set bin picking things
+            const auto task_index = part.task_index;
+            const auto obj_name = STRING("obj" << task_index + 1);
+            if (part.anim.frameNames.contains(obj_name)) {
+              const auto pose =
+                  part.anim.X[uint(std::floor(t - part.anim.start))];
+              arr tmp(1, 7);
+              tmp[0] = pose[-1]; // the obj is always the last part of the pose
+              C.setFrameState(tmp, {C[obj_name]});
+              obj_poses[std::string(obj_name.p)] = tmp;
+            }
+            break;
+          }
+        }
+        if (done) {
+          for (const auto &obj_pose: obj_poses){
+            C.setFrameState(obj_pose.second, {C[STRING(obj_pose.first)]});
+          }
+          framePath[t] = C.getFrameState();
+          break;
+        }
+      }
+    }
+  }
+
+  return framePath;
+}
+
 void set_full_configuration_to_time(rai::Configuration &C, const Plan &plan,
                                     const uint time) {
   std::unordered_map<std::string, arr> obj_poses;
@@ -637,7 +694,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     std::vector<rai::String> frame_names;
     for (uint j = 0; j < robots.size(); ++j) {
       const rai::String ee_frame_name =
-          STRING("" << robots[j].prefix << "pen_tip");
+          STRING("" << robots[j].prefix << robots[j].ee_frame_name);
       frame_names.push_back(ee_frame_name);
     }
 
@@ -652,6 +709,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
     std::unordered_map<std::string, std::vector<arr>> frame_poses;
 
     const double makespan = get_makespan_from_plan(plan);
+    // TODO: this is the slow part for the export
     for (uint t = 0; t < A.getT(); ++t) {
       const auto poses = get_frame_pose_at_time(frame_names, plan, C, t);
       for (const auto &name_pose : poses) {
@@ -676,7 +734,7 @@ void export_plan(rai::Configuration C, const std::vector<Robot> &robots,
         step_data["joint_state"] = pose;
 
         spdlog::trace("ee at time {}", t);
-        const rai::String ee_frame_name = STRING("" << r.prefix << "pen_tip");
+        const rai::String ee_frame_name = STRING("" << r.prefix << r.ee_frame_name);
         const arr ee_pose = frame_poses[ee_frame_name.p][t]();
         step_data["ee_pos"] = ee_pose({0, 2});
         step_data["ee_quat"] = ee_pose({3, 6});
@@ -760,11 +818,7 @@ void visualize_plan(rai::Configuration &C, const Plan &plan,
 
   // rai::Animation A = make_animation_from_plan(plan);
 
-  arr framePath(makespan, C.frames.N, 7);
-  for (uint t = 0; t < makespan; ++t) {
-    set_full_configuration_to_time(C, plan, t);
-    framePath[t] = C.getFrameState();
-  }
+  const arr frame_path = get_frame_trajectories(C, plan);
 
   spdlog::debug("Finished assembling framepath.");
 
@@ -772,7 +826,7 @@ void visualize_plan(rai::Configuration &C, const Plan &plan,
   Vf.offscreen = !display;
 
   Vf.setConfiguration(C, "\"Real World\"", false);
-  Vf.setPath(framePath, NULL, false, false);
+  Vf.setPath(frame_path, NULL, false, false);
 
   Vf.drawFrameLines = false;
 

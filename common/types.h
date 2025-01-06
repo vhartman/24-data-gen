@@ -7,6 +7,14 @@
 enum class PrimitiveType { pick, handover, go_to, joint_pick, pick_pick_1, pick_pick_2};
 
 // enum class ActionType { none, pick, place, handover, go_to };
+// class Action{
+//   ActionType action_type;
+//   std::vector<std::string> discrete_parameters;
+
+//   std::vector<Robot> robots;
+//   std::string object;
+// 
+// };
 // class ActionSequence {
 //   // TODO: this doe currently not work, since we need a dependency graph to
 //   // represent the action sequence of multiple robots in one primitve
@@ -131,6 +139,8 @@ public:
   bool operator!=(const Robot &o) const { return !(*this == o); }
 
   std::string prefix;
+  std::string ee_frame_name{"pen_tip"};
+
   RobotType type;
   EndEffectorType ee_type;
 

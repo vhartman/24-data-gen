@@ -60,8 +60,8 @@ std::vector<arr> solve_subproblem(rai::Configuration &C, Robot r1, Robot r2,
   komo.add_jointLimits(true, 0., 1e1);
   komo.addSquaredQuaternionNorms();
 
-  const auto r1_pen_tip = STRING(r1 << "pen_tip");
-  const auto r2_pen_tip = STRING(r2 << "pen_tip");
+  const auto r1_pen_tip = STRING(r1 << r1.ee_frame_name);
+  const auto r2_pen_tip = STRING(r2 << r2.ee_frame_name);
 
   const double r1_z_rot = C[STRING(r1 << "base")]->get_X().rot.getEulerRPY()(2);
   const double r2_z_rot = C[STRING(r2 << "base")]->get_X().rot.getEulerRPY()(2);
@@ -367,8 +367,8 @@ public:
     komo.add_jointLimits(true, 0., 1e1);
     komo.addSquaredQuaternionNorms();
 
-    const auto r1_pen_tip = STRING(r1 << "pen_tip");
-    const auto r2_pen_tip = STRING(r2 << "pen_tip");
+    const auto r1_pen_tip = STRING(r1 << r1.ee_frame_name);
+    const auto r2_pen_tip = STRING(r2 << r1.ee_frame_name);
 
     const double r1_z_rot =
         C[STRING(r1 << "base")]->get_X().rot.getEulerRPY()(2);

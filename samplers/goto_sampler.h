@@ -55,7 +55,7 @@ public:
     komo.add_collision(true, .05, 1e1);
     komo.add_jointLimits(true, 0., 1e1);
 
-    const auto r1_pen_tip = STRING(r << "pen_tip");
+    const auto r1_pen_tip = STRING(r << r.ee_frame_name);
 
     const double r1_z_rot =
         C[STRING(r << "base")]->get_Q().rot.getEulerRPY()(2);
