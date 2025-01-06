@@ -400,6 +400,29 @@ void export_scene_at_keyframes(
   }
 }
 
+bool check_scene_validity(rai::Configuration C, const std::vector<Robot> &robots){
+  for (const auto &r: robots){
+    setActive(C, r);
+    ConfigurationProblem cp(C);
+
+    const bool is_current_pose_valid = cp.query({}, false)->isFeasible;
+    if (!is_current_pose_valid){
+      spdlog::info("The startpose of robot {} seems to be invalid", r.prefix);
+      return false;
+    }
+
+    const bool is_home_pose_valid = cp.query(r.home_pose, true)->isFeasible;
+    if (!is_home_pose_valid){
+      spdlog::info("The homepose of robot {} seems to be invalid", r.prefix);
+      return false;
+    }
+  }
+
+  // TODO: add a check for all the mode switches
+
+  return true;
+}
+
 // TODO:
 // - constrained motion planning
 
@@ -713,6 +736,12 @@ int main(int argc, char **argv) {
     export_plan(C, robots, home_poses, plan.plan, test_sequence_for_handover,
                 buffer.str(), 0, 0);
 
+    return 0;
+  }
+
+  // check validity of the environment
+  if (!check_scene_validity(C, robots)){
+    spdlog::warn("Scene is not feasible as is - use 'show_env' or 'show_env_at_home_pose' for visual inspection.");
     return 0;
   }
 
