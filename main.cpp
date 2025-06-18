@@ -7,6 +7,8 @@
 #include <chrono>
 #include <random>
 
+#include <zmq.h>
+
 #include <math.h>
 
 #include <KOMO/komo.h>
