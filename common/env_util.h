@@ -78,6 +78,10 @@ std::vector<Robot> make_robot_environment_from_json(
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_vacuum.g");
       ee = EndEffectorType::vacuum;
+      robot_type = RobotType::ur5;} 
+    else if (robot == "inflated_ur5_vacuum") {
+      a = C.addFile("./in/robots/inflated_ur5_vacuum.g");
+      ee = EndEffectorType::vacuum;
       robot_type = RobotType::ur5;
     } else if (robot == "ur5_vacuum") {
       a = C.addFile("./in/robots/ur5_pen.g");
@@ -143,10 +147,14 @@ std::vector<Robot> make_robot_environment_from_json(
 
     ConfigurationProblem cp(C);
     cp.activeOnly = true;
-    const auto feasible = cp.query({}, false)->isFeasible;
+    const auto res = cp.query({}, false);
+
+    const auto feasible = res->isFeasible;
 
     if (!feasible) {
-      spdlog::error("Seeting up configuration: Robot {} is in collision.", cnt);
+      spdlog::error("Setting up configuration: Robot {} is in collision.", cnt);
+      // res->write(std::cout);
+      res->writeDetails(std::cout, cp, 0);
     }
 
     robots.push_back(Robot(prefix.p, robot_type, vmax));

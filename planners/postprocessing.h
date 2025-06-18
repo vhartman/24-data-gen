@@ -294,7 +294,8 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   scaled_path = tmp;
 
   OptOptions options;
-  options.stopIters = 50;
+  // options.stopIters = 50;
+  options.stopIters = 10;
   options.damping = 10;
   // options.stopTolerance = 0.1;
   options.allowOverstep = false;
