@@ -441,6 +441,8 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   // TP.activeOnly = true;
 
   // Check if start q is feasible
+  std::cout << q0 << std::endl;
+  std::cout << t0 << std::endl;
   const auto start_res = TP.query(q0, t0);
   if (!start_res->isFeasible) {
     // TP.C.watch(true);
@@ -948,7 +950,8 @@ class PrioritizedTaskPlanner {
     // TODO: swap to std::map<Robot, uint> finishing_times;
     PlanStatus plan(rai::Configuration &C, const RobotTaskPair &rtp,
                     const uint prev_finishing_time, Plan &paths) {
-      rai::Animation tmp;
+      std::cout << "Statring plan()" << std::endl;
+                      rai::Animation tmp;
       TimedConfigurationProblem TP(C, tmp);
 
       const auto pairs = get_cant_collide_pairs(TP.C);
@@ -964,11 +967,15 @@ class PrioritizedTaskPlanner {
       //   CPlanner.setJointState(r.second);
       // }
 
+      std::cout << "collecting robot frames" << std::endl;
+
       std::unordered_map<Robot, FrameL> robot_frames;
       for (auto r : home_poses) {
         const auto robot = r.first;
         robot_frames[robot] = get_robot_frames(CPlanner, robot);
       }
+
+      std::cout << "primitive" << int(rtp.task.type) << std::endl;
 
       if (rtp.task.type == PrimitiveType::handover){
         // r1 [ pick ] [handover] [ exit ]
@@ -1539,6 +1546,7 @@ class PrioritizedTaskPlanner {
       else{
         // plan for current goal
         Robot robot = rtp.robots[0];
+        spdlog::info("Planning for robot {}", robot.prefix);
 
         uint lb_from_dependency = 0;
         if (rtp.task.type == PrimitiveType::pick_pick_1){
