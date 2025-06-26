@@ -228,6 +228,7 @@ std::map<std::string, std::vector<json>> serialize_plan(const Plan &paths) {
     std_paths[prefix] = {};
     for (auto tp : path) {
       const auto time = tp.t;
+      const auto type = tp.name;
       std::vector<double> std_time;
       for (const auto t : time) {
         std_time.push_back(t);
@@ -235,8 +236,8 @@ std::map<std::string, std::vector<json>> serialize_plan(const Plan &paths) {
 
       const auto single_robot_path = arr_path_to_std(tp.path);
 
-      const json path_segment = {{"path", single_robot_path},
-                                 {"time", std_time}};
+      const json path_segment = {
+          {"path", single_robot_path}, {"time", std_time}, {"type", type}};
       std_paths[prefix].push_back(path_segment);
     }
   }
@@ -310,6 +311,15 @@ void rt_loop() {
 
   auto status = RT_STATUS::NONE;
 
+  global_params.export_txt_files = true;
+
+  std::time_t t = std::time(nullptr);
+  std::tm tm = *std::localtime(&t);
+  std::stringstream buffer;
+  buffer << "rt_loop_" << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+  uint planning_cnt = 0;
+
   while (keep_running) {
     status = RT_STATUS::NONE;
 
@@ -329,22 +339,6 @@ void rt_loop() {
 
           set_base_pose(C, received_json, "a0_", "a0_base");
           set_base_pose(C, received_json, "a1_", "a1_base");
-
-          // const std::vector<double> r1_base_pose =
-          //     received_json["base_poses"]["a0_"].get<std::vector<double>>();
-          // C.getFrame("a0_base")->setRelativePosition(
-          //     {r1_base_pose[0], r1_base_pose[1], r1_base_pose[2]});
-          // C.getFrame("a0_base")->setRelativeQuaternion(
-          //     {r1_base_pose[3], r1_base_pose[4], r1_base_pose[5],
-          //      r1_base_pose[6]});
-
-          // const std::vector<double> r2_base_pose =
-          //     received_json["base_poses"]["a1_"].get<std::vector<double>>();
-          // C.getFrame("a1_base")->setRelativePosition(
-          //     {r2_base_pose[0], r2_base_pose[1], r2_base_pose[2]});
-          // C.getFrame("a1_base")->setRelativeQuaternion(
-          //     {r2_base_pose[3], r2_base_pose[4], r2_base_pose[5],
-          //      r2_base_pose[6]});
         }
 
         if (received_json.contains("objects")) {
@@ -353,32 +347,10 @@ void rt_loop() {
           for (auto &[key, value] : received_json["objects"].items()) {
             if (C.getFrame(key.c_str()) == 0) {
               std::cout << "adding objs" << std::endl;
-              add_object(C, key, value);
-              // const auto shape = value["size"].get<std::vector<double>>();
-              // auto *obj = C.addFrame(key.c_str(), "table");
-
-              // if (value.contains("marker") && value["marker"].get<bool>()) {
-              //   obj->setShape(rai::ST_marker, {0.3});
-              //   obj->setContact(0);
-              // } else {
-              //   obj->setShape(rai::ST_box,
-              //                 {shape[0], shape[1], shape[2], 0.01});
-              //   obj->setContact(-1);
-              // }
-
-              // obj->setJoint(rai::JT_rigid);
+              add_object(C, key, value);;
             }
 
             set_relative_pose(C, value, key);
-
-            // const std::vector<double> obj_pose =
-            //     value["pose"].get<std::vector<double>>();
-            // C.getFrame(key.c_str())
-            //     ->setRelativePosition({obj_pose[0], obj_pose[1],
-            //     obj_pose[2]});
-            // C.getFrame(key.c_str())
-            //     ->setRelativeQuaternion(
-            //         {obj_pose[3], obj_pose[4], obj_pose[5], obj_pose[6]});
 
             if (value.contains("parent")) {
               // TODO: attach to parent
@@ -395,25 +367,9 @@ void rt_loop() {
             if (C.getFrame(STRING(key)) == 0) {
               std::cout << "adding goal" << std::endl;
               add_goal(C, key, value);
-              // const auto shape = value["size"].get<std::vector<double>>();
-              // auto *obj = C.addFrame(STRING(key), "table");
-
-              // obj->setShape(rai::ST_box, {shape[0], shape[1], shape[2], 0.01});
-              // obj->setContact(0);
-              // obj->setColor({1, 0, 0, 0.5});
             }
 
             set_relative_pose(C, value, key);
-
-            // const std::vector<double> goal_pose =
-            //     value["pose"].get<std::vector<double>>();
-            // C.getFrame(STRING(key))
-            //     ->setRelativePosition(
-            //         {goal_pose[0], goal_pose[1], goal_pose[2]});
-            // C.getFrame(STRING(key))
-            //     ->setRelativeQuaternion(
-            //         {goal_pose[3], goal_pose[4], goal_pose[5],
-            //         goal_pose[6]});
           }
         }
 
@@ -433,6 +389,12 @@ void rt_loop() {
             const arr joint_state = std_to_arr(joint_state_vector);
             C.setJointState(joint_state, r1_frames);
           }
+        }
+
+        if (received_json.contains("mode_switches")){
+          global_params.apply_mode_switch_durations = received_json["mode_switches"]["apply"].get<bool>();
+          global_params.mode_switch_duration_lb = received_json["mode_switches"]["lb"].get<int>();
+          global_params.mode_switch_duration_ub = received_json["mode_switches"]["ub"].get<int>();
         }
 
         if (received_json.contains("compute_keyframes")) {
@@ -478,6 +440,9 @@ void rt_loop() {
     if (status == RT_STATUS::KEYFRAMES) {
 
     } else if (status == RT_STATUS::PATH) {
+      const auto planning_start_time =
+          std::chrono::high_resolution_clock::now();
+
       std::cout << "Running planner" << std::endl;
       // compute plan:
       // requires
@@ -512,6 +477,12 @@ void rt_loop() {
           plan_multiple_arms_given_sequence(C, rtpm, seq, home_poses);
 
       std::cout << "Done planning" << std::endl;
+      const auto planning_end_time = std::chrono::high_resolution_clock::now();
+      const auto planning_duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(
+              planning_end_time - planning_start_time)
+              .count();
+      std::cout << "Took " << planning_duration / 1e6 << " s" << std::endl;
 
       const auto paths = plan_result.plan;
       // map[str, std::vector<path>]
@@ -542,6 +513,10 @@ void rt_loop() {
       const std::string message = json_msg.dump();
       zmq::message_t zmq_message(message.begin(), message.end());
       publisher.send(zmq_message, zmq::send_flags::none);
+
+      export_plan(C, {r0, r1}, home_poses, plan_result.plan, seq, buffer.str(), planning_cnt, planning_duration);
+
+      planning_cnt++;
     }
 
     ctx.poses.clear();

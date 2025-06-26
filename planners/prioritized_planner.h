@@ -802,8 +802,8 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
   // add waiting times for grabbing
   // TODO: sample from actual ststistical model
   // TODO: should be a policy that does the final movement
-  if (global_params.randomize_mod_switch_durations && !exit_path && rrt_path.t.d0 > 0){
-    run_waiting_policy(rrt_path);
+  if (global_params.apply_mode_switch_durations && !exit_path && rrt_path.t.d0 > 0){
+    run_waiting_policy(rrt_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
   }
 
   // TP.C.fcl()->stopEarly = false;
@@ -879,6 +879,10 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
         }
       }
     }
+  }
+
+  if (global_params.apply_mode_switch_durations && !exit_path && komo_path.t.d0 > 0){
+    run_waiting_policy(komo_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
   }
 
   const auto komo_end_time = std::chrono::high_resolution_clock::now();

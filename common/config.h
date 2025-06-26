@@ -11,7 +11,9 @@ namespace manip{
 
     std::string output_path = "./out/";
 
-    bool randomize_mod_switch_durations = false;
+    bool apply_mode_switch_durations = false;
+    uint mode_switch_duration_lb = 5;
+    uint mode_switch_duration_ub = 15;
   };
 };
 
