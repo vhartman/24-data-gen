@@ -95,6 +95,9 @@ std::vector<std::vector<double>> arr_path_to_std(arr path) {
 struct RTContext {
   std::vector<std::tuple<std::string, unsigned int, int>> sequence;
   std::map<int, std::vector<arr>> poses;
+  std::map<std::string, arr> start_pose;
+  
+  std::map<std::string, arr> start_velocity;
 
   std::map<std::string, Robot> robots;
 
@@ -278,8 +281,8 @@ void rt_loop() {
   r0.ee_type = EndEffectorType::vacuum;
 
   r1.home_pose = home_pose;
-  r1.ee_type = EndEffectorType::vacuum;
   r1.start_pose = home_pose;
+  r1.ee_type = EndEffectorType::vacuum;
 
   ctx.robots["a0_"] = r0;
   ctx.robots["a1_"] = r1;
@@ -412,7 +415,7 @@ void rt_loop() {
             ctx.sequence = sequence;
           }
           if (received_json.contains("poses")) {
-            std::cout << "parsign poses" << std::endl;
+            std::cout << "parsing poses" << std::endl;
             // ensure that it is there
             const auto poses = parse_poses(received_json);
 
@@ -427,14 +430,53 @@ void rt_loop() {
               ctx.poses[key] = std::move(arr_list);
             }
           }
+
+          if (received_json.contains("start_pose")) {
+            std::cout << "robot_states" << std::endl;
+
+            {
+              const std::vector<double> joint_state_vector =
+                  received_json["start_pose"]["a0_"].get<std::vector<double>>();
+              const arr joint_state = std_to_arr(joint_state_vector);
+              ctx.start_pose["a0_"] = joint_state;
+            }
+
+            {
+              const std::vector<double> joint_state_vector =
+                  received_json["start_pose"]["a1_"].get<std::vector<double>>();
+              const arr joint_state = std_to_arr(joint_state_vector);
+              ctx.start_pose["a1_"] = joint_state;
+            }
+          }
+
+          if (received_json.contains("start_velocity")) {
+            std::cout << "velocities" << std::endl;
+
+            {
+              const std::vector<double> joint_state_vector =
+                  received_json["start_velocity"]["a0_"].get<std::vector<double>>();
+              const arr vel = std_to_arr(joint_state_vector);
+              ctx.start_velocity["a0_"] = vel;
+            }
+
+            {
+              const std::vector<double> joint_state_vector =
+                  received_json["start_velocity"]["a1_"].get<std::vector<double>>();
+              const arr vel = std_to_arr(joint_state_vector);
+              ctx.start_velocity["a1_"] = vel;
+            }
+
+            global_params.initial_velocity = ctx.start_velocity;
+          }
+          else{
+            ctx.start_velocity.clear();
+          }
         }
       } catch (const std::exception &e) {
         std::cerr << "Error parsing JSON: " << e.what() << "\n";
         return;
       }
     }
-
-    C.watch(false);
 
     // do stuff depending on what we received
     if (status == RT_STATUS::KEYFRAMES) {
@@ -448,18 +490,35 @@ void rt_loop() {
       // requires
       // - a sequence
       // - poses
-      const auto r0_start_pose = C.getJointState(r0_frames);
-      const auto r1_start_pose = C.getJointState(r1_frames);
+      if (ctx.start_pose.size() == 0){
+        const auto r0_start_pose = C.getJointState(r0_frames);
+        const auto r1_start_pose = C.getJointState(r1_frames);
 
-      ctx.robots["a0_"].start_pose = r0_start_pose;
-      ctx.robots["a1_"].start_pose = r1_start_pose;
+        ctx.robots["a0_"].start_pose = r0_start_pose;
+        ctx.robots["a1_"].start_pose = r1_start_pose;
+      }
+      else{
+        ctx.robots["a0_"].start_pose = ctx.start_pose["a0_"];
+        ctx.robots["a1_"].start_pose = ctx.start_pose["a1_"];
+      }
 
       // we need to do this because I made too many bad choices wehen setting
       // this up
-      // TODO: set this to the starting pose
       home_poses.clear();
       home_poses[ctx.robots["a0_"]] = home_pose;
       home_poses[ctx.robots["a1_"]] = home_pose;
+
+      // adjust the height of the table collision.
+      // TODO: test
+      // for (uint i=0; i<20; ++i){
+      //   C.getFrame("table_coll")->setPosition({0, 0, 0.5 + i*0.01});
+      //   ConfigurationProblem cp(C);
+      //   if (!cp.query({}, false)->isFeasible){
+      //     std::cout << "infeasible" << std::endl;
+      //     C.getFrame("table_coll")->setPosition({0, 0, 0.5 + i*0.01-0.01});
+      //     break;
+      //   }
+      // }
 
       // std::cout << r0.start_pose << std::endl;
       // std::cout << r1.start_pose << std::endl;
@@ -488,27 +547,9 @@ void rt_loop() {
       // map[str, std::vector<path>]
       const std::map<std::string, std::vector<json>> std_paths =
           serialize_plan(paths);
-      // for (auto [robot, path] : paths) {
-      //   // std::vector<>
-      //   const auto prefix = robot.prefix;
-      //   std_paths[prefix] = {};
-      //   for (auto tp : path) {
-      //     const auto time = tp.t;
-      //     std::vector<double> std_time;
-      //     for (const auto t : time) {
-      //       std_time.push_back(t);
-      //     }
-
-      //     const auto single_robot_path = arr_path_to_std(tp.path);
-
-      //     const json path_segment = {{"path", single_robot_path},
-      //                                {"time", std_time}};
-      //     std_paths[prefix].push_back(path_segment);
-      //   }
-      // }
 
       // send stuff back
-      const json json_msg = {{"path_segments", std_paths}};
+      const json json_msg = {{"path_segments", std_paths}, {"success", plan_result.status == PlanStatus::success}};
 
       const std::string message = json_msg.dump();
       zmq::message_t zmq_message(message.begin(), message.end());
@@ -518,6 +559,8 @@ void rt_loop() {
 
       planning_cnt++;
     }
+
+    C.watch(false);
 
     ctx.poses.clear();
     ctx.sequence.clear();

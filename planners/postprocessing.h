@@ -243,12 +243,12 @@ arr partial_spacetime_shortcut(TimedConfigurationProblem &TP, const arr &initial
 // this currently happens in full resolution, this tends to be slow
 // mostly due to the necessary collision checks that are done
 arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
-              const arr &path, const std::string prefix) {
+              const arr &path, const std::string prefix, const arr v0 = {}) {
   if (A.prePlannedFrames.N != 0) {
     return path;
   }
 
-  const double skip = 1;
+  const double skip = 2;
   const uint num_timesteps = ts.N / skip;
 
   arr scaled_ts(num_timesteps);
@@ -319,7 +319,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   // auto komo_pairs = get_cant_collide_pairs(komo.world);
   // komo.world.fcl()->deactivatePairs(komo_pairs);
 
-  komo.verbose = 0;
+  komo.verbose = 5;
   komo.solver = rai::KS_sparse;
 
   komo.add_collision(true, 0.1, 1e2);
@@ -337,7 +337,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.setConfiguration(0, scaled_path[0]);
 
   // make pen tip go a way from the table
-  const double offset = 0.1;
+  const double offset = 0.15;
   komo.addObjective({0.2, 0.8}, FS_distance,
                     {"table", STRING(prefix << "pen_tip")}, OT_ineq, {1e0},
                     {-offset});
@@ -351,7 +351,7 @@ arr smoothing(const rai::Animation &A, rai::Configuration &C, const arr &ts,
   komo.addObjective({0., 0.}, FS_qItself, {}, OT_eq, {1e2}, scaled_path[0]);
 
   // speed
-  komo.addObjective({0.0, 0.00}, FS_qItself, {}, OT_eq, {1e0}, {},
+  komo.addObjective({0.0, 0.00}, FS_qItself, {}, OT_eq, {1e0}, v0,
                    1); // slow at beginning
   komo.addObjective({1., 1.}, FS_qItself, {}, OT_eq, {1e0}, {},
                     1); // slow at end

@@ -14,6 +14,8 @@ namespace manip{
     bool apply_mode_switch_durations = false;
     uint mode_switch_duration_lb = 5;
     uint mode_switch_duration_ub = 15;
+
+    std::map<std::string, arr> initial_velocity;
   };
 };
 

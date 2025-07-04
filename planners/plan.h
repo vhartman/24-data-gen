@@ -445,15 +445,18 @@ json make_scene_data(rai::Configuration C, const std::vector<Robot> &robots) {
     obj_data["start"]["parent"] = start_frame->parent->name;
 
     rai::String goal_frame_name = STRING("goal" << i + 1);
-    const auto goal_frame = C[goal_frame_name];
 
-    obj_data["goal"]["pos"] = goal_frame->getRelativePosition();
-    obj_data["goal"]["quat"] = goal_frame->getRelativeQuaternion();
+    if (C.getFrame(goal_frame_name)){
+      const auto goal_frame = C[goal_frame_name];
 
-    const arr abs_goal_pose = C[goal_frame_name]->getPose();
-    obj_data["goal"]["abs_pos"] = abs_goal_pose({0, 2});
-    obj_data["goal"]["abs_quat"] = abs_goal_pose({3, 6});
-    obj_data["goal"]["parent"] = goal_frame->parent->name;
+      obj_data["goal"]["pos"] = goal_frame->getRelativePosition();
+      obj_data["goal"]["quat"] = goal_frame->getRelativeQuaternion();
+
+      const arr abs_goal_pose = C[goal_frame_name]->getPose();
+      obj_data["goal"]["abs_pos"] = abs_goal_pose({0, 2});
+      obj_data["goal"]["abs_quat"] = abs_goal_pose({3, 6});
+      obj_data["goal"]["parent"] = goal_frame->parent->name;
+    }
 
     all_obj_data[obj_names[i].p] = obj_data;
   }

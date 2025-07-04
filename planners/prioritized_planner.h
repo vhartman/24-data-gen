@@ -433,7 +433,7 @@ TaskPart plan_in_animation_komo(TimedConfigurationProblem &TP,
 TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
                                const uint t0, const arr &q0, const arr &q1,
                                const uint time_lb, const Robot prefix,
-                               int time_ub_prev_found = -1) {
+                               int time_ub_prev_found = -1, const bool set_init_vel = false) {
   // TimedConfigurationProblem TP(C, A);
   // deleteUnnecessaryFrames(TP.C);
   // const auto pairs = get_cant_collide_pairs(TP.C);
@@ -691,7 +691,11 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
   arr smooth_path = new_path * 1.;
   if (should_smooth){
     spdlog::info("Running smoother");
-    smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix);
+    arr v0 = {};
+    if (set_init_vel && global_params.initial_velocity.count(prefix.prefix) > 0){
+      v0 = global_params.initial_velocity[prefix.prefix];
+    }
+    smooth_path = smoothing(TP.A, TP.C, t, new_path, prefix.prefix, v0);
     
     if (smooth_path.N == 0){
       spdlog::info("Smoothing failed.");
@@ -754,13 +758,13 @@ TaskPart plan_in_animation_rrt(TimedConfigurationProblem &TP,
 
 // policy should have other inputs:
 // policy(start_pos, end_pos, robot, mode)
-void run_waiting_policy(TaskPart &path, const uint lower = 5, const uint upper = 15){
+void waiting_policy(TaskPart &path, const uint lower = 5, const uint upper = 15){
   // TODO: fix distribution
-  const uint wait_time = rand() % (upper - lower) + lower;
-    for (uint i=0; i<wait_time; ++i){
-      path.path.append(path.path[-1]);
-      path.t.append(path.t(-1) + 1);
-    }
+  const uint wait_time = (lower != upper) ? rand() % (upper - lower) + lower: lower;
+  for (uint i=0; i<wait_time; ++i){
+    path.path.append(path.path[-1]);
+    path.t.append(path.t(-1) + 1);
+  }
 }
 
 // TODO:
@@ -778,7 +782,7 @@ TaskPart plan_in_animation_constrained(){
 TaskPart plan_in_animation(TimedConfigurationProblem &TP,
                            const uint t0, const arr &q0, const arr &q1,
                            const uint time_lb, const Robot r,
-                           const bool exit_path) {
+                           const bool run_waiting_policy, const bool use_initial_velocity = false) {
   const auto start_time = std::chrono::high_resolution_clock::now();
 
   // rai::Configuration CPlan = C;
@@ -796,14 +800,14 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
   // run rrt
   // TP.C.fcl()->stopEarly = false;
 
-  TaskPart rrt_path = plan_in_animation_rrt(TP, t0, q0, q1, time_lb, r);
+  TaskPart rrt_path = plan_in_animation_rrt(TP, t0, q0, q1, time_lb, r, -1, use_initial_velocity);
   rrt_path.algorithm = "rrt";
 
   // add waiting times for grabbing
   // TODO: sample from actual ststistical model
   // TODO: should be a policy that does the final movement
-  if (global_params.apply_mode_switch_durations && !exit_path && rrt_path.t.d0 > 0){
-    run_waiting_policy(rrt_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
+  if (global_params.apply_mode_switch_durations && run_waiting_policy && rrt_path.t.d0 > 0){
+    waiting_policy(rrt_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
   }
 
   // TP.C.fcl()->stopEarly = false;
@@ -881,8 +885,8 @@ TaskPart plan_in_animation(TimedConfigurationProblem &TP,
     }
   }
 
-  if (global_params.apply_mode_switch_durations && !exit_path && komo_path.t.d0 > 0){
-    run_waiting_policy(komo_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
+  if (global_params.apply_mode_switch_durations && run_waiting_policy && komo_path.t.d0 > 0){
+    waiting_policy(komo_path, global_params.mode_switch_duration_lb, global_params.mode_switch_duration_ub);
   }
 
   const auto komo_end_time = std::chrono::high_resolution_clock::now();
@@ -1053,7 +1057,7 @@ class PrioritizedTaskPlanner {
           spdlog::info("Picking start time {}", pick_start_time);
 
           auto path = plan_in_animation(TP, pick_start_time, pick_start_pose, pick_pose,
-                                        0, r1, false);
+                                        0, r1, true);
 
           if (path.has_solution) {
             if (false) {
@@ -1253,7 +1257,7 @@ class PrioritizedTaskPlanner {
           // std::cout << TP.C.getJointState() << std::endl;
           
           auto path = plan_in_animation(TP, start_time, handover_start_pose, handover_pose,
-                                        t_lb, r1, false);
+                                        t_lb, r1, true);
 
           if (path.has_solution) {
             if (false) {
@@ -1409,7 +1413,7 @@ class PrioritizedTaskPlanner {
 
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                home_poses.at(r1), exit_start_time, r1, true);
+                                home_poses.at(r1), exit_start_time, r1, false);
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
@@ -1442,7 +1446,7 @@ class PrioritizedTaskPlanner {
 
           auto path =
               plan_in_animation(TP, start_time, start_pose,
-                                rtpm[rtp][0][2], start_time, r2, false);
+                                rtpm[rtp][0][2], start_time, r2, true);
 
           if (path.has_solution) {
             if (false) {
@@ -1509,7 +1513,7 @@ class PrioritizedTaskPlanner {
 
           auto exit_path =
               plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                                home_poses.at(r2), exit_start_time, r1, true);
+                                home_poses.at(r2), exit_start_time, r1, false);
 
           if (exit_path.has_solution) {
             const auto exit_anim_part = make_animation_part(
@@ -1663,8 +1667,13 @@ class PrioritizedTaskPlanner {
           // TP.C.setJointState(goal_pose);
           // TP.C.watch(true);
 
+          bool set_v0 = false;
+          if (paths[robot].size() == 0){
+            set_v0 = true;
+          }
+
           auto path = plan_in_animation(TP, start_time, start_pose, goal_pose,
-                                        time_lb, robot, false);
+                                        time_lb, robot, true, set_v0);
 
           path.r = robot;
           path.task_index = task;
@@ -1779,7 +1788,7 @@ class PrioritizedTaskPlanner {
 
         auto exit_path =
             plan_in_animation(TP, exit_start_time, exit_path_start_pose,
-                              home_poses.at(robot), exit_start_time, robot, true);
+                              home_poses.at(robot), exit_start_time, robot, false);
         exit_path.r = robot;
         exit_path.task_index = task;
         exit_path.is_exit = true;
@@ -1926,7 +1935,7 @@ PlanResult plan_multiple_arms_given_subsequence_and_prev_plan(
 
     auto exit_path =
         plan_in_animation(TP, p.second, start_pose,
-                          home_poses.at(robot), p.second + 5, robot, true);
+                          home_poses.at(robot), p.second + 5, robot, false);
     exit_path.r = robot;
     exit_path.task_index = task_index;
     exit_path.is_exit = true;
