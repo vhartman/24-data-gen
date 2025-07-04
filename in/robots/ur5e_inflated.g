@@ -10,13 +10,13 @@ coll3(shoulder_lift_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.35 .07] 
 
 coll4(elbow_joint_origin)   { shape:capsule color:[1.,1.,1.,.5] size:[.16 .08] Q:<t(-.0 .0 .02) d(0 0 1 0)>, contact:-1  }
 
-coll5(elbow_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.37 .07] Q:<t(-.0 .2 -.07) d(90 90 1 0)>, contact:-2  }
+coll5(elbow_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.37 .07] Q:<t(-.0 .2 -.08) d(90 90 1 0)>, contact:-2  }
 
 coll6(wrist_1_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.1 .05] Q:<t(-.0 -.0 -.02) d(0 90 1 0)>, contact:-2  }
 
-coll7(wrist_2_joint)   { shape:capsule color:[1.,1.,1.,0.5] size:[.12 .07] Q:<t(-.0 -.01 .0) d(90 90 1 0)>, contact:-2  }
+coll7(wrist_2_joint)   { shape:capsule color:[1.,1.,1.,0.5] size:[.12 .07] Q:<t(-.01 -.0 .0) d(90 90 1 0)>, contact:-2  }
 
-coll8(wrist_3_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.1 .06] Q:<t(-.0 .0 -.02) d(0 0 1 0)>, contact:-2  }
+coll8(wrist_3_joint)   { shape:capsule color:[1.,1.,1.,.5] size:[.13 .06] Q:<t(-.0 .0 -.02) d(0 0 1 0)>, contact:-2  }
 
 #Edit shoulder_pan_joint {q:-3.1415}
 Edit shoulder_lift_joint {q:.5}
